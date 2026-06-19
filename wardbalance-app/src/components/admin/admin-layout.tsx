@@ -75,7 +75,6 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
           <AdminNav
             userRole={session.role}
             schoolStatus={schoolStatus}
-            schoolName={school?.name ?? session.schoolName}
           />
 
           {/* User Footer Profile */}

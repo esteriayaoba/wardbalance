@@ -13,7 +13,7 @@ export default function MarketingFooter() {
         <div className="grid md:grid-cols-4 gap-8 md:gap-12 mb-12">
           {/* Brand Col */}
           <div className="md:col-span-2 space-y-4">
-            <a href="/" className="flex items-center gap-2.5 inline-block">
+            <Link href="/" className="flex items-center gap-2.5 inline-block">
               <Image
                 src="/logo.png"
                 alt="WardBalance logo"
@@ -25,7 +25,7 @@ export default function MarketingFooter() {
                 Ward
                 <span className="text-primary">Balance</span>
               </span>
-            </a>
+            </Link>
             <p className="text-body-medium max-w-xs text-on-surface-variant">
               The financial operating system built for Nigerian private schools.
               Replacing WhatsApp receipts and Excel with structured clarity.

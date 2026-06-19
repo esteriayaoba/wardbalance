@@ -1,8 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Plus, Upload, Link2, AlertTriangle, Check, AlertCircle, Sparkles, Search, UserCheck } from "lucide-react";
+import { Loader2, Plus, Upload, Link2, AlertTriangle, Check, AlertCircle, Search, UserCheck } from "lucide-react";
 import ImportWizard from "@/components/admin/shared/import-wizard";
+import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
+import Input from "@/components/admin/shared/input";
+import Select from "@/components/admin/shared/select";
 
 interface ParentLink {
   id: string;
@@ -72,6 +75,7 @@ export default function StudentsPage() {
   const [showAddDrawer, setShowAddDrawer] = useState(false);
   const [showImportWizard, setShowImportWizard] = useState(false);
   const [linkingStudent, setLinkingStudent] = useState<Student | null>(null);
+  const [linkToRemove, setLinkToRemove] = useState<string | null>(null);
 
   // Forms manual add student
   const [firstName, setFirstName] = useState("");
@@ -148,8 +152,8 @@ export default function StudentsPage() {
       setDateOfBirth("");
       setShowAddDrawer(false);
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setActionLoading(false);
     }
@@ -185,22 +189,26 @@ export default function StudentsPage() {
       setReceivesInvoiceNotifications(true);
       setLinkingStudent(null);
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleRemoveLink = async (linkId: string) => {
-    if (!confirm("Are you sure you want to break this parent-ward link?")) return;
+  const handleRemoveLink = (linkId: string) => {
+    setLinkToRemove(linkId);
+  };
+
+  const confirmRemoveLink = async () => {
+    if (!linkToRemove) return;
 
     setActionLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const res = await fetch(`/api/admin/parents/link?id=${linkId}`, {
+      const res = await fetch(`/api/admin/parents/link?id=${linkToRemove}`, {
         method: "DELETE",
       });
       const body = await res.json();
@@ -208,10 +216,11 @@ export default function StudentsPage() {
 
       setSuccess("Parent unlinked successfully.");
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setActionLoading(false);
+      setLinkToRemove(null);
     }
   };
 
@@ -322,7 +331,7 @@ export default function StudentsPage() {
       {/* Parent-Ward Link Dialog Popup */}
       {linkingStudent && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl border border-neutral-200 w-full max-w-lg overflow-hidden shadow-xl">
+          <div className="bg-white rounded-xl border border-neutral-200 w-full max-w-lg overflow-hidden shadow-xl z-10">
             <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
               <div>
                 <h3 className="text-title-small text-neutral-900 font-bold">
@@ -382,40 +391,34 @@ export default function StudentsPage() {
                 <h4 className="text-label-medium text-neutral-950 font-bold block">Link a Parent profile</h4>
                 
                 {/* Select Parent */}
-                <div className="space-y-1.5">
-                  <label className="text-label-medium text-neutral-700 block">Select Parent *</label>
-                  <select
-                    required
-                    value={selectedParentId}
-                    onChange={(e) => setSelectedParentId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:outline-none"
-                  >
-                    <option value="">Choose parent...</option>
-                    {parents.map((p) => (
-                      <option key={p.id} value={p.id}>
-                        {p.lastName}, {p.firstName} ({p.phone})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  required
+                  label="Select Parent *"
+                  value={selectedParentId}
+                  onChange={(e) => setSelectedParentId(e.target.value)}
+                >
+                  <option value="">Choose parent...</option>
+                  {parents.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.lastName}, {p.firstName} ({p.phone})
+                    </option>
+                  ))}
+                </Select>
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Relation Type */}
-                  <div className="space-y-1.5">
-                    <label className="text-label-medium text-neutral-700 block">Relationship Type *</label>
-                    <select
-                      required
-                      value={relationshipType}
-                      onChange={(e) => setRelationshipType(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:outline-none"
-                    >
-                      <option value="Father">Father</option>
-                      <option value="Mother">Mother</option>
-                      <option value="Guardian">Guardian</option>
-                      <option value="Sponsor">Sponsor</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
+                  <Select
+                    required
+                    label="Relationship Type *"
+                    value={relationshipType}
+                    onChange={(e) => setRelationshipType(e.target.value)}
+                  >
+                    <option value="Father">Father</option>
+                    <option value="Mother">Mother</option>
+                    <option value="Guardian">Guardian</option>
+                    <option value="Sponsor">Sponsor</option>
+                    <option value="Other">Other</option>
+                  </Select>
 
                   {/* Primary & Notifications Flags */}
                   <div className="space-y-3 pt-6">
@@ -478,108 +481,87 @@ export default function StudentsPage() {
               <form onSubmit={handleManualAdd} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   {/* First Name */}
-                  <div className="space-y-1.5">
-                    <label className="text-label-medium text-neutral-700 block">First Name *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. David"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
-                    />
-                  </div>
-                  {/* Last Name */}
-                  <div className="space-y-1.5">
-                    <label className="text-label-medium text-neutral-700 block">Last Name *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. Johnson"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Admission Number */}
-                <div className="space-y-1.5">
-                  <label className="text-label-medium text-neutral-700 block">Admission Number *</label>
-                  <input
+                  <Input
                     type="text"
                     required
-                    placeholder="e.g. ADM-0234"
-                    value={admissionNumber}
-                    onChange={(e) => setAdmissionNumber(e.target.value)}
-                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
+                    label="First Name *"
+                    placeholder="e.g. David"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                  />
+                  {/* Last Name */}
+                  <Input
+                    type="text"
+                    required
+                    label="Last Name *"
+                    placeholder="e.g. Johnson"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
                   />
                 </div>
 
+                {/* Admission Number */}
+                <Input
+                  type="text"
+                  required
+                  label="Admission Number *"
+                  placeholder="e.g. ADM-0234"
+                  value={admissionNumber}
+                  onChange={(e) => setAdmissionNumber(e.target.value)}
+                />
+
                 {/* Select Class Level */}
-                <div className="space-y-1.5">
-                  <label className="text-label-medium text-neutral-700 block">Class Level *</label>
-                  <select
-                    required
-                    value={classLevelId}
-                    onChange={(e) => {
-                      setClassLevelId(e.target.value);
-                      setClassArmId("");
-                    }}
-                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none"
-                  >
-                    <option value="">Choose class level...</option>
-                    {flatClassLevels.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  required
+                  label="Class Level *"
+                  value={classLevelId}
+                  onChange={(e) => {
+                    setClassLevelId(e.target.value);
+                    setClassArmId("");
+                  }}
+                >
+                  <option value="">Choose class level...</option>
+                  {flatClassLevels.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name}
+                    </option>
+                  ))}
+                </Select>
 
                 {/* Select Class Arm */}
-                <div className="space-y-1.5">
-                  <label className="text-label-medium text-neutral-700 block">Class Arm *</label>
-                  <select
-                    required
-                    disabled={!classLevelId}
-                    value={classArmId}
-                    onChange={(e) => setClassArmId(e.target.value)}
-                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none disabled:opacity-50"
-                  >
-                    <option value="">Choose class arm...</option>
-                    {formAvailableArms.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {a.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  required
+                  disabled={!classLevelId}
+                  label="Class Arm *"
+                  value={classArmId}
+                  onChange={(e) => setClassArmId(e.target.value)}
+                >
+                  <option value="">Choose class arm...</option>
+                  {formAvailableArms.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </Select>
 
                 <div className="grid grid-cols-2 gap-4">
                   {/* Gender */}
-                  <div className="space-y-1.5">
-                    <label className="text-label-medium text-neutral-700 block">Gender</label>
-                    <select
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value)}
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none"
-                    >
-                      <option value="">Select gender...</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                    </select>
-                  </div>
+                  <Select
+                    label="Gender"
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                  >
+                    <option value="">Select gender...</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </Select>
                   {/* DOB */}
-                  <div className="space-y-1.5">
-                    <label className="text-label-medium text-neutral-700 block">Date of Birth</label>
-                    <input
-                      type="date"
-                      value={dateOfBirth}
-                      onChange={(e) => setDateOfBirth(e.target.value)}
-                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
-                    />
-                  </div>
+                  <Input
+                    type="date"
+                    label="Date of Birth"
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
+                  />
                 </div>
 
                 <button
@@ -600,24 +582,24 @@ export default function StudentsPage() {
       <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-80">
           <Search className="absolute w-4 h-4 text-neutral-400 left-3 top-3" />
-          <input
+          <Input
             type="text"
             placeholder="Search by name, admission no..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
+            className="pl-9"
           />
         </div>
 
-        <div className="flex gap-3 w-full md:w-auto">
+        <div className="flex gap-3 w-full md:w-auto items-center">
           {/* Level Filter */}
-          <select
+          <Select
             value={filterLevelId}
             onChange={(e) => {
               setFilterLevelId(e.target.value);
               setFilterArmId("");
             }}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none shrink-0"
+            className="shrink-0"
           >
             <option value="">All Class Levels</option>
             {flatClassLevels.map((l) => (
@@ -625,14 +607,14 @@ export default function StudentsPage() {
                 {l.name}
               </option>
             ))}
-          </select>
+          </Select>
 
           {/* Arm Filter */}
-          <select
+          <Select
             value={filterArmId}
             disabled={!filterLevelId}
             onChange={(e) => setFilterArmId(e.target.value)}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none shrink-0 disabled:opacity-50"
+            className="shrink-0"
           >
             <option value="">All Arms</option>
             {flatClassArms
@@ -642,7 +624,7 @@ export default function StudentsPage() {
                   {a.name}
                 </option>
               ))}
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -717,6 +699,17 @@ export default function StudentsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Confirmation Dialog for breaking links */}
+      <ConfirmationDialog
+        isOpen={linkToRemove !== null}
+        onClose={() => setLinkToRemove(null)}
+        onConfirm={confirmRemoveLink}
+        title="Break Parent-Ward Link"
+        description="Are you sure you want to break this parent-ward link? The student will no longer be associated with this parent, and parent invoice alerts will stop."
+        variant="destructive"
+        isLoading={actionLoading}
+      />
     </div>
   );
 }

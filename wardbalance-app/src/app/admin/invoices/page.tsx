@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, AlertCircle, CheckCircle, Search, FileText, Calendar, Trash2, Tag, Percent, Receipt, AlertTriangle } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import Input from "@/components/admin/shared/input";
+import Select from "@/components/admin/shared/select";
+import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
 
 interface Student {
   firstName: string;
@@ -113,6 +116,9 @@ export default function InvoicesPage() {
   // Alerts
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Deletion State
+  const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
 
   const loadData = () => {
     setLoading(true);
@@ -255,7 +261,6 @@ export default function InvoicesPage() {
 
   // Delete invoice
   const handleDeleteInvoice = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this invoice? This cannot be undone.")) return;
     setActionLoading(true);
     setError(null);
 
@@ -435,58 +440,64 @@ export default function InvoicesPage() {
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm flex flex-col lg:flex-row gap-4 items-center justify-between">
         <div className="relative w-full lg:w-80">
-          <Search className="absolute w-4 h-4 text-neutral-400 left-3 top-3" />
-          <input
+          <Search className="absolute w-4 h-4 text-neutral-400 left-3 top-3.5 z-10" />
+          <Input
             type="text"
             placeholder="Search student or admission no..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
+            className="pl-9"
           />
         </div>
 
         <div className="flex flex-wrap gap-3 w-full lg:w-auto">
           {/* Term Filter */}
-          <select
-            value={filterTermId}
-            onChange={(e) => setFilterTermId(e.target.value)}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none shrink-0"
-          >
-            <option value="">All Terms</option>
-            {terms.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.session.name} — {t.name}
-              </option>
-            ))}
-          </select>
+          <div className="w-48">
+            <Select
+              value={filterTermId}
+              onChange={(e) => setFilterTermId(e.target.value)}
+              className="py-2.5"
+            >
+              <option value="">All Terms</option>
+              {terms.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.session.name} — {t.name}
+                </option>
+              ))}
+            </Select>
+          </div>
 
           {/* Class Level Filter */}
-          <select
-            value={filterClassLevelId}
-            onChange={(e) => setFilterClassLevelId(e.target.value)}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none shrink-0"
-          >
-            <option value="">All Classes</option>
-            {classLevels.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
+          <div className="w-48">
+            <Select
+              value={filterClassLevelId}
+              onChange={(e) => setFilterClassLevelId(e.target.value)}
+              className="py-2.5"
+            >
+              <option value="">All Classes</option>
+              {classLevels.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </Select>
+          </div>
 
           {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none shrink-0"
-          >
-            <option value="">All Statuses</option>
-            <option value="draft">Draft</option>
-            <option value="issued">Issued</option>
-            <option value="partial">Partial</option>
-            <option value="paid">Paid</option>
-            <option value="overdue">Overdue</option>
-          </select>
+          <div className="w-48">
+            <Select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="py-2.5"
+            >
+              <option value="">All Statuses</option>
+              <option value="draft">Draft</option>
+              <option value="issued">Issued</option>
+              <option value="partial">Partial</option>
+              <option value="paid">Paid</option>
+              <option value="overdue">Overdue</option>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -638,7 +649,7 @@ export default function InvoicesPage() {
                       {/* Only allow deletion of draft/issued with no payments */}
                       {(invoiceDetails.status === "draft" || invoiceDetails.status === "issued") && (
                         <button
-                          onClick={() => handleDeleteInvoice(invoiceDetails.id)}
+                          onClick={() => setInvoiceToDelete(invoiceDetails.id)}
                           disabled={actionLoading}
                           className="px-3 py-1.5 border border-red-200 text-error hover:bg-red-50 font-bold text-body-small rounded-lg transition inline-flex items-center gap-1"
                         >
@@ -675,25 +686,27 @@ export default function InvoicesPage() {
 
                       {editDueDate ? (
                         <form onSubmit={handleUpdateDueDate} className="flex gap-2 items-center justify-between pt-2">
-                          <input
-                            type="date"
-                            required
-                            value={newDueDate}
-                            onChange={(e) => setNewDueDate(e.target.value)}
-                            className="px-3 py-1.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
-                          />
-                          <div className="flex gap-1">
+                          <div className="flex-1">
+                            <Input
+                              type="date"
+                              required
+                              value={newDueDate}
+                              onChange={(e) => setNewDueDate(e.target.value)}
+                              className="py-1.5"
+                            />
+                          </div>
+                          <div className="flex gap-1 self-end pb-1.5">
                             <button
                               type="submit"
                               disabled={actionLoading}
-                              className="px-3 py-1.5 bg-green-600 text-white font-bold rounded-lg text-body-small hover:bg-green-700"
+                              className="px-3 py-2 bg-green-600 text-white font-bold rounded-lg text-body-small hover:bg-green-700"
                             >
                               Save
                             </button>
                             <button
                               type="button"
                               onClick={() => setEditDueDate(false)}
-                              className="px-3 py-1.5 border border-neutral-300 text-neutral-600 font-bold rounded-lg text-body-small hover:bg-neutral-50"
+                              className="px-3 py-2 border border-neutral-300 text-neutral-600 font-bold rounded-lg text-body-small hover:bg-neutral-50"
                             >
                               Cancel
                             </button>
@@ -740,24 +753,22 @@ export default function InvoicesPage() {
                         <div className="text-body-small text-neutral-800 font-bold">Apply Discount Rule</div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-[11px] text-neutral-500 uppercase block font-semibold">Discount Type</label>
-                            <select
+                            <Select
+                              label="Discount Type"
                               value={discountType}
                               onChange={(e: any) => setDiscountType(e.target.value)}
-                              className="w-full px-2.5 py-1.5 border border-neutral-300 bg-white rounded-lg text-body-small focus:outline-none"
+                              className="py-1.5 text-body-small"
                             >
                               <option value="none">No Discount</option>
                               <option value="fixed">Fixed Amount (₦)</option>
                               <option value="percentage">Percentage (%)</option>
-                            </select>
+                            </Select>
                           </div>
 
                           {discountType !== "none" && (
                             <div>
-                              <label className="text-[11px] text-neutral-500 uppercase block font-semibold">
-                                {discountType === "fixed" ? "Value (₦)" : "Rate (%)"}
-                              </label>
-                              <input
+                              <Input
+                                label={discountType === "fixed" ? "Value (₦)" : "Rate (%)"}
                                 type="number"
                                 required
                                 min="0"
@@ -765,7 +776,7 @@ export default function InvoicesPage() {
                                 placeholder={discountType === "fixed" ? "5,000" : "10"}
                                 value={discountValue}
                                 onChange={(e) => setDiscountValue(e.target.value)}
-                                className="w-full px-2.5 py-1.5 border border-neutral-300 bg-white rounded-lg text-body-small focus:outline-none font-bold"
+                                className="py-1.5 text-body-small font-bold"
                               />
                             </div>
                           )}
@@ -929,51 +940,43 @@ export default function InvoicesPage() {
               {wizardStep === 1 ? (
                 <form onSubmit={handleFetchWizardPreview} className="space-y-4 max-w-md mx-auto py-4">
                   {/* Select Class */}
-                  <div className="space-y-1.5">
-                    <label className="text-label-medium text-neutral-700 block">Target Class Level *</label>
-                    <select
-                      required
-                      value={wizClassLevelId}
-                      onChange={(e) => setWizClassLevelId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:outline-none"
-                    >
-                      <option value="">Choose Class Level...</option>
-                      {classLevels.map((l) => (
-                        <option key={l.id} value={l.id}>
-                          {l.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    label="Target Class Level *"
+                    required
+                    value={wizClassLevelId}
+                    onChange={(e) => setWizClassLevelId(e.target.value)}
+                  >
+                    <option value="">Choose Class Level...</option>
+                    {classLevels.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </Select>
 
                   {/* Select Term */}
-                  <div className="space-y-1.5">
-                    <label className="text-label-medium text-neutral-700 block">Academic Billing Term *</label>
-                    <select
-                      required
-                      value={wizTermId}
-                      onChange={(e) => setWizTermId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:outline-none"
-                    >
-                      {terms.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.session.name} — {t.name} {t.isActive ? "(Active)" : ""}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <Select
+                    label="Academic Billing Term *"
+                    required
+                    value={wizTermId}
+                    onChange={(e) => setWizTermId(e.target.value)}
+                  >
+                    {terms.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.session.name} — {t.name} {t.isActive ? "(Active)" : ""}
+                      </option>
+                    ))}
+                  </Select>
 
                   {/* Due Date */}
-                  <div className="space-y-1.5">
-                    <label className="text-label-medium text-neutral-700 block">Payment Due Date *</label>
-                    <input
-                      type="date"
-                      required
-                      value={wizDueDate}
-                      onChange={(e) => setWizDueDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:outline-none font-semibold text-neutral-800"
-                    />
-                  </div>
+                  <Input
+                    label="Payment Due Date *"
+                    type="date"
+                    required
+                    value={wizDueDate}
+                    onChange={(e) => setWizDueDate(e.target.value)}
+                    className="font-semibold text-neutral-800"
+                  />
 
                   <button
                     type="submit"
@@ -1111,6 +1114,23 @@ export default function InvoicesPage() {
           </div>
         </div>
       )}
+      {/* Confirmation Dialog for Delete Invoice */}
+      <ConfirmationDialog
+        isOpen={invoiceToDelete !== null}
+        onClose={() => setInvoiceToDelete(null)}
+        onConfirm={async () => {
+          if (!invoiceToDelete) return;
+          const id = invoiceToDelete;
+          setInvoiceToDelete(null);
+          await handleDeleteInvoice(id);
+        }}
+        title="Delete Invoice"
+        description="Are you sure you want to delete this invoice? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+        isLoading={actionLoading}
+      />
     </div>
   );
 }

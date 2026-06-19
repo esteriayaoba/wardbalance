@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Lock, Unlock, Calendar, Check, AlertTriangle, Layers, Trash2, FolderPlus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
+import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
+import Input from "@/components/admin/shared/input";
+import Select from "@/components/admin/shared/select";
 
 interface Session {
   id: string;
@@ -63,6 +66,9 @@ export default function AcademicSettingsPage() {
   const [newArmName, setNewArmName] = useState("");
   const [newArmLevelId, setNewArmLevelId] = useState("");
 
+  // Confirmation overlay states
+  const [deleteTarget, setDeleteTarget] = useState<{ type: "division" | "level" | "arm"; id: string } | null>(null);
+
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -115,8 +121,8 @@ export default function AcademicSettingsPage() {
       setNewSessionName("");
       setNewSessionActive(false);
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setActionLoading(false);
     }
@@ -146,8 +152,8 @@ export default function AcademicSettingsPage() {
       setNewTermSessionId("");
       setNewTermActive(false);
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setActionLoading(false);
     }
@@ -169,8 +175,8 @@ export default function AcademicSettingsPage() {
 
       setSuccess("Term updated successfully.");
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setActionLoading(false);
     }
@@ -212,20 +218,20 @@ export default function AcademicSettingsPage() {
         setNewArmLevelId("");
       }
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleDeleteClassElement = async (type: "division" | "level" | "arm", id: string) => {
-    const confirmText =
-      type === "division"
-        ? "Warning: Deleting a division will cascade delete all levels, arms, and students under it. Continue?"
-        : `Are you sure you want to delete this class ${type}?`;
+  const handleDeleteClassElement = (type: "division" | "level" | "arm", id: string) => {
+    setDeleteTarget({ type, id });
+  };
 
-    if (!confirm(confirmText)) return;
+  const confirmDeleteClassElement = async () => {
+    if (!deleteTarget) return;
+    const { type, id } = deleteTarget;
 
     setActionLoading(true);
     setError(null);
@@ -240,10 +246,11 @@ export default function AcademicSettingsPage() {
 
       setSuccess(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`);
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setActionLoading(false);
+      setDeleteTarget(null);
     }
   };
 
@@ -260,6 +267,14 @@ export default function AcademicSettingsPage() {
   const flatClassLevels = divisions.flatMap((d) =>
     d.classLevels.map((l) => ({ id: l.id, name: `${d.name} — ${l.name}` }))
   );
+
+  const getDeleteDescription = () => {
+    if (!deleteTarget) return "";
+    if (deleteTarget.type === "division") {
+      return "Warning: Deleting a division will cascade delete all levels, arms, and students under it. This cannot be undone.";
+    }
+    return `Are you sure you want to delete this class ${deleteTarget.type}? This action cannot be undone.`;
+  };
 
   return (
     <div className="space-y-8">
@@ -348,17 +363,14 @@ export default function AcademicSettingsPage() {
               Add Academic Session
             </h3>
             <form onSubmit={handleCreateSession} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Session Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. 2026/2027"
-                  value={newSessionName}
-                  onChange={(e) => setNewSessionName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
-                />
-              </div>
+              <Input
+                type="text"
+                required
+                label="Session Name *"
+                placeholder="e.g. 2026/2027"
+                value={newSessionName}
+                onChange={(e) => setNewSessionName(e.target.value)}
+              />
 
               <div className="flex items-center gap-2.5 py-2">
                 <input
@@ -472,38 +484,32 @@ export default function AcademicSettingsPage() {
             </h3>
             <form onSubmit={handleCreateTerm} className="space-y-4">
               {/* Select Session */}
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Select Session *</label>
-                <select
-                  required
-                  value={newTermSessionId}
-                  onChange={(e) => setNewTermSessionId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:outline-none"
-                >
-                  <option value="">Choose session...</option>
-                  {sessions.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                required
+                label="Select Session *"
+                value={newTermSessionId}
+                onChange={(e) => setNewTermSessionId(e.target.value)}
+              >
+                <option value="">Choose session...</option>
+                {sessions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
 
               {/* Term Name */}
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Term Name *</label>
-                <select
-                  required
-                  value={newTermName}
-                  onChange={(e) => setNewTermName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:outline-none"
-                >
-                  <option value="">Choose term name...</option>
-                  <option value="First Term">First Term</option>
-                  <option value="Second Term">Second Term</option>
-                  <option value="Third Term">Third Term</option>
-                </select>
-              </div>
+              <Select
+                required
+                label="Term Name *"
+                value={newTermName}
+                onChange={(e) => setNewTermName(e.target.value)}
+              >
+                <option value="">Choose term name...</option>
+                <option value="First Term">First Term</option>
+                <option value="Second Term">Second Term</option>
+                <option value="Third Term">Third Term</option>
+              </Select>
 
               <div className="flex items-center gap-2.5 py-2">
                 <input
@@ -571,17 +577,14 @@ export default function AcademicSettingsPage() {
               Add Division
             </h3>
             <form onSubmit={(e) => handleCreateClassElement(e, "division")} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Division Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Nursery, Primary, Secondary"
-                  value={newDivisionName}
-                  onChange={(e) => setNewDivisionName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
-                />
-              </div>
+              <Input
+                type="text"
+                required
+                label="Division Name *"
+                placeholder="e.g. Nursery, Primary, Secondary"
+                value={newDivisionName}
+                onChange={(e) => setNewDivisionName(e.target.value)}
+              />
               <button
                 type="submit"
                 disabled={actionLoading}
@@ -649,34 +652,28 @@ export default function AcademicSettingsPage() {
             </h3>
             <form onSubmit={(e) => handleCreateClassElement(e, "level")} className="space-y-4">
               {/* Select Division */}
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Select Division *</label>
-                <select
-                  required
-                  value={newLevelDivisionId}
-                  onChange={(e) => setNewLevelDivisionId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:outline-none"
-                >
-                  <option value="">Choose division...</option>
-                  {divisions.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                required
+                label="Select Division *"
+                value={newLevelDivisionId}
+                onChange={(e) => setNewLevelDivisionId(e.target.value)}
+              >
+                <option value="">Choose division...</option>
+                {divisions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </Select>
 
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Level Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Nursery 1, Primary 4, JSS1"
-                  value={newLevelName}
-                  onChange={(e) => setNewLevelName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
-                />
-              </div>
+              <Input
+                type="text"
+                required
+                label="Level Name *"
+                placeholder="e.g. Nursery 1, Primary 4, JSS1"
+                value={newLevelName}
+                onChange={(e) => setNewLevelName(e.target.value)}
+              />
               <button
                 type="submit"
                 disabled={actionLoading || divisions.length === 0}
@@ -746,34 +743,28 @@ export default function AcademicSettingsPage() {
             </h3>
             <form onSubmit={(e) => handleCreateClassElement(e, "arm")} className="space-y-4">
               {/* Select Level */}
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Select Class Level *</label>
-                <select
-                  required
-                  value={newArmLevelId}
-                  onChange={(e) => setNewArmLevelId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:outline-none"
-                >
-                  <option value="">Choose class level...</option>
-                  {flatClassLevels.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {l.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Select
+                required
+                label="Select Class Level *"
+                value={newArmLevelId}
+                onChange={(e) => setNewArmLevelId(e.target.value)}
+              >
+                <option value="">Choose class level...</option>
+                {flatClassLevels.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </Select>
 
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Arm Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. A, B, Blue, Gold"
-                  value={newArmName}
-                  onChange={(e) => setNewArmName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
-                />
-              </div>
+              <Input
+                type="text"
+                required
+                label="Arm Name *"
+                placeholder="e.g. A, B, Blue, Gold"
+                value={newArmName}
+                onChange={(e) => setNewArmName(e.target.value)}
+              />
               <button
                 type="submit"
                 disabled={actionLoading || flatClassLevels.length === 0}
@@ -786,6 +777,17 @@ export default function AcademicSettingsPage() {
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog for Class Element deletion */}
+      <ConfirmationDialog
+        isOpen={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteClassElement}
+        title={`Delete Class ${deleteTarget ? deleteTarget.type.charAt(0).toUpperCase() + deleteTarget.type.slice(1) : ""}`}
+        description={getDeleteDescription()}
+        variant="destructive"
+        isLoading={actionLoading}
+      />
     </div>
   );
 }

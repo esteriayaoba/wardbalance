@@ -22,7 +22,10 @@ export default function CookieSettingsModal({
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    setPreferences(initialPreferences);
+    const timer = setTimeout(() => {
+      setPreferences(initialPreferences);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [initialPreferences]);
 
   // Focus trap and escape key

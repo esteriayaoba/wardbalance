@@ -19,7 +19,6 @@ import {
 interface AdminNavProps {
   userRole: string;
   schoolStatus: string;
-  schoolName: string;
 }
 
 const NAV_LINKS = [
@@ -96,7 +95,7 @@ const NAV_LINKS = [
   },
 ];
 
-export default function AdminNav({ userRole, schoolStatus, schoolName }: AdminNavProps) {
+export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
   const pathname = usePathname();
   const isOnboarding = schoolStatus === "onboarding";
 

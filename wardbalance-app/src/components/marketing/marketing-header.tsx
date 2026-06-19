@@ -61,7 +61,7 @@ export default function MarketingHeader() {
         window.scrollTo({ top, behavior: "smooth" });
       }
     } else {
-      window.location.href = `/${href}`;
+      window.location.assign(`/${href}`);
     }
   };
 
@@ -81,7 +81,7 @@ export default function MarketingHeader() {
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         {/* Logo */}
-        <a href="/" className="flex items-center gap-2.5 group" aria-label="WardBalance home">
+        <Link href="/" className="flex items-center gap-2.5 group" aria-label="WardBalance home">
           <Image
             src="/logo.png"
             alt="WardBalance logo"
@@ -96,7 +96,7 @@ export default function MarketingHeader() {
             Ward
             <span style={{ color: "var(--color-primary-500)" }}>Balance</span>
           </span>
-        </a>
+        </Link>
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8" aria-label="Main navigation">

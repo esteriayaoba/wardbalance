@@ -39,7 +39,7 @@ export default function HowItWorksSection() {
             From setup to payment in 3 steps
           </h2>
           <p className="text-body-large text-on-surface-variant">
-            We've streamlined the entire financial workflow so your school can focus on education, not Excel sheets.
+            We&apos;ve streamlined the entire financial workflow so your school can focus on education, not Excel sheets.
           </p>
         </div>
 
@@ -47,7 +47,7 @@ export default function HowItWorksSection() {
           {/* Subtle connecting line behind cards (desktop only) */}
           <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-px border-t-2 border-dashed border-outline-variant opacity-50 z-0" />
 
-          {steps.map((step, index) => {
+          {steps.map((step) => {
             const Icon = step.icon;
             return (
               <div

@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, AlertCircle, CheckCircle, Search, Coins, XCircle, FileText, Calendar, User, Receipt, ShieldAlert } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import Input from "@/components/admin/shared/input";
+import Select from "@/components/admin/shared/select";
+import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
 
 interface Student {
   firstName: string;
@@ -72,6 +75,9 @@ export default function PaymentsPage() {
   // Alerts
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  // Voiding State
+  const [paymentToVoid, setPaymentToVoid] = useState<string | null>(null);
 
   const loadData = () => {
     setLoading(true);
@@ -157,7 +163,6 @@ export default function PaymentsPage() {
   };
 
   const handleVoidPayment = async (id: string) => {
-    if (!confirm("Are you sure you want to void this payment? This will update the invoice balance due and log the action. This cannot be undone.")) return;
     setActionLoading(true);
     setError(null);
     setSuccess(null);
@@ -243,40 +248,44 @@ export default function PaymentsPage() {
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-80">
-          <Search className="absolute w-4 h-4 text-neutral-400 left-3 top-3" />
-          <input
+          <Search className="absolute w-4 h-4 text-neutral-400 left-3 top-3.5 z-10" />
+          <Input
             type="text"
             placeholder="Search student, receipt no..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
+            className="pl-9"
           />
         </div>
 
         <div className="flex gap-3 w-full md:w-auto shrink-0">
           {/* Method Filter */}
-          <select
-            value={filterMethod}
-            onChange={(e) => setFilterMethod(e.target.value)}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none shrink-0"
-          >
-            <option value="">All Payment Methods</option>
-            <option value="cash">Cash</option>
-            <option value="bank_transfer">Bank Transfer</option>
-            <option value="pos">POS</option>
-            <option value="cheque">Cheque</option>
-          </select>
+          <div className="w-48">
+            <Select
+              value={filterMethod}
+              onChange={(e) => setFilterMethod(e.target.value)}
+              className="py-2.5"
+            >
+              <option value="">All Payment Methods</option>
+              <option value="cash">Cash</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="pos">POS</option>
+              <option value="cheque">Cheque</option>
+            </Select>
+          </div>
 
           {/* Status Filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none shrink-0"
-          >
-            <option value="">All Statuses</option>
-            <option value="recorded">Recorded</option>
-            <option value="void">Void</option>
-          </select>
+          <div className="w-48">
+            <Select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="py-2.5"
+            >
+              <option value="">All Statuses</option>
+              <option value="recorded">Recorded</option>
+              <option value="void">Void</option>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -334,7 +343,7 @@ export default function PaymentsPage() {
                   <td className="px-6 py-4 text-right">
                     {!isVoid ? (
                       <button
-                        onClick={() => handleVoidPayment(p.id)}
+                        onClick={() => setPaymentToVoid(p.id)}
                         disabled={actionLoading}
                         className="px-2.5 py-1.5 border border-red-200 hover:bg-red-50 text-error rounded-lg text-body-small font-bold transition inline-flex items-center gap-1"
                       >
@@ -384,26 +393,23 @@ export default function PaymentsPage() {
 
               <form onSubmit={handleRecordPayment} className="space-y-5">
                 {/* Select Invoice */}
-                <div className="space-y-1.5">
-                  <label className="text-label-medium text-neutral-700 block">Select Student & Invoice *</label>
-                  <select
-                    required
-                    value={selectedInvoiceId}
-                    onChange={(e) => {
-                      setSelectedInvoiceId(e.target.value);
-                      const inv = unpaidInvoices.find((i) => i.id === e.target.value);
-                      setPaymentAmount(inv ? inv.balanceDue : "");
-                    }}
-                    className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none"
-                  >
-                    <option value="">Choose Student Invoice...</option>
-                    {unpaidInvoices.map((inv) => (
-                      <option key={inv.id} value={inv.id}>
-                        {inv.student.lastName}, {inv.student.firstName} ({inv.student.classArm.name}) — {inv.term.name} [Bal: {formatNaira(inv.balanceDue)}]
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <Select
+                  label="Select Student & Invoice *"
+                  required
+                  value={selectedInvoiceId}
+                  onChange={(e) => {
+                    setSelectedInvoiceId(e.target.value);
+                    const inv = unpaidInvoices.find((i) => i.id === e.target.value);
+                    setPaymentAmount(inv ? inv.balanceDue : "");
+                  }}
+                >
+                  <option value="">Choose Student Invoice...</option>
+                  {unpaidInvoices.map((inv) => (
+                    <option key={inv.id} value={inv.id}>
+                      {inv.student.lastName}, {inv.student.firstName} ({inv.student.classArm.name}) — {inv.term.name} [Bal: {formatNaira(inv.balanceDue)}]
+                    </option>
+                  ))}
+                </Select>
 
                 {/* Selected Invoice summary card */}
                 {selectedInvoiceDetails && (
@@ -433,8 +439,8 @@ export default function PaymentsPage() {
                 <div className="space-y-1.5">
                   <label className="text-label-medium text-neutral-700 block">Payment Amount (₦) *</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-neutral-500 font-bold">₦</span>
-                    <input
+                    <span className="absolute left-3 top-3 text-neutral-500 font-bold z-10">₦</span>
+                    <Input
                       type="number"
                       required
                       min="0.01"
@@ -443,7 +449,7 @@ export default function PaymentsPage() {
                       placeholder="e.g. 50,000"
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="w-full pl-7 pr-3 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-none font-bold"
+                      className="pl-7 font-bold"
                     />
                   </div>
                   {selectedInvoiceDetails && (
@@ -461,32 +467,27 @@ export default function PaymentsPage() {
                 </div>
 
                 {/* Payment Method */}
-                <div className="space-y-1.5">
-                  <label className="text-label-medium text-neutral-700 block">Payment Method *</label>
-                  <select
-                    required
-                    value={paymentMethod}
-                    onChange={(e: any) => setPaymentMethod(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none"
-                  >
-                    <option value="bank_transfer">Bank Transfer</option>
-                    <option value="cash">Cash</option>
-                    <option value="pos">POS</option>
-                    <option value="cheque">Cheque</option>
-                  </select>
-                </div>
+                <Select
+                  label="Payment Method *"
+                  required
+                  value={paymentMethod}
+                  onChange={(e: any) => setPaymentMethod(e.target.value)}
+                >
+                  <option value="bank_transfer">Bank Transfer</option>
+                  <option value="cash">Cash</option>
+                  <option value="pos">POS</option>
+                  <option value="cheque">Cheque</option>
+                </Select>
 
                 {/* Reference */}
-                <div className="space-y-1.5">
-                  <label className="text-label-medium text-neutral-700 block">Transaction Reference</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Transfer Ref, Cheque No, POS Receipt ID"
-                    value={paymentReference}
-                    onChange={(e) => setPaymentReference(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-none font-mono"
-                  />
-                </div>
+                <Input
+                  label="Transaction Reference"
+                  type="text"
+                  placeholder="e.g. Transfer Ref, Cheque No, POS Receipt ID"
+                  value={paymentReference}
+                  onChange={(e) => setPaymentReference(e.target.value)}
+                  className="font-mono"
+                />
 
                 <button
                   type="submit"
@@ -501,6 +502,23 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+      {/* Confirmation Dialog for Voiding Payment */}
+      <ConfirmationDialog
+        isOpen={paymentToVoid !== null}
+        onClose={() => setPaymentToVoid(null)}
+        onConfirm={async () => {
+          if (!paymentToVoid) return;
+          const id = paymentToVoid;
+          setPaymentToVoid(null);
+          await handleVoidPayment(id);
+        }}
+        title="Void Payment"
+        description="Are you sure you want to void this payment? This will update the invoice balance due and log the action. This cannot be undone."
+        confirmText="Void"
+        cancelText="Cancel"
+        variant="destructive"
+        isLoading={actionLoading}
+      />
     </div>
   );
 }

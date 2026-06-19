@@ -48,9 +48,9 @@ export default function LeadCaptureForm() {
       
       const sourceParam = params.get("source");
       if (sourceParam === "multi_school_demo" || params.get("plan") === "multi_school") {
-        setSource("multi_school_demo");
+        setTimeout(() => setSource("multi_school_demo"), 0);
       } else {
-        setSource("demo_request");
+        setTimeout(() => setSource("demo_request"), 0);
       }
 
       const prefill = params.get("prefill");

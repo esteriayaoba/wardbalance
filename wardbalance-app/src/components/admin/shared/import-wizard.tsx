@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { Loader2, UploadCloud, CheckCircle2, ChevronRight, FileSpreadsheet, ArrowLeft, RefreshCw, AlertTriangle, AlertCircle } from "lucide-react";
+import Select from "./select";
 
 interface FieldMapping {
   targetField: string;
@@ -109,8 +110,8 @@ export default function ImportWizard({ type, fields, onComplete, onClose }: Impo
         setMappings(initialMappings);
 
         setStep(2);
-      } catch (err: any) {
-        setError(err.message || "Failed to parse CSV file.");
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to parse CSV file.");
       }
     };
     reader.readAsText(file);
@@ -139,7 +140,7 @@ export default function ImportWizard({ type, fields, onComplete, onClose }: Impo
   const getMappedRows = (limit?: number) => {
     const dataToMap = limit ? csvData.slice(0, limit) : csvData;
     return dataToMap.map((row) => {
-      const mappedRow: Record<string, any> = {};
+      const mappedRow: Record<string, string> = {};
       fields.forEach((field) => {
         const idx = mappings[field.targetField];
         mappedRow[field.targetField] = idx !== undefined ? row[idx] || "" : "";
@@ -170,8 +171,8 @@ export default function ImportWizard({ type, fields, onComplete, onClose }: Impo
 
       setSummary(body.data);
       setStep(4);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to execute import");
     } finally {
       setImporting(false);
     }
@@ -289,7 +290,7 @@ export default function ImportWizard({ type, fields, onComplete, onClose }: Impo
                       <p className="text-[11px] text-neutral-400 capitalize">Target Database Field: {field.targetField}</p>
                     </div>
 
-                    <select
+                    <Select
                       value={mappings[field.targetField] !== undefined ? mappings[field.targetField] : ""}
                       onChange={(e) =>
                         handleMappingChange(
@@ -297,7 +298,7 @@ export default function ImportWizard({ type, fields, onComplete, onClose }: Impo
                           e.target.value === "" ? -1 : Number(e.target.value)
                         )
                       }
-                      className="w-full sm:w-64 px-3 py-2 border border-neutral-300 rounded-lg text-body-medium bg-white focus:outline-none"
+                      className="w-full sm:w-64"
                     >
                       <option value="">-- Skip Field --</option>
                       {csvHeaders.map((header, idx) => (
@@ -305,7 +306,7 @@ export default function ImportWizard({ type, fields, onComplete, onClose }: Impo
                           CSV Header: {header}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 ))}
               </div>
