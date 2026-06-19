@@ -1,0 +1,161 @@
+/* ================================
+   WardBalance Design Tokens
+   Auto-generated - do not edit directly
+   ================================ */
+
+:root {
+/* Font Family */
+    --font-primary: "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+    /* Font Weights */
+    --font-light: 300;
+    --font-regular: 400;
+    --font-bold: 700;
+
+    /* Display */
+    --display-large-size: 57px;
+    --display-large-line: 64px;
+    --display-large-spacing: -0.25px;
+
+    --display-medium-size: 45px;
+    --display-medium-line: 52px;
+    --display-medium-spacing: 0px;
+
+    --display-small-size: 36px;
+    --display-small-line: 44px;
+    --display-small-spacing: 0px;
+
+    /* Headline */
+    --headline-large-size: 32px;
+    --headline-large-line: 40px;
+
+    --headline-medium-size: 28px;
+    --headline-medium-line: 36px;
+
+    --headline-small-size: 24px;
+    --headline-small-line: 32px;
+
+    /* Title */
+    --title-large-size: 22px;
+    --title-large-line: 28px;
+
+    --title-medium-size: 16px;
+    --title-medium-line: 24px;
+    --title-medium-spacing: 0.15px;
+
+    --title-small-size: 14px;
+    --title-small-line: 20px;
+    --title-small-spacing: 0.1px;
+
+    /* Body */
+    --body-large-size: 16px;
+    --body-large-line: 24px;
+    --body-large-spacing: 0.5px;
+
+    --body-medium-size: 14px;
+    --body-medium-line: 20px;
+    --body-medium-spacing: 0.25px;
+
+    --body-small-size: 12px;
+    --body-small-line: 16px;
+    --body-small-spacing: 0.4px;
+
+    /* Label */
+    --label-large-size: 14px;
+    --label-large-line: 20px;
+    --label-large-spacing: 0.1px;
+
+    --label-medium-size: 12px;
+    --label-medium-line: 16px;
+    --label-medium-spacing: 0.5px;
+
+    --label-small-size: 11px;
+    --label-small-line: 16px;
+    --label-small-spacing: 0.5px;
+
+    /* WardBalance Financial Styles */
+    --kpi-large-size: 36px;
+    --kpi-large-line: 40px;
+
+    --kpi-medium-size: 28px;
+    --kpi-medium-line: 32px;
+
+    --currency-value-size: 14px;
+    --currency-value-line: 20px;
+}
+
+:root {
+    /* Color - Light Theme */
+    --color-primary: hsl(221, 90%, 56%);
+    --color-on-primary: hsl(0, 0%, 100%);
+    --color-primary-container: hsl(221, 100%, 98.5%);
+    --color-on-primary-container: hsl(221, 90%, 33%);
+    --color-secondary: hsl(176, 100%, 21%);
+    --color-on-secondary: hsl(0, 0%, 100%);
+    --color-secondary-container: hsl(173, 50%, 67%);
+    --color-on-secondary-container: hsl(176, 100%, 16%);
+    --color-tertiary: hsl(145, 100%, 22%);
+    --color-on-tertiary: hsl(0, 0%, 100%);
+    --color-tertiary-container: hsl(133, 66%, 63%);
+    --color-on-tertiary-container: hsl(143, 100%, 16%);
+    --color-error: hsl(356, 90%, 39%);
+    --color-on-error: hsl(0, 0%, 100%);
+    --color-error-container: hsl(6, 100%, 84%);
+    --color-on-error-container: hsl(355, 100%, 29%);
+    --color-background: hsl(210, 20%, 99%);
+    --color-on-background: hsl(210, 10%, 12%);
+    --color-surface: hsl(210, 20%, 99%);
+    --color-on-surface: hsl(210, 10%, 12%);
+    --color-surface-variant: hsl(220, 5%, 89%);
+    --color-on-surface-variant: hsl(204, 4%, 28%);
+    --color-outline: hsl(210, 2%, 47%);
+    --color-outline-variant: hsl(200, 3%, 78%);
+    --color-inverse-surface: hsl(210, 8%, 20%);
+    --color-inverse-on-surface: hsl(210, 14%, 96%);
+    --color-inverse-primary: hsl(221, 95%, 86%);
+    --color-surface-dim: hsl(210, 8%, 87%);
+    --color-surface-bright: hsl(210, 20%, 99%);
+    --color-surface-container-lowest: hsl(0, 0%, 100%);
+    --color-surface-container-low: hsl(210, 16%, 97%);
+    --color-surface-container: hsl(210, 14%, 95%);
+    --color-surface-container-high: hsl(210, 12%, 93%);
+    --color-surface-container-highest: hsl(210, 8%, 91%);
+}
+
+[data-theme="dark"] {
+    /* Color - Dark Theme */
+    --color-primary: hsl(221, 90%, 56%);
+    --color-on-primary: hsl(221, 92%, 24%);
+    --color-primary-container: hsl(221, 90%, 33%);
+    --color-on-primary-container: hsl(221, 98%, 92%);
+    --color-secondary: hsl(173, 50%, 67%);
+    --color-on-secondary: hsl(176, 100%, 11%);
+    --color-secondary-container: hsl(176, 100%, 16%);
+    --color-on-secondary-container: hsl(172, 77%, 78%);
+    --color-tertiary: hsl(133, 66%, 63%);
+    --color-on-tertiary: hsl(141, 100%, 11%);
+    --color-tertiary-container: hsl(143, 100%, 16%);
+    --color-on-tertiary-container: hsl(132, 95%, 74%);
+    --color-error: hsl(6, 100%, 84%);
+    --color-on-error: hsl(357, 100%, 21%);
+    --color-error-container: hsl(355, 100%, 29%);
+    --color-on-error-container: hsl(6, 100%, 92%);
+    --color-background: hsl(126, 6%, 7%);
+    --color-on-background: hsl(210, 8%, 91%);
+    --color-surface: hsl(126, 6%, 7%);
+    --color-on-surface: hsl(210, 8%, 91%);
+    --color-surface-variant: hsl(204, 4%, 28%);
+    --color-on-surface-variant: hsl(200, 3%, 78%);
+    --color-outline: hsl(210, 2%, 57%);
+    --color-outline-variant: hsl(204, 4%, 28%);
+    --color-inverse-surface: hsl(210, 8%, 91%);
+    --color-inverse-on-surface: hsl(210, 8%, 20%);
+    --color-inverse-primary: hsl(221, 90%, 43%);
+    --color-surface-dim: hsl(126, 6%, 7%);
+    --color-surface-bright: hsl(210, 8%, 24%);
+    --color-surface-container-lowest: hsl(84, 4%, 5%);
+    --color-surface-container-low: hsl(210, 10%, 12%);
+    --color-surface-container: hsl(210, 10%, 14%);
+    --color-surface-container-high: hsl(210, 9%, 18%);
+    --color-surface-container-highest: hsl(210, 8%, 22%);
+}

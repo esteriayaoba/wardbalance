@@ -1,0 +1,239 @@
+/* ================================
+   WardBalance Typography System
+   Typeface: Outfit
+   Design System: Material 3 Inspired
+================================ */
+
+:root {
+    /* Font Family */
+    --font-primary: "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+    /* Font Weights *
+    --font-light: 300;
+    --font-regular: 400;
+    --font-bold: 700;
+
+    /* Display */
+    --display-large-size: 57px;
+    --display-large-line: 64px;
+    --display-large-spacing: -0.25px;
+
+    --display-medium-size: 45px;
+    --display-medium-line: 52px;
+    --display-medium-spacing: 0px;
+
+    --display-small-size: 36px;
+    --display-small-line: 44px;
+    --display-small-spacing: 0px;
+
+    /* Headline */
+    --headline-large-size: 32px;
+    --headline-large-line: 40px;
+
+    --headline-medium-size: 28px;
+    --headline-medium-line: 36px;
+
+    --headline-small-size: 24px;
+    --headline-small-line: 32px;
+
+    /* Title */
+    --title-large-size: 22px;
+    --title-large-line: 28px;
+
+    --title-medium-size: 16px;
+    --title-medium-line: 24px;
+    --title-medium-spacing: 0.15px;
+
+    --title-small-size: 14px;
+    --title-small-line: 20px;
+    --title-small-spacing: 0.1px;
+
+    /* Body */
+    --body-large-size: 16px;
+    --body-large-line: 24px;
+    --body-large-spacing: 0.5px;
+
+    --body-medium-size: 14px;
+    --body-medium-line: 20px;
+    --body-medium-spacing: 0.25px;
+
+    --body-small-size: 12px;
+    --body-small-line: 16px;
+    --body-small-spacing: 0.4px;
+
+    /* Label */
+    --label-large-size: 14px;
+    --label-large-line: 20px;
+    --label-large-spacing: 0.1px;
+
+    --label-medium-size: 12px;
+    --label-medium-line: 16px;
+    --label-medium-spacing: 0.5px;
+
+    --label-small-size: 11px;
+    --label-small-line: 16px;
+    --label-small-spacing: 0.5px;
+
+    /* WardBalance Financial Styles */
+    --kpi-large-size: 36px;
+    --kpi-large-line: 40px;
+
+    --kpi-medium-size: 28px;
+    --kpi-medium-line: 32px;
+
+    --currency-value-size: 14px;
+    --currency-value-line: 20px;
+}
+
+/* Base */
+html {
+    font-family: var(--font-primary);
+    font-size: 16px;
+}
+
+body {
+    font-family: var(--font-primary);
+    font-weight: var(--font-regular);
+    font-size: var(--body-medium-size);
+    line-height: var(--body-medium-line);
+    letter-spacing: var(--body-medium-spacing);
+}
+
+/* Display */
+.text-display-large {
+    font-size: var(--display-large-size);
+    line-height: var(--display-large-line);
+    letter-spacing: var(--display-large-spacing);
+    font-weight: var(--font-bold);
+}
+
+.text-display-medium {
+    font-size: var(--display-medium-size);
+    line-height: var(--display-medium-line);
+    letter-spacing: var(--display-medium-spacing);
+    font-weight: var(--font-bold);
+}
+
+.text-display-small {
+    font-size: var(--display-small-size);
+    line-height: var(--display-small-line);
+    letter-spacing: var(--display-small-spacing);
+    font-weight: var(--font-bold);
+}
+
+/* Headline */
+.text-headline-large {
+    font-size: var(--headline-large-size);
+    line-height: var(--headline-large-line);
+    font-weight: var(--font-bold);
+}
+
+.text-headline-medium {
+    font-size: var(--headline-medium-size);
+    line-height: var(--headline-medium-line);
+    font-weight: var(--font-bold);
+}
+
+.text-headline-small {
+    font-size: var(--headline-small-size);
+    line-height: var(--headline-small-line);
+    font-weight: var(--font-bold);
+}
+
+/* Title */
+.text-title-large {
+    font-size: var(--title-large-size);
+    line-height: var(--title-large-line);
+    font-weight: var(--font-bold);
+}
+
+.text-title-medium {
+    font-size: var(--title-medium-size);
+    line-height: var(--title-medium-line);
+    letter-spacing: var(--title-medium-spacing);
+    font-weight: var(--font-bold);
+}
+
+.text-title-small {
+    font-size: var(--title-small-size);
+    line-height: var(--title-small-line);
+    letter-spacing: var(--title-small-spacing);
+    font-weight: var(--font-bold);
+}
+
+/* Body */
+.text-body-large {
+    font-size: var(--body-large-size);
+    line-height: var(--body-large-line);
+    letter-spacing: var(--body-large-spacing);
+    font-weight: var(--font-regular);
+}
+
+.text-body-medium {
+    font-size: var(--body-medium-size);
+    line-height: var(--body-medium-line);
+    letter-spacing: var(--body-medium-spacing);
+    font-weight: var(--font-regular);
+}
+
+.text-body-small {
+    font-size: var(--body-small-size);
+    line-height: var(--body-small-line);
+    letter-spacing: var(--body-small-spacing);
+    font-weight: var(--font-regular);
+}
+
+/* Label */
+.text-label-large {
+    font-size: var(--label-large-size);
+    line-height: var(--label-large-line);
+    letter-spacing: var(--label-large-spacing);
+    font-weight: var(--font-bold);
+}
+
+.text-label-medium {
+    font-size: var(--label-medium-size);
+    line-height: var(--label-medium-line);
+    letter-spacing: var(--label-medium-spacing);
+    font-weight: var(--font-bold);
+}
+
+.text-label-small {
+    font-size: var(--label-small-size);
+    line-height: var(--label-small-line);
+    letter-spacing: var(--label-small-spacing);
+    font-weight: var(--font-bold);
+}
+
+/* Financial Typography */
+.text-kpi-large {
+    font-size: var(--kpi-large-size);
+    line-height: var(--kpi-large-line);
+    font-weight: var(--font-bold);
+}
+
+.text-kpi-medium {
+    font-size: var(--kpi-medium-size);
+    line-height: var(--kpi-medium-line);
+    font-weight: var(--font-bold);
+}
+
+.text-currency-value {
+    font-size: var(--currency-value-size);
+    line-height: var(--currency-value-line);
+    font-weight: var(--font-bold);
+    letter-spacing: 0.1px;
+}
+
+/* Utility */
+.text-muted {
+    color: #6b7280;
+}
+
+.text-strong {
+    font-weight: var(--font-bold);
+}
+
+.text-regular {
+    font-weight: var(--font-regular);
+}
