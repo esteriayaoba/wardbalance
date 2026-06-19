@@ -1,0 +1,269 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSession } from "@/lib/auth/session";
+import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
+import { z } from "zod";
+
+const VerifyPaymentSchema = z.object({
+  txRef: z.string().min(1, "Transaction reference is required"),
+  transactionId: z.string().optional(),
+  status: z.string().optional(),
+  amount: z.coerce.number().optional(),
+  invoiceId: z.string().optional(),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getSession();
+
+    if (!session || session.role !== "Parent") {
+      return NextResponse.json(
+        { error: "Unauthorized", code: "UNAUTHORIZED" },
+        { status: 401 }
+      );
+    }
+
+    const parentId = session.userId;
+    const schoolId = session.schoolId;
+
+    const body = await request.json();
+    const parsed = VerifyPaymentSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: parsed.error.issues[0]?.message ?? "Invalid verification parameters", code: "VALIDATION_ERROR" },
+        { status: 400 }
+      );
+    }
+
+    const { txRef, transactionId, status, amount, invoiceId } = parsed.data;
+
+    // Check if payment was already recorded (Idempotency)
+    const existingPayment = await prisma.payment.findFirst({
+      where: { schoolId, reference: txRef },
+    });
+
+    if (existingPayment) {
+      return NextResponse.json({
+        data: {
+          success: true,
+          status: "confirmed",
+          paymentId: existingPayment.id,
+          message: "Payment verified successfully.",
+        },
+      });
+    }
+
+    // MOCK MODE VERIFICATION & RECORDING
+    const flwSecretKey = process.env.FLW_SECRET_KEY;
+    const isMock = !flwSecretKey || flwSecretKey === "mock";
+
+    if (isMock) {
+      if (status !== "completed" || !invoiceId || !amount) {
+        return NextResponse.json(
+          { error: "Transaction verification failed", code: "PAYMENT_FAILED" },
+          { status: 422 }
+        );
+      }
+
+      // Fetch invoice
+      const invoice = await prisma.invoice.findFirst({
+        where: {
+          id: invoiceId,
+          schoolId,
+          student: {
+            parents: { some: { parentId } },
+          },
+        },
+        include: { student: true },
+      });
+
+      if (!invoice) {
+        return NextResponse.json(
+          { error: "Invoice not found or unauthorized.", code: "NOT_FOUND" },
+          { status: 404 }
+        );
+      }
+
+      // Execute payment recording in transaction
+      const paymentAmount = new Prisma.Decimal(amount);
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Create payment
+        const payment = await tx.payment.create({
+          data: {
+            schoolId,
+            invoiceId,
+            studentId: invoice.studentId,
+            parentId,
+            amount: paymentAmount,
+            method: "bank_transfer", // Map card/USSd as bank transfer for schema compatibility
+            status: "recorded",
+            reference: txRef,
+            recordedById: (await tx.user.findFirst({ where: { schoolId } }))?.id ?? "mock-actor-id",
+          },
+        });
+
+        // 2. Recalculate invoice
+        const newAmountPaid = invoice.amountPaid.plus(paymentAmount);
+        const newBalanceDue = invoice.finalAmount.minus(newAmountPaid);
+        let newStatus = invoice.status;
+
+        if (newBalanceDue.lte(0)) {
+          newStatus = "paid";
+        } else if (newAmountPaid.gt(0)) {
+          newStatus = "partial";
+        }
+
+        const updatedInvoice = await tx.invoice.update({
+          where: { id: invoiceId },
+          data: {
+            amountPaid: newAmountPaid,
+            balanceDue: newBalanceDue,
+            status: newStatus,
+          },
+        });
+
+        // 3. Create Receipt
+        const receipt = await tx.receipt.create({
+          data: {
+            schoolId,
+            paymentId: payment.id,
+            receiptNumber: `RCT-FLW-${Date.now().toString().slice(-6)}`,
+          },
+        });
+
+        // 4. Create Audit Log
+        await tx.auditLog.create({
+          data: {
+            schoolId,
+            actorId: parentId,
+            actorName: session.fullName,
+            action: "payment.recorded",
+            entityType: "Payment",
+            entityId: payment.id,
+            newValue: {
+              amount: paymentAmount.toNumber(),
+              method: "flutterwave",
+              reference: txRef,
+              invoiceStatus: newStatus,
+            },
+          },
+        });
+
+        return { payment, receipt, updatedInvoice };
+      });
+
+      return NextResponse.json({
+        data: {
+          success: true,
+          status: "confirmed",
+          paymentId: result.payment.id,
+          receiptNumber: result.receipt.receiptNumber,
+          message: "Payment successfully processed and verified.",
+        },
+      });
+    }
+
+    // REAL FLUTTERWAVE VERIFICATION (Phase 2B integration scaffold)
+    if (!transactionId) {
+      return NextResponse.json({ error: "Missing Flutterwave transaction ID" }, { status: 400 });
+    }
+
+    const flwResponse = await fetch(
+      `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
+      {
+        headers: { Authorization: `Bearer ${flwSecretKey}` },
+      }
+    );
+    const flwBody = await flwResponse.json();
+
+    if (!flwResponse.ok || flwBody.data.status !== "successful") {
+      return NextResponse.json(
+        { error: "Verification via Flutterwave API failed", code: "PAYMENT_FAILED" },
+        { status: 400 }
+      );
+    }
+
+    const verifiedData = flwBody.data;
+    const verifiedAmount = new Prisma.Decimal(verifiedData.amount);
+    const invoiceIdMeta = verifiedData.meta.invoiceId;
+
+    // Fetch invoice
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: invoiceIdMeta, schoolId },
+    });
+
+    if (!invoice) {
+      return NextResponse.json({ error: "Associated invoice not found" }, { status: 404 });
+    }
+
+    // Execute payment in transaction
+    const result = await prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          schoolId,
+          invoiceId: invoiceIdMeta,
+          studentId: invoice.studentId,
+          parentId,
+          amount: verifiedAmount,
+          method: "bank_transfer",
+          status: "recorded",
+          reference: txRef,
+          recordedById: (await tx.user.findFirst({ where: { schoolId } }))?.id ?? "bursar-actor-id",
+        },
+      });
+
+      const newAmountPaid = invoice.amountPaid.plus(verifiedAmount);
+      const newBalanceDue = invoice.finalAmount.minus(newAmountPaid);
+      let newStatus = invoice.status;
+
+      if (newBalanceDue.lte(0)) {
+        newStatus = "paid";
+      } else if (newAmountPaid.gt(0)) {
+        newStatus = "partial";
+      }
+
+      await tx.invoice.update({
+        where: { id: invoiceIdMeta },
+        data: { amountPaid: newAmountPaid, balanceDue: newBalanceDue, status: newStatus },
+      });
+
+      const receipt = await tx.receipt.create({
+        data: {
+          schoolId,
+          paymentId: payment.id,
+          receiptNumber: `RCT-FLW-${Date.now().toString().slice(-6)}`,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName,
+          action: "payment.recorded",
+          entityType: "Payment",
+          entityId: payment.id,
+          newValue: { amount: verifiedAmount.toNumber(), reference: txRef },
+        },
+      });
+
+      return { payment, receipt };
+    });
+
+    return NextResponse.json({
+      data: {
+        success: true,
+        status: "confirmed",
+        paymentId: result.payment.id,
+        receiptNumber: result.receipt.receiptNumber,
+      },
+    });
+  } catch (err: any) {
+    console.error("[payments/flutterwave/verify] Error:", err);
+    return NextResponse.json(
+      { error: err.message ?? "Payment verification failed", code: "INTERNAL_ERROR" },
+      { status: 500 }
+    );
+  }
+}
