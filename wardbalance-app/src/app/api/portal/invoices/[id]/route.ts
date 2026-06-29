@@ -81,8 +81,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         name: true,
         address: true,
         phone: true,
+        bankName: true,
+        bankAccountNumber: true,
+        bankAccountName: true,
       },
     });
+
+    const bankDetails = school?.bankName && school?.bankAccountNumber && school?.bankAccountName
+      ? {
+          bankName: school.bankName,
+          accountNumber: school.bankAccountNumber,
+          accountName: school.bankAccountName,
+        }
+      : null;
 
     return NextResponse.json({
       data: {
@@ -119,11 +130,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           name: school?.name ?? session.schoolName,
           address: school?.address,
           phone: school?.phone,
-          bankDetails: {
-            bankName: "Zenith Bank",
-            accountNumber: "1012345678",
-            accountName: school?.name ?? session.schoolName,
-          },
+          bankDetails,
         },
       },
     });

@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { Prisma } from "@/generated/prisma/client";
 
 const ProofUploadSchema = z.object({
   invoiceId: z.string().min(1, "Invoice is required"),
   amount: z.coerce.number().positive("Amount must be positive"),
   reference: z.string().min(1, "Transaction reference is required"),
-  proofImageKey: z.string().optional(), // In Phase 2B, this will hold the R2 object key
+  proofFileKey: z.string().min(1, "Proof file key is required"),
+  proofFileName: z.string().min(1, "Proof file name is required"),
+  proofFileType: z.string().min(1, "Proof file type is required"),
+  proofFileSize: z.number().positive("Proof file size must be positive"),
 });
 
 export async function GET(request: NextRequest) {
@@ -53,17 +57,56 @@ export async function GET(request: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
 
+    // Get manual payment proof submissions
+    const manualSubmissions = await prisma.manualPaymentSubmission.findMany({
+      where: {
+        schoolId,
+        studentId: { in: wardIds },
+      },
+      include: {
+        student: {
+          select: { firstName: true, lastName: true },
+        },
+        invoice: {
+          select: {
+            term: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+      orderBy: { submittedAt: "desc" },
+    });
+
+    const formattedPayments = payments.map((p) => ({
+      id: p.id,
+      amount: p.amount.toString(),
+      method: p.method,
+      status: p.status, // "recorded" | "void"
+      reference: p.reference,
+      createdAt: p.createdAt.toISOString(),
+      studentName: `${p.student.firstName} ${p.student.lastName}`,
+      termName: p.invoice.term.name,
+    }));
+
+    const formattedManualSubmissions = manualSubmissions.map((m) => ({
+      id: m.id,
+      amount: m.amount.toString(),
+      method: m.paymentMethod,
+      status: m.status === "Pending" ? "pending" : m.status === "Approved" ? "approved" : m.status === "Rejected" ? "rejected" : m.status === "ReuploadRequested" ? "reupload requested" : "cancelled",
+      reference: m.reference,
+      createdAt: m.submittedAt.toISOString(),
+      studentName: `${m.student.firstName} ${m.student.lastName}`,
+      termName: m.invoice.term.name,
+    }));
+
+    // Merge and sort by date descending
+    const allLogs = [...formattedPayments, ...formattedManualSubmissions].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
     return NextResponse.json({
-      data: payments.map((p) => ({
-        id: p.id,
-        amount: p.amount.toString(),
-        method: p.method,
-        status: p.status,
-        reference: p.reference,
-        createdAt: p.createdAt.toISOString(),
-        studentName: `${p.student.firstName} ${p.student.lastName}`,
-        termName: p.invoice.term.name,
-      })),
+      data: allLogs,
     });
   } catch (err: any) {
     console.error("[portal/payments] GET error:", err);
@@ -98,7 +141,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { invoiceId, amount, reference, proofImageKey } = parsed.data;
+    const { invoiceId, amount, reference, proofFileKey, proofFileName, proofFileType, proofFileSize } = parsed.data;
 
     // Verify invoice belongs to a ward of the parent
     const invoice = await prisma.invoice.findFirst({
@@ -114,6 +157,8 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         studentId: true,
+        status: true,
+        balanceDue: true,
       },
     });
 
@@ -124,18 +169,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: Phase 2B - Write proof details into a VerificationQueue or PendingPayment table.
-    // Since Phase 2A uses manual recording only, we simulate successful upload and log details.
-    console.log(`[Proof Upload] Parent ${parentId} uploaded proof for Invoice ${invoiceId}:
-      Amount: ₦${amount}
-      Reference: ${reference}
-      Image Key: ${proofImageKey ?? "None"}
-      Status: Pending Verification`);
+    if (invoice.status === "paid") {
+      return NextResponse.json(
+        { error: "This invoice is already fully paid.", code: "BAD_REQUEST" },
+        { status: 400 }
+      );
+    }
+
+    // Create entry in ManualPaymentSubmission table (Verification Queue)
+    const submission = await prisma.manualPaymentSubmission.create({
+      data: {
+        schoolId,
+        invoiceId,
+        studentId: invoice.studentId,
+        parentId,
+        submittedById: parentId,
+        amount: new Prisma.Decimal(amount),
+        reference: reference.trim(),
+        proofFileKey,
+        proofFileName,
+        proofFileType,
+        proofFileSize,
+        status: "Pending",
+      },
+    });
+
+    // Create Audit Log
+    await prisma.auditLog.create({
+      data: {
+        schoolId,
+        actorId: parentId,
+        actorName: session.fullName || "Parent User",
+        action: "PAYMENT_PROOF_SUBMITTED",
+        entityType: "ManualPaymentSubmission",
+        entityId: submission.id,
+        newValue: {
+          amount,
+          reference,
+          proofFileKey,
+          invoiceId,
+        },
+      },
+    });
 
     return NextResponse.json({
       data: {
         success: true,
-        status: "Pending Verification",
+        status: "Pending",
         reference,
         amount: amount.toString(),
         message: "Proof of payment submitted successfully and is awaiting bursar verification.",
@@ -149,3 +229,4 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+

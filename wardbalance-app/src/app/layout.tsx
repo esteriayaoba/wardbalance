@@ -31,7 +31,11 @@ export const metadata: Metadata = {
     "school fees Nigeria",
   ],
   icons: {
-    icon: "/logo-v5.png",
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/logo-v5.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/logo-v5.png",
   },
   openGraph: {
     title: "WardBalance — School Fee Management Software for African Schools",

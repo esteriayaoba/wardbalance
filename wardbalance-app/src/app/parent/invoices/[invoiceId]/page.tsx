@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Loader2, AlertCircle, ArrowLeft, ShieldCheck, Sparkles, Landmark, Upload, CheckCircle2, ChevronRight, FileText } from "lucide-react";
@@ -37,7 +37,7 @@ interface InvoiceDetail {
       bankName: string;
       accountNumber: string;
       accountName: string;
-    };
+    } | null;
   };
 }
 
@@ -58,6 +58,8 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
   const [manualRef, setManualRef] = useState("");
   const [submittingProof, setSubmittingProof] = useState(false);
   const [proofSubmitted, setProofSubmitted] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch(`/api/portal/invoices/${invoiceId}`)
@@ -102,14 +104,65 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setError("File size exceeds the 10MB limit.");
+      return;
+    }
+
+    // Validate type
+    if (!["image/jpeg", "image/png", "application/pdf"].includes(file.type)) {
+      setError("Only JPEG, PNG, and PDF files are allowed.");
+      return;
+    }
+
+    setSelectedFile(file);
+    setError(null);
+  };
+
   const handleManualPaymentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!invoice) return;
+    if (!invoice || !selectedFile) {
+      setError("Please select a proof of payment file.");
+      return;
+    }
 
     setSubmittingProof(true);
     setError(null);
 
     try {
+      // Step 1: Request presigned upload URL
+      const urlRes = await fetch("/api/portal/payments/upload-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: selectedFile.name,
+          fileType: selectedFile.type,
+          fileSize: selectedFile.size,
+        }),
+      });
+
+      const urlData = await urlRes.json();
+      if (!urlRes.ok) throw new Error(urlData.error ?? "Failed to configure storage connection.");
+
+      const { uploadUrl, key } = urlData.data;
+
+      // Step 2: Upload directly to key (or mock simulator)
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": selectedFile.type,
+        },
+        body: selectedFile,
+      });
+
+      if (!uploadRes.ok) throw new Error("Failed to upload receipt snapshot to storage.");
+
+      // Step 3: Create verification submission request
       const res = await fetch("/api/portal/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -117,7 +170,10 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
           invoiceId: invoice.id,
           amount: Number(manualAmount),
           reference: manualRef.trim(),
-          proofImageKey: "receipts/proof_upload.png", // Mocked key
+          proofFileKey: key,
+          proofFileName: selectedFile.name,
+          proofFileType: selectedFile.type,
+          proofFileSize: selectedFile.size,
         }),
       });
 
@@ -313,22 +369,28 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
                     </div>
 
                     {/* Bank Details Box */}
-                    <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-xl space-y-3 text-body-small">
-                      <div className="flex justify-between border-b border-neutral-200 pb-2">
-                        <span className="text-neutral-500">Bank Name</span>
-                        <span className="font-bold text-neutral-800">{invoice.school.bankDetails.bankName}</span>
+                    {!invoice.school.bankDetails ? (
+                      <div className="bg-red-50 p-4 border border-red-200 rounded-xl text-center text-body-small text-red-800 font-bold">
+                        Bank transfer is not configured yet. Please contact the school.
                       </div>
-                      <div className="flex justify-between border-b border-neutral-200 pb-2">
-                        <span className="text-neutral-500">Account Number</span>
-                        <span className="font-mono font-bold text-neutral-900 select-all tracking-wide">
-                          {invoice.school.bankDetails.accountNumber}
-                        </span>
+                    ) : (
+                      <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-xl space-y-3 text-body-small">
+                        <div className="flex justify-between border-b border-neutral-200 pb-2">
+                          <span className="text-neutral-500">Bank Name</span>
+                          <span className="font-bold text-neutral-800">{invoice.school.bankDetails.bankName}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-neutral-200 pb-2">
+                          <span className="text-neutral-500">Account Number</span>
+                          <span className="font-mono font-bold text-neutral-900 select-all tracking-wide">
+                            {invoice.school.bankDetails.accountNumber}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-neutral-500">Account Name</span>
+                          <span className="font-bold text-neutral-800">{invoice.school.bankDetails.accountName}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-neutral-500">Account Name</span>
-                        <span className="font-bold text-neutral-800">{invoice.school.bankDetails.accountName}</span>
-                      </div>
-                    </div>
+                    )}
 
                     {/* Proof Upload Form */}
                     <form onSubmit={handleManualPaymentSubmit} className="space-y-4 pt-4 border-t border-neutral-100">
@@ -362,17 +424,44 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
                         </div>
                       </div>
 
-                      {/* Mock File selector */}
-                      <div className="border-2 border-dashed border-neutral-300 rounded-xl p-6 text-center hover:bg-neutral-50 transition cursor-pointer">
-                        <Upload className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-                        <span className="text-body-small font-bold text-neutral-600 block">Select Proof File (JPEG/PNG/PDF)</span>
-                        <span className="text-[10px] text-neutral-400 block mt-1">Upload transfer snapshot/receipt proof under 10MB</span>
+                      {/* Real File Selector */}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        accept="image/jpeg,image/png,application/pdf"
+                        className="hidden"
+                        onChange={handleFileChange}
+                      />
+                      
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className={`border-2 border-dashed rounded-xl p-6 text-center hover:bg-neutral-50 transition cursor-pointer ${
+                          selectedFile ? "border-primary bg-primary-50/10" : "border-neutral-300"
+                        }`}
+                      >
+                        {selectedFile ? (
+                          <>
+                            <CheckCircle2 className="w-8 h-8 text-primary mx-auto mb-2" />
+                            <span className="text-body-small font-bold text-neutral-800 block">
+                              {selectedFile.name}
+                            </span>
+                            <span className="text-[10px] text-neutral-500 block mt-1">
+                              Selected file ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB). Click to change.
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+                            <span className="text-body-small font-bold text-neutral-600 block">Select Proof File (JPEG/PNG/PDF)</span>
+                            <span className="text-[10px] text-neutral-400 block mt-1">Upload transfer snapshot/receipt proof under 10MB</span>
+                          </>
+                        )}
                       </div>
 
                       <button
                         type="submit"
-                        disabled={submittingProof || !manualAmount || !manualRef}
-                        className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-lg font-bold text-label-large transition flex items-center justify-center gap-2 shadow cursor-pointer"
+                        disabled={submittingProof || !manualAmount || !manualRef || !selectedFile || !invoice.school.bankDetails}
+                        className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-lg font-bold text-label-large transition flex items-center justify-center gap-2 shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {submittingProof ? (
                           <>

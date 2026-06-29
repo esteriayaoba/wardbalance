@@ -75,7 +75,11 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
         {/* Sidebar Navigation */}
         <aside className="w-60 bg-neutral-900 border-r border-neutral-800 flex flex-col shrink-0">
           {/* Brand Header */}
-          <div className="h-16 px-6 border-b border-neutral-800 flex items-center gap-2.5">
+          <Link
+            href="/admin/dashboard"
+            className="h-16 px-6 border-b border-neutral-800 flex items-center gap-2.5 hover:bg-neutral-800/50 transition-colors"
+            aria-label="WardBalance — go to dashboard"
+          >
             <Image
               src="/logo-v5.png"
               alt="WardBalance logo"
@@ -85,7 +89,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
             <span className="text-title-medium text-white font-bold tracking-tight">
               WardBalance
             </span>
-          </div>
+          </Link>
 
           {/* Client-side Navigation (active state + onboarding lock) */}
           <AdminNav

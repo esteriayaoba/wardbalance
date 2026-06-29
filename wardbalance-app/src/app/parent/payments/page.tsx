@@ -8,7 +8,7 @@ interface PaymentLog {
   id: string;
   amount: string;
   method: string;
-  status: "recorded" | "void";
+  status: string;
   reference: string | null;
   createdAt: string;
   studentName: string;
@@ -87,7 +87,7 @@ export default function ParentPaymentsPage() {
       ) : (
         <div className="bg-white border border-neutral-200 rounded-xl overflow-hidden shadow-sm divide-y divide-neutral-100">
           {payments.map((p) => {
-            const isVoid = p.status === "void";
+            const isVoid = p.status === "void" || p.status === "rejected";
             return (
               <div
                 key={p.id}
@@ -101,9 +101,13 @@ export default function ParentPaymentsPage() {
                       {formatNaira(p.amount)}
                     </span>
                     <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded border ${
-                      isVoid 
+                      p.status === "void" || p.status === "rejected"
                         ? "bg-red-50 text-red-650 border-red-100" 
-                        : "bg-green-50 text-green-750 border-green-150"
+                        : p.status === "recorded" || p.status === "approved"
+                        ? "bg-green-50 text-green-750 border-green-150"
+                        : p.status === "pending"
+                        ? "bg-amber-50 text-amber-700 border-amber-150"
+                        : "bg-neutral-50 text-neutral-600 border-neutral-200"
                     }`}>
                       {p.status}
                     </span>

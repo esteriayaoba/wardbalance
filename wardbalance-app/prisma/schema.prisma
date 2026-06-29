@@ -103,6 +103,10 @@ model School {
   invoices          Invoice[]
   payments          Payment[]
   auditLogs         AuditLog[]
+  bankName          String?
+  bankAccountNumber String?
+  bankAccountName   String?
+  manualSubmissions ManualPaymentSubmission[]
 }
 
 enum UserRole {
@@ -273,6 +277,7 @@ model Student {
   parents  ParentWardLink[]
   invoices Invoice[]
   payments Payment[]
+  manualSubmissions ManualPaymentSubmission[]
 
   @@unique([schoolId, admissionNumber])
   @@index([schoolId])
@@ -295,6 +300,7 @@ model Parent {
   // Relations
   wards    ParentWardLink[]
   payments Payment[]
+  manualSubmissions ManualPaymentSubmission[]
 
   @@unique([schoolId, phone])
   @@index([schoolId])
@@ -427,6 +433,7 @@ model Invoice {
   // Relations
   lineItems InvoiceLineItem[]
   payments  Payment[]
+  manualSubmissions ManualPaymentSubmission[]
 
   @@unique([studentId, termId])
   @@index([schoolId])
@@ -522,4 +529,41 @@ model AuditLog {
 
   @@index([schoolId])
   @@index([createdAt])
+}
+
+enum ManualPaymentSubmissionStatus {
+  Pending
+  Approved
+  Rejected
+  ReuploadRequested
+  Cancelled
+}
+
+model ManualPaymentSubmission {
+  id              String                         @id @default(cuid())
+  schoolId        String
+  school          School                         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  invoiceId       String
+  invoice         Invoice                        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         Student                        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parentId        String
+  parent          Parent                         @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  submittedById   String
+  amount          Decimal                        @db.Decimal(12, 2)
+  paymentMethod   String                         @default("bank_transfer")
+  reference       String
+  proofFileKey    String?
+  proofFileName   String?
+  proofFileType   String?
+  proofFileSize   Int?
+  status          ManualPaymentSubmissionStatus  @default(Pending)
+  rejectionReason String?
+  reuploadReason  String?
+  submittedAt     DateTime                       @default(now())
+  reviewedAt      DateTime?
+  reviewedById    String?
+
+  @@index([schoolId])
+  @@index([status])
 }

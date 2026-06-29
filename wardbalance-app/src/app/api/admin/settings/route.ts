@@ -9,6 +9,9 @@ const SettingsSchema = z.object({
   phone: z.string().min(1, "School contact phone is required").max(30),
   email: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
   estimatedStudents: z.string().optional().or(z.literal("")),
+  bankName: z.string().max(100).optional().or(z.literal("")),
+  bankAccountNumber: z.string().max(30).optional().or(z.literal("")),
+  bankAccountName: z.string().max(150).optional().or(z.literal("")),
 });
 
 export async function GET(request: NextRequest) {
@@ -72,6 +75,9 @@ export async function POST(request: NextRequest) {
         phone: data.phone,
         email: data.email || null,
         estimatedStudents: data.estimatedStudents || null,
+        bankName: data.bankName || null,
+        bankAccountNumber: data.bankAccountNumber || null,
+        bankAccountName: data.bankAccountName || null,
       },
     });
 
