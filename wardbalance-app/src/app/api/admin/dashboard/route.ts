@@ -29,43 +29,49 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 1. Total invoices generated
-    const totalInvoices = await prisma.invoice.count({
-      where: { schoolId },
+    // Fetch active term for scoping
+    const activeTerm = await prisma.academicTerm.findFirst({
+      where: { schoolId, isActive: true },
+      include: { session: { select: { name: true } } },
     });
 
-    // 2. Expected revenue (sum of all finalAmount)
+    // 1. Total invoices generated (scoped to active term if available)
+    const totalInvoices = await prisma.invoice.count({
+      where: { schoolId, ...(activeTerm ? { termId: activeTerm.id } : {}) },
+    });
+
+    // 2. Expected revenue (scoped to active term)
     const expectedAgg = await prisma.invoice.aggregate({
-      where: { schoolId },
-      _sum: {
-        finalAmount: true,
-      },
+      where: { schoolId, ...(activeTerm ? { termId: activeTerm.id } : {}) },
+      _sum: { finalAmount: true },
     });
     const expectedRevenue = expectedAgg._sum.finalAmount ?? new Prisma.Decimal(0);
 
-    // 3. Collected revenue (sum of all payment amount where status is recorded)
+    // 3. Collected revenue (scoped to active term's invoices)
+    const invoiceIds = activeTerm
+      ? (await prisma.invoice.findMany({
+          where: { schoolId, termId: activeTerm.id },
+          select: { id: true },
+        })).map((i) => i.id)
+      : null;
+
     const collectedAgg = await prisma.payment.aggregate({
-      where: { schoolId, status: "recorded" },
-      _sum: {
-        amount: true,
-      },
+      where: invoiceIds
+        ? { schoolId, status: "recorded", invoiceId: { in: invoiceIds } }
+        : { schoolId, status: "recorded" },
+      _sum: { amount: true },
     });
     const collectedRevenue = collectedAgg._sum.amount ?? new Prisma.Decimal(0);
 
     // 4. Outstanding balance
     const outstandingBalance = expectedRevenue.minus(collectedRevenue);
 
-    // 5. Students without linked parents (count of students where parents list is empty)
+    // 5. Students without linked parents
     const studentsWithoutParentsCount = await prisma.student.count({
-      where: {
-        schoolId,
-        parents: {
-          none: {},
-        },
-      },
+      where: { schoolId, parents: { none: {} } },
     });
 
-    // Fetch last 5 audit logs for recent activity feed
+    // Last 5 audit logs
     const recentActivity = await prisma.auditLog.findMany({
       where: { schoolId },
       orderBy: { createdAt: "desc" },
@@ -75,6 +81,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: {
         schoolStatus: school.status,
+        activeTerm: activeTerm
+          ? { name: activeTerm.name, sessionName: activeTerm.session.name }
+          : null,
         stats: {
           totalInvoices,
           expectedRevenue: expectedRevenue.toString(),

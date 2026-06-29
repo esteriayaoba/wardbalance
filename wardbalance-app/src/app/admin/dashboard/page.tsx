@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw } from "lucide-react";
+import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import { DashboardStatCard, DashboardStatCardSkeleton } from "@/components/admin/shared/dashboard-stat-card";
 
@@ -24,6 +24,7 @@ interface AuditLog {
 
 interface DashboardData {
   schoolStatus: "lead" | "approved" | "invited" | "onboarding" | "active" | "paused" | "archived";
+  activeTerm: { name: string; sessionName: string } | null;
   stats: DashboardStats;
   recentActivity: AuditLog[];
 }
@@ -76,7 +77,7 @@ export default function DashboardPage() {
       <div className="space-y-8">
         <div className="space-y-2">
           <div className="h-8 w-64 bg-neutral-200 rounded animate-pulse" />
-          <div className="h-4 w-96 bg-neutral-200 rounded animate-pulse" />
+          <div className="h-4 w-72 bg-neutral-200 rounded animate-pulse" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <DashboardStatCardSkeleton />
@@ -169,6 +170,7 @@ export default function DashboardPage() {
   const expectedRev = stats?.expectedRevenue ? Number(stats.expectedRevenue) : 0;
   const collectedRev = stats?.collectedRevenue ? Number(stats.collectedRevenue) : 0;
   const collectionRate = expectedRev > 0 ? Math.round((collectedRev / expectedRev) * 100) : 0;
+  const activeTerm = data?.activeTerm;
 
   const formatActionMessage = (log: AuditLog) => {
     const actor = <strong className="text-neutral-800">{log.actorName}</strong>;
@@ -201,9 +203,20 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8">
       <div className="space-y-1">
-        <h1 className="text-headline-small text-neutral-900 font-bold">Finance Dashboard</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-headline-small text-neutral-900 font-bold">Finance Dashboard</h1>
+          {activeTerm && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-body-small font-bold">
+              <Calendar className="w-3.5 h-3.5" />
+              {activeTerm.sessionName} — {activeTerm.name}
+            </span>
+          )}
+        </div>
         <p className="text-body-medium text-neutral-600">
-          Overview of school collections, outstanding balances, and administrative log activity.
+          {activeTerm
+            ? `Revenue and collection overview for ${activeTerm.sessionName} — ${activeTerm.name}. KPIs are scoped to this active term.`
+            : "Overview of school collections, outstanding balances, and administrative log activity. Set an active term to scope dashboard data."
+          }
         </p>
       </div>
 
@@ -213,6 +226,7 @@ export default function DashboardPage() {
           value={stats?.expectedRevenue}
           icon={TrendingUp}
           subtitle="Sum of generated term invoices"
+          href="/admin/invoices"
         />
         <DashboardStatCard
           label="Collected Revenue"
@@ -220,6 +234,7 @@ export default function DashboardPage() {
           icon={Coins}
           subtitle="Total verified manual payments"
           valueColor="green"
+          href="/admin/payments"
         />
         <DashboardStatCard
           label="Outstanding Balance"
@@ -227,16 +242,25 @@ export default function DashboardPage() {
           icon={CreditCard}
           subtitle="Remaining receivable fee dues"
           valueColor="amber"
+          href="/admin/reports"
         />
         <DashboardStatCard
           label="Invoices Generated"
           value={stats?.totalInvoices ?? 0}
           icon={FileText}
           subtitle="Total generated student bills"
+          href="/admin/invoices"
         />
       </div>
 
-      <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm">
+      <div
+        onClick={() => router.push("/admin/reports")}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/reports"); }}
+        role="button"
+        tabIndex={0}
+        aria-label="Collection rate — click to view reports"
+        className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm cursor-pointer hover:border-primary/40 hover:shadow-md transition-all"
+      >
         <div className="flex items-center justify-between mb-2">
           <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
             Collection Rate
@@ -301,7 +325,17 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-4">
-            {data?.recentActivity && data.recentActivity.length > 0 ? (
+            {loading && !data?.recentActivity ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex gap-4 items-start animate-pulse">
+                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-200 mt-2 shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-4 w-3/4 bg-neutral-200 rounded" />
+                    <div className="h-3 w-1/4 bg-neutral-200 rounded" />
+                  </div>
+                </div>
+              ))
+            ) : data?.recentActivity && data.recentActivity.length > 0 ? (
               data.recentActivity.map((log) => (
                 <div key={log.id} className="flex gap-4 items-start text-body-medium text-neutral-600">
                   <div className="w-1.5 h-1.5 rounded-full bg-neutral-300 mt-2 shrink-0" />
@@ -381,9 +415,15 @@ export default function DashboardPage() {
 
           <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-xl space-y-2 mt-4">
             <div className="text-[10px] text-neutral-400 uppercase font-semibold">Active Term Tracker</div>
-            <p className="text-body-small text-neutral-700 leading-snug font-bold">
-              Invoices generated will align with the currently set active academic term settings.
-            </p>
+            {activeTerm ? (
+              <p className="text-body-small text-neutral-700 leading-snug font-bold">
+                Dashboard KPIs are scoped to <span className="text-primary">{activeTerm.sessionName} — {activeTerm.name}</span>. Switch the active term in Academic Settings to view data for a different period.
+              </p>
+            ) : (
+              <p className="text-body-small text-amber-700 leading-snug font-bold">
+                No active term set. KPIs show all-time data. Set an active term in Academic Settings to scope invoices and payments.
+              </p>
+            )}
           </div>
         </div>
       </div>

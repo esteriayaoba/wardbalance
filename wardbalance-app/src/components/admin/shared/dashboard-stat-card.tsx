@@ -1,4 +1,5 @@
 import React from "react";
+import { useRouter } from "next/navigation";
 import { formatNaira } from "@/lib/utils";
 import { LucideIcon } from "lucide-react";
 
@@ -9,6 +10,7 @@ interface DashboardStatCardProps {
   subtitle: string;
   valueColor?: "default" | "green" | "amber";
   isPercentage?: boolean;
+  href?: string;
 }
 
 const colorMap = {
@@ -30,15 +32,37 @@ export function DashboardStatCard({
   subtitle,
   valueColor = "default",
   isPercentage = false,
+  href,
 }: DashboardStatCardProps) {
+  const router = useRouter();
+
   const displayValue = isPercentage
     ? `${value ?? 0}%`
     : typeof value === "number"
       ? value.toLocaleString()
       : formatNaira(value ?? 0);
 
+  const handleClick = () => {
+    if (href) router.push(href);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (href && (e.key === "Enter" || e.key === " ")) {
+      router.push(href);
+    }
+  };
+
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
+    <div
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      role={href ? "button" : undefined}
+      tabIndex={href ? 0 : undefined}
+      aria-label={href ? `${label} — click to view details` : undefined}
+      className={`bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3 ${
+        href ? "cursor-pointer hover:border-primary/40 hover:shadow-md transition-all" : ""
+      }`}
+    >
       <div className="flex justify-between items-center">
         <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
           {label}

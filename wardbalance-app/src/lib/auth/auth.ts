@@ -1,9 +1,15 @@
 import { SignJWT, jwtVerify } from "jose";
 import bcrypt from "bcryptjs";
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "wardbalance-default-secret-key-please-change-in-production"
-);
+const rawSecret = process.env.JWT_SECRET;
+if (!rawSecret) {
+  throw new Error(
+    "JWT_SECRET is not set. Add it to your .env file or hosting environment. " +
+    "Generate one with: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"" +
+    "\n  → It is already in your local .env. If you see this in production, set the JWT_SECRET environment variable on your hosting platform (Vercel, Railway, etc.)."
+  );
+}
+const JWT_SECRET = new TextEncoder().encode(rawSecret);
 
 export async function encryptPassword(password: string): Promise<string> {
   const salt = await bcrypt.genSalt(10);
