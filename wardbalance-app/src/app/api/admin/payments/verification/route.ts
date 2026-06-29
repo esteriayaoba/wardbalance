@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
 import { logError } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
+import { enqueueNotification } from "@/lib/notifications";
 import {
   fetchVerificationQueue,
   approvePaymentSubmission,
@@ -60,6 +62,24 @@ export async function POST(request: NextRequest) {
           actorName: session.fullName,
           submissionId,
         });
+
+        try {
+          const parent = await prisma.parent.findUnique({ where: { id: result.submission.parentId } });
+          if (parent) {
+            await enqueueNotification({
+              schoolId: session.schoolId,
+              parentId: parent.id,
+              channel: "email",
+              recipient: parent.email || parent.phone,
+              subject: "Payment Approved — WardBalance",
+              content: `Your payment of ₦${Number(result.payment.amount).toLocaleString()} has been approved. Receipt: ${result.receipt.receiptNumber}`,
+              reference: `payment-${result.payment.id}`,
+            });
+          }
+        } catch {
+          // Notification failure is non-blocking
+        }
+
         return NextResponse.json({
           data: result,
           message: "Payment approved and recorded in invoice ledger.",
@@ -80,6 +100,9 @@ export async function POST(request: NextRequest) {
           submissionId,
           reason: reason.trim(),
         });
+
+        notifyParent(session.schoolId, result.parentId, "Payment Rejected", `Your payment submission was rejected. Reason: ${reason.trim()}`).catch(() => {});
+
         return NextResponse.json({ data: result, message: "Payment submission rejected." });
       }
 
@@ -97,6 +120,9 @@ export async function POST(request: NextRequest) {
           submissionId,
           reason: reason.trim(),
         });
+
+        notifyParent(session.schoolId, result.parentId, "Re-upload Requested", `Please re-upload your payment proof. Reason: ${reason.trim()}`).catch(() => {});
+
         return NextResponse.json({
           data: result,
           message: "Parent requested to re-upload payment proof.",
@@ -109,5 +135,16 @@ export async function POST(request: NextRequest) {
       { error: err instanceof Error ? err.message : "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
+  }
+}
+
+async function notifyParent(schoolId: string, parentId: string, subject: string, content: string) {
+  try {
+    const parent = await prisma.parent.findUnique({ where: { id: parentId } });
+    if (parent) {
+      await enqueueNotification({ schoolId, parentId, channel: "email", recipient: parent.email || parent.phone, subject, content });
+    }
+  } catch {
+    // Non-blocking
   }
 }

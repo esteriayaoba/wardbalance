@@ -6,6 +6,7 @@ import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { recordManualPayment } from "@/services/payment-verification.service";
+import { enqueueNotification } from "@/lib/notifications";
 import { studentBasicSelect } from "@/lib/prisma-selects";
 
 const CreatePaymentSchema = z.object({
@@ -82,6 +83,29 @@ export async function POST(request: NextRequest) {
         method,
         reference,
       });
+
+      try {
+        const inv = await prisma.invoice.findUnique({ where: { id: invoiceId } });
+        if (inv) {
+          const parent = await prisma.parentWardLink.findFirst({
+            where: { studentId: inv.studentId, schoolId: session.schoolId, isPrimaryContact: true },
+            include: { parent: { select: { id: true, email: true, phone: true } } },
+          });
+          if (parent?.parent) {
+            await enqueueNotification({
+              schoolId: session.schoolId,
+              parentId: parent.parent.id,
+              channel: "email",
+              recipient: parent.parent.email || parent.parent.phone,
+              subject: "Payment Recorded — WardBalance",
+              content: `A payment of ₦${Number(amount.toString()).toLocaleString("en-NG")} has been recorded for your ward.`,
+              reference: `payment-${invoiceId}`,
+            });
+          }
+        }
+      } catch {
+        // Non-blocking
+      }
 
       return NextResponse.json({
         data: result,

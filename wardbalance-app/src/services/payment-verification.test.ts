@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Decimal } from "@prisma/client-runtime-utils";
 
-// Mock prisma
+const mockRecordPayment = vi.fn();
+
+vi.mock("@/services/payment-recorder.service", () => ({
+  recordPayment: mockRecordPayment,
+}));
+
 const mockPrisma = {
   manualPaymentSubmission: {
     findMany: vi.fn(),
@@ -20,6 +25,8 @@ const mockPrisma = {
   },
   receipt: { create: vi.fn() },
   auditLog: { create: vi.fn() },
+  parentWardLink: { findFirst: vi.fn() },
+  notificationOutbox: { create: vi.fn() },
   $transaction: vi.fn(),
 };
 
@@ -127,21 +134,16 @@ describe("approvePaymentSubmission", () => {
     };
 
     const mockUpdatedSubmission = { ...mockSubmission, status: "Approved" };
-    const mockPayment = { id: "pay-1", amount: new Decimal("50000") };
-    const mockReceipt = { id: "rcpt-1", receiptNumber: "REC-20260629-ABCD" };
-    const mockUpdatedInvoice = {
-      ...mockInvoice,
-      amountPaid: new Decimal("50000"),
-      balanceDue: new Decimal("50000"),
-      status: "partial",
-    };
+
+    mockRecordPayment.mockResolvedValue({
+      payment: { id: "pay-1", amount: new Decimal("50000"), method: "bank_transfer", reference: "REF-001" },
+      receipt: { id: "rcpt-1", receiptNumber: "REC-20260629-ABCD" },
+      invoice: { id: "inv-1", amountPaid: new Decimal("50000"), balanceDue: new Decimal("50000"), status: "partial" },
+    });
 
     const tx: any = {
       manualPaymentSubmission: { update: vi.fn().mockResolvedValue(mockUpdatedSubmission), findUnique: vi.fn().mockResolvedValue(mockSubmission) },
-      invoice: { findUnique: vi.fn().mockResolvedValue(mockInvoice), update: vi.fn().mockResolvedValue(mockUpdatedInvoice) },
-      payment: { create: vi.fn().mockResolvedValue(mockPayment) },
-      receipt: { create: vi.fn().mockResolvedValue(mockReceipt) },
-      auditLog: { create: vi.fn().mockResolvedValue({}) },
+      invoice: { findUnique: vi.fn().mockResolvedValue(mockInvoice) },
     };
 
     mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
@@ -152,14 +154,7 @@ describe("approvePaymentSubmission", () => {
     expect(result.payment.id).toBe("pay-1");
     expect(result.receipt.id).toBe("rcpt-1");
     expect(result.invoice.status).toBe("partial");
-    expect(tx.auditLog.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          action: "MANUAL_PAYMENT_APPROVED",
-          entityType: "ManualPaymentSubmission",
-        }),
-      })
-    );
+    expect(mockRecordPayment).toHaveBeenCalled();
   });
 
   it("rejects if already reviewed", async () => {
@@ -179,9 +174,7 @@ describe("approvePaymentSubmission", () => {
 
     mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
 
-    await expect(approvePaymentSubmission(baseOptions)).rejects.toThrow(
-      /already reviewed/i
-    );
+    await expect(approvePaymentSubmission(baseOptions)).rejects.toThrow(/already reviewed/i);
   });
 
   it("rejects if amount exceeds balance due", async () => {
@@ -202,19 +195,13 @@ describe("approvePaymentSubmission", () => {
     };
 
     const tx: any = {
-      manualPaymentSubmission: {
-        findUnique: vi.fn().mockResolvedValue(mockSubmission),
-      },
-      invoice: {
-        findUnique: vi.fn().mockResolvedValue(mockInvoice),
-      },
+      manualPaymentSubmission: { findUnique: vi.fn().mockResolvedValue(mockSubmission) },
+      invoice: { findUnique: vi.fn().mockResolvedValue(mockInvoice) },
     };
 
     mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
 
-    await expect(approvePaymentSubmission(baseOptions)).rejects.toThrow(
-      /exceeds/i
-    );
+    await expect(approvePaymentSubmission(baseOptions)).rejects.toThrow(/exceeds/i);
   });
 });
 
@@ -277,21 +264,16 @@ describe("recordManualPayment", () => {
       balanceDue: new Decimal("100000"),
       finalAmount: new Decimal("100000"),
       status: "issued",
-      student: {
-        parents: [{ parentId: "parent-1", isPrimaryContact: true }],
-      },
     };
 
     mockPrisma.invoice.findFirst.mockResolvedValue(mockInvoice);
+    mockPrisma.parentWardLink.findFirst.mockResolvedValue({ parentId: "parent-1" });
 
-    const tx: any = {
-      payment: { create: vi.fn().mockResolvedValue({ id: "pay-1" }) },
-      receipt: { create: vi.fn().mockResolvedValue({ id: "rcpt-1", receiptNumber: "REC-TEST" }) },
-      invoice: { update: vi.fn().mockResolvedValue({ ...mockInvoice, amountPaid: new Decimal("100000"), balanceDue: new Decimal("0"), status: "paid" }) },
-      auditLog: { create: vi.fn() },
-    };
-
-    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
+    mockRecordPayment.mockResolvedValue({
+      payment: { id: "pay-1", amount: new Decimal("100000"), method: "cash", reference: null },
+      receipt: { id: "rcpt-1", receiptNumber: "REC-TEST" },
+      invoice: { id: "inv-1", amountPaid: new Decimal("100000"), balanceDue: new Decimal("0"), status: "paid" },
+    });
 
     const result = await recordManualPayment({
       schoolId: "school-1",
@@ -304,7 +286,7 @@ describe("recordManualPayment", () => {
 
     expect(result.payment.id).toBe("pay-1");
     expect(result.invoice.status).toBe("paid");
-    expect(tx.auditLog.create).toHaveBeenCalled();
+    expect(mockRecordPayment).toHaveBeenCalled();
   });
 
   it("rejects payment when term is locked", async () => {
@@ -312,11 +294,9 @@ describe("recordManualPayment", () => {
       id: "inv-1",
       studentId: "student-1",
       term: { status: "locked" },
-      amountPaid: new Decimal("0"),
-      balanceDue: new Decimal("100000"),
-      status: "issued",
-      student: { parents: [] },
     });
+
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb({}));
 
     await expect(recordManualPayment({
       schoolId: "school-1", actorId: "user-1", actorName: "Admin",
