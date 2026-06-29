@@ -72,6 +72,9 @@
   --currency-value-size: 14px;
   --currency-value-line: 20px;
 
+  /* Marketing Header Offset */
+  --marketing-header-offset: 96px;
+
   /* Color System - Light Theme */
   --color-primary: hsl(221, 90%, 56%);
   --color-on-primary: hsl(0, 0%, 100%);

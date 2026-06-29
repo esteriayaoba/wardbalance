@@ -3,10 +3,12 @@ import { getSession } from "@/lib/auth/session";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { ShieldCheck, Monitor, Sparkle } from "lucide-react";
+import Image from "next/image";
+import { Monitor, Sparkle } from "lucide-react";
 import LogoutButton from "./logout-button";
 import AdminNav from "./admin-nav";
 import AdminPageTitle from "./admin-page-title";
+import { RouteGuard } from "./route-guard";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -36,11 +38,20 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     select: { name: true, status: true },
   });
 
+  // Fetch user details for email verification check
+  const dbUser = await prisma.user.findUnique({
+    where: { id: session.userId },
+    select: { emailVerified: true },
+  });
+
   const isDemo = session.isDemo === true;
   const schoolStatus = school?.status ?? "onboarding";
+  const emailVerified = isDemo ? true : (dbUser?.emailVerified ?? false);
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col">
+    <>
+      <RouteGuard schoolStatus={schoolStatus} />
+      <div className="min-h-screen bg-neutral-50 flex flex-col">
       {/* Demo Mode Banner */}
       {isDemo && (
         <div className="bg-gradient-to-r from-primary-700 to-primary shrink-0 px-6 py-2.5 flex items-center justify-between gap-4">
@@ -64,8 +75,13 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
         {/* Sidebar Navigation */}
         <aside className="w-60 bg-neutral-900 border-r border-neutral-800 flex flex-col shrink-0">
           {/* Brand Header */}
-          <div className="h-16 px-6 border-b border-neutral-800 flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-primary" />
+          <div className="h-16 px-6 border-b border-neutral-800 flex items-center gap-2.5">
+            <Image
+              src="/logo-v5.png"
+              alt="WardBalance logo"
+              width={36}
+              height={36}
+            />
             <span className="text-title-medium text-white font-bold tracking-tight">
               WardBalance
             </span>
@@ -114,6 +130,24 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
             </div>
           </header>
 
+          {/* Email Verification Banner */}
+          {!emailVerified && (
+            <div className="bg-amber-50 border-b border-amber-200 px-8 py-3 flex items-center justify-between gap-4 shrink-0 shadow-xs">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse"></span>
+                <p className="text-body-small text-amber-900 leading-normal">
+                  <strong>Email verification is pending.</strong> Sensitive financial actions (generating invoices, recording manual payments, creating fees, and publishing templates) are restricted.
+                </p>
+              </div>
+              <Link
+                href="/admin/verify-email"
+                className="shrink-0 text-label-small font-bold text-amber-700 hover:text-amber-800 bg-amber-100/60 hover:bg-amber-100 px-3.5 py-1.5 rounded-lg transition"
+              >
+                Verify Email Now →
+              </Link>
+            </div>
+          )}
+
           {/* Scrollable Main View Area */}
           <main className="flex-1 overflow-y-auto">
             <div className="max-w-7xl mx-auto px-8 py-8">
@@ -123,5 +157,6 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
         </div>
       </div>
     </div>
+    </>
   );
 }

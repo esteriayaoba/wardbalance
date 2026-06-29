@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle } from "lucide-react";
+import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import { DashboardStatCard, DashboardStatCardSkeleton } from "@/components/admin/shared/dashboard-stat-card";
 
 interface DashboardStats {
   totalInvoices: number;
@@ -38,38 +39,74 @@ interface SetupStatus {
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
 
-  useEffect(() => {
-    // Load dashboard stats & setup status in parallel
-    Promise.all([
-      fetch("/api/admin/dashboard").then((r) => r.json()),
-      fetch("/api/admin/setup/status").then((r) => r.json()),
-    ])
-      .then(([dashRes, setupRes]) => {
-        setData(dashRes.data);
-        setSetupStatus(setupRes.data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load dashboard metrics:", err);
-        setLoading(false);
-      });
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [dashRes, setupRes] = await Promise.all([
+        fetch("/api/admin/dashboard").then((r) => {
+          if (!r.ok) throw new Error("Failed to load dashboard metrics");
+          return r.json();
+        }),
+        fetch("/api/admin/setup/status").then((r) => {
+          if (!r.ok) throw new Error("Failed to load setup status");
+          return r.json();
+        }),
+      ]);
+      setData(dashRes.data);
+      setSetupStatus(setupRes.data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "An unexpected error occurred";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  if (loading) {
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  if (loading && !data) {
+    return (
+      <div className="space-y-8">
+        <div className="space-y-2">
+          <div className="h-8 w-64 bg-neutral-200 rounded animate-pulse" />
+          <div className="h-4 w-96 bg-neutral-200 rounded animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <DashboardStatCardSkeleton />
+          <DashboardStatCardSkeleton />
+          <DashboardStatCardSkeleton />
+          <DashboardStatCardSkeleton />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
-        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-        <p className="text-body-large text-neutral-600">Assembling financial workspace...</p>
+        <AlertCircle className="w-12 h-12 text-error mb-4" />
+        <h3 className="text-title-medium text-neutral-900 font-bold mb-2">Could Not Load Dashboard</h3>
+        <p className="text-body-medium text-neutral-600 mb-6">{error}</p>
+        <button
+          onClick={fetchData}
+          className="px-4 py-2 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition inline-flex items-center gap-2 cursor-pointer"
+        >
+          <RefreshCw className="w-4 h-4" />
+          Retry
+        </button>
       </div>
     );
   }
 
   const isOnboarding = data?.schoolStatus === "onboarding";
 
-  // Render Onboarding Checklist Empty State Dashboard
   if (isOnboarding) {
     const progressPercent = setupStatus?.progress?.percentage ?? 0;
     const completedCount = setupStatus?.progress?.completed ?? 0;
@@ -80,7 +117,7 @@ export default function DashboardPage() {
         <div className="space-y-2 text-center py-4">
           <h1 className="text-headline-small text-neutral-900 font-bold">Welcome to WardBalance</h1>
           <p className="text-body-medium text-neutral-600">
-            Let's configure your school's workspace settings to activate your financial ledger.
+            Let&apos;s configure your school&apos;s workspace settings to activate your financial ledger.
           </p>
         </div>
 
@@ -98,20 +135,19 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {/* Progress Indicator */}
           <div className="bg-neutral-50 p-6 rounded-xl max-w-md mx-auto border border-neutral-200 text-left space-y-3">
             <div className="flex justify-between items-center text-body-medium font-bold text-neutral-800">
               <span>Setup Checklist Progress</span>
               <span className="font-mono">{completedCount} / {totalCount} Steps</span>
             </div>
-            
+
             <div className="w-full bg-neutral-200 h-2.5 rounded-full overflow-hidden">
               <div
-                className="bg-primary h-full transition-all duration-505"
+                className="bg-primary h-full transition-all duration-500"
                 style={{ width: `${progressPercent}%` }}
-              ></div>
+              />
             </div>
-            
+
             <span className="text-[11px] text-neutral-400 block text-center pt-1">
               Checklist tracks academic sessions, divisions, levels, arms, fee items, and invoicing setup.
             </span>
@@ -119,7 +155,7 @@ export default function DashboardPage() {
 
           <button
             onClick={() => router.push("/admin/setup")}
-            className="px-6 py-3 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm"
+            className="px-6 py-3 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm cursor-pointer"
           >
             Continue Workspace Setup
             <ArrowRight className="w-4 h-4" />
@@ -129,10 +165,11 @@ export default function DashboardPage() {
     );
   }
 
-  // Render Active Dashboard
   const stats = data?.stats;
+  const expectedRev = stats?.expectedRevenue ? Number(stats.expectedRevenue) : 0;
+  const collectedRev = stats?.collectedRevenue ? Number(stats.collectedRevenue) : 0;
+  const collectionRate = expectedRev > 0 ? Math.round((collectedRev / expectedRev) * 100) : 0;
 
-  // Format activity action log nicely
   const formatActionMessage = (log: AuditLog) => {
     const actor = <strong className="text-neutral-800">{log.actorName}</strong>;
     const actionLower = log.action.toLowerCase();
@@ -163,7 +200,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      {/* Welcome banner */}
       <div className="space-y-1">
         <h1 className="text-headline-small text-neutral-900 font-bold">Finance Dashboard</h1>
         <p className="text-body-medium text-neutral-600">
@@ -171,77 +207,69 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* KPI: Expected Revenue */}
-        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
-              Expected Revenue
-            </span>
-            <TrendingUp className="w-5 h-5 text-neutral-400" />
-          </div>
-          <div className="space-y-1">
-            <div className="text-headline-small font-extrabold text-neutral-900 tabular-nums">
-              {formatNaira(stats?.expectedRevenue)}
-            </div>
-            <p className="text-[11px] text-neutral-400">Sum of generated terms invoices</p>
-          </div>
-        </div>
+        <DashboardStatCard
+          label="Expected Revenue"
+          value={stats?.expectedRevenue}
+          icon={TrendingUp}
+          subtitle="Sum of generated term invoices"
+        />
+        <DashboardStatCard
+          label="Collected Revenue"
+          value={stats?.collectedRevenue}
+          icon={Coins}
+          subtitle="Total verified manual payments"
+          valueColor="green"
+        />
+        <DashboardStatCard
+          label="Outstanding Balance"
+          value={stats?.outstandingBalance}
+          icon={CreditCard}
+          subtitle="Remaining receivable fee dues"
+          valueColor="amber"
+        />
+        <DashboardStatCard
+          label="Invoices Generated"
+          value={stats?.totalInvoices ?? 0}
+          icon={FileText}
+          subtitle="Total generated student bills"
+        />
+      </div>
 
-        {/* KPI: Collected Revenue */}
-        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
-              Collected Revenue
-            </span>
-            <Coins className="w-5 h-5 text-green-500" />
-          </div>
-          <div className="space-y-1">
-            <div className="text-headline-small font-extrabold text-green-600 tabular-nums">
-              {formatNaira(stats?.collectedRevenue)}
-            </div>
-            <p className="text-[11px] text-neutral-400">Total verified manual payments</p>
-          </div>
+      <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
+            Collection Rate
+          </span>
+          <TrendingUp className={`w-5 h-5 ${collectionRate >= 75 ? "text-green-500" : collectionRate >= 50 ? "text-amber-500" : "text-neutral-400"}`} />
         </div>
-
-        {/* KPI: Outstanding Balance */}
-        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
-              Outstanding Balance
+        <div className="space-y-2">
+          <div className="flex items-baseline gap-2">
+            <span className={`text-headline-small font-extrabold tabular-nums ${collectionRate >= 75 ? "text-green-600" : collectionRate >= 50 ? "text-amber-600" : "text-neutral-900"}`}>
+              {collectionRate}%
             </span>
-            <CreditCard className="w-5 h-5 text-amber-500" />
-          </div>
-          <div className="space-y-1">
-            <div className="text-headline-small font-extrabold text-amber-600 tabular-nums">
-              {formatNaira(stats?.outstandingBalance)}
-            </div>
-            <p className="text-[11px] text-neutral-400">Remaining receivable fee dues</p>
-          </div>
-        </div>
-
-        {/* KPI: Total Invoices */}
-        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
-              Invoices Generated
+            <span className="text-[11px] text-neutral-400">
+              of expected revenue collected
             </span>
-            <FileText className="w-5 h-5 text-neutral-400" />
           </div>
-          <div className="space-y-1">
-            <div className="text-headline-small font-extrabold text-neutral-900 tabular-nums">
-              {stats?.totalInvoices}
-            </div>
-            <p className="text-[11px] text-neutral-400">Total generated student bills</p>
+          <div className="w-full bg-neutral-200 h-2 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                collectionRate >= 75 ? "bg-green-500" : collectionRate >= 50 ? "bg-amber-500" : "bg-neutral-400"
+              }`}
+              style={{ width: `${collectionRate}%` }}
+            />
           </div>
         </div>
       </div>
 
-      {/* Alert bar for students without parents */}
       {stats && stats.studentsWithoutParents > 0 && (
         <div
           onClick={() => router.push("/admin/students")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/students"); }}
+          role="button"
+          tabIndex={0}
+          aria-label={`${stats.studentsWithoutParents} students without linked parents. Click to manage.`}
           className="flex items-center justify-between gap-3 p-4 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 shadow-sm cursor-pointer hover:bg-amber-100/60 transition"
         >
           <div className="flex items-center gap-3">
@@ -250,16 +278,14 @@ export default function DashboardPage() {
               You have <strong>{stats.studentsWithoutParents} students</strong> in your registry without any linked parents. No parent will receive invoice alerts or payment notifications.
             </span>
           </div>
-          <button className="text-body-small text-amber-700 hover:underline font-bold inline-flex items-center gap-1 shrink-0">
+          <button className="text-body-small text-amber-700 hover:underline font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer">
             Link Wards
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Lower Dashboard split layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Recent actions / Audit feed */}
         <div className="lg:col-span-2 bg-white border border-neutral-200 rounded-xl p-6 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
             <div className="flex items-center gap-2">
@@ -268,7 +294,7 @@ export default function DashboardPage() {
             </div>
             <button
               onClick={() => router.push("/admin/audit")}
-              className="text-body-small text-primary hover:underline font-bold"
+              className="text-body-small text-primary hover:underline font-bold cursor-pointer"
             >
               Full Log History
             </button>
@@ -278,7 +304,7 @@ export default function DashboardPage() {
             {data?.recentActivity && data.recentActivity.length > 0 ? (
               data.recentActivity.map((log) => (
                 <div key={log.id} className="flex gap-4 items-start text-body-medium text-neutral-600">
-                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-300 mt-2 shrink-0"></div>
+                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-300 mt-2 shrink-0" />
                   <div className="flex-1">
                     <p className="leading-snug">{formatActionMessage(log)}</p>
                     <span className="text-[10px] text-neutral-400 font-medium block mt-0.5">
@@ -298,7 +324,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Quick billing summary */}
         <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
@@ -307,33 +332,54 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-3.5 text-body-medium">
-              <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer" onClick={() => router.push("/admin/invoices")}>
+              <div
+                onClick={() => router.push("/admin/invoices")}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/invoices"); }}
+                role="button"
+                tabIndex={0}
+                aria-label="Open billing wizard to generate term invoices"
+                className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer"
+              >
                 <FileText className="w-5 h-5 text-primary" />
                 <div>
-                  <div className="font-bold text-neutral-850">Billing Wizard</div>
+                  <div className="font-bold text-neutral-800">Billing Wizard</div>
                   <div className="text-[10px] text-neutral-400">Generate term invoices</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer" onClick={() => router.push("/admin/payments")}>
+              <div
+                onClick={() => router.push("/admin/payments")}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/payments"); }}
+                role="button"
+                tabIndex={0}
+                aria-label="Record a manual payment collection"
+                className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer"
+              >
                 <Coins className="w-5 h-5 text-green-500" />
                 <div>
-                  <div className="font-bold text-neutral-850">Record Collection</div>
+                  <div className="font-bold text-neutral-800">Record Collection</div>
                   <div className="text-[10px] text-neutral-400">Log cash, transfer or cheque</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer" onClick={() => router.push("/admin/students")}>
+              <div
+                onClick={() => router.push("/admin/students")}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/students"); }}
+                role="button"
+                tabIndex={0}
+                aria-label="Open student registry to add or manage students"
+                className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer"
+              >
                 <UserPlus className="w-5 h-5 text-neutral-500" />
                 <div>
-                  <div className="font-bold text-neutral-850">Student Registry</div>
+                  <div className="font-bold text-neutral-800">Student Registry</div>
                   <div className="text-[10px] text-neutral-400">Add parents and wards</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="bg-neutral-50 p-4 border border-neutral-150 rounded-xl space-y-2 mt-4">
+          <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-xl space-y-2 mt-4">
             <div className="text-[10px] text-neutral-400 uppercase font-semibold">Active Term Tracker</div>
             <p className="text-body-small text-neutral-700 leading-snug font-bold">
               Invoices generated will align with the currently set active academic term settings.

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
+import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
 
 // Generate unique receipt numbers
 function generateReceiptNumber() {
@@ -77,14 +78,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const guard = await requireVerifiedAdminUser();
+    if (!guard.authorized) {
+      return guard.response;
     }
+    const session = guard.session;
 
     const body = await request.json();
     const parsed = CreatePaymentSchema.safeParse(body);

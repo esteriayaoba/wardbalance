@@ -82,6 +82,7 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
+  const [emailVerified, setEmailVerified] = useState(true);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -126,9 +127,11 @@ export default function InvoicesPage() {
       fetch("/api/admin/invoices").then((r) => r.json()),
       fetch("/api/admin/academic/classes").then((r) => r.json()),
       fetch("/api/admin/academic/terms").then((r) => r.json()),
+      fetch("/api/admin/verify-email").then((r) => r.json()).catch(() => ({ emailVerified: true })),
     ])
-      .then(([invoiceRes, classRes, termRes]) => {
+      .then(([invoiceRes, classRes, termRes, verifyRes]) => {
         setInvoices(invoiceRes.data || []);
+        setEmailVerified(verifyRes.emailVerified ?? true);
         
         const divisions = classRes.data || [];
         const flatLevels = divisions.flatMap((d: any) =>
@@ -415,7 +418,9 @@ export default function InvoicesPage() {
 
         <button
           onClick={handleOpenWizard}
-          className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm shrink-0"
+          disabled={!emailVerified}
+          title={!emailVerified ? "Verify your email to use this action." : undefined}
+          className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-4 h-4" />
           Generate Invoices
@@ -639,8 +644,9 @@ export default function InvoicesPage() {
                       {invoiceDetails.status === "draft" && (
                         <button
                           onClick={() => handleIssueInvoice(invoiceDetails.id)}
-                          disabled={actionLoading}
-                          className="px-3.5 py-1.5 bg-primary text-white hover:bg-primary-dark font-bold text-body-small rounded-lg shadow-sm transition"
+                          disabled={actionLoading || !emailVerified}
+                          title={!emailVerified ? "Verify your email to use this action." : undefined}
+                          className="px-3.5 py-1.5 bg-primary text-white hover:bg-primary-dark font-bold text-body-small rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Issue Invoice
                         </button>
@@ -650,8 +656,9 @@ export default function InvoicesPage() {
                       {(invoiceDetails.status === "draft" || invoiceDetails.status === "issued") && (
                         <button
                           onClick={() => setInvoiceToDelete(invoiceDetails.id)}
-                          disabled={actionLoading}
-                          className="px-3 py-1.5 border border-red-200 text-error hover:bg-red-50 font-bold text-body-small rounded-lg transition inline-flex items-center gap-1"
+                          disabled={actionLoading || !emailVerified}
+                          title={!emailVerified ? "Verify your email to use this action." : undefined}
+                          className="px-3 py-1.5 border border-red-200 text-error hover:bg-red-50 font-bold text-body-small rounded-lg transition inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                           Delete
@@ -668,8 +675,13 @@ export default function InvoicesPage() {
                       </span>
                       {!editDueDate && (invoiceDetails.status === "draft" || invoiceDetails.status === "issued") && (
                         <button
-                          onClick={() => setEditDueDate(true)}
-                          className="text-body-small text-primary hover:underline font-bold"
+                          onClick={() => {
+                            if (!emailVerified) return;
+                            setEditDueDate(true);
+                          }}
+                          disabled={!emailVerified}
+                          title={!emailVerified ? "Verify your email to use this action." : undefined}
+                          className="text-body-small text-primary hover:underline font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           Edit Due Date
                         </button>
@@ -737,10 +749,13 @@ export default function InvoicesPage() {
                       {!showDiscountForm && (
                         <button
                           onClick={() => {
+                            if (!emailVerified) return;
                             setDiscountType(invoiceDetails.discountAmount !== "0" ? "fixed" : "none");
                             setShowDiscountForm(true);
                           }}
-                          className="text-body-small text-primary hover:underline font-bold inline-flex items-center gap-1"
+                          disabled={!emailVerified}
+                          title={!emailVerified ? "Verify your email to use this action." : undefined}
+                          className="text-body-small text-primary hover:underline font-bold inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Tag className="w-3.5 h-3.5" />
                           Apply Discount

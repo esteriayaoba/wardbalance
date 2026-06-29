@@ -113,15 +113,21 @@ enum UserRole {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  schoolId     String
-  school       School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
-  email        String   @unique
-  passwordHash String
-  fullName     String
-  role         UserRole @default(Bursar)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                        String    @id @default(cuid())
+  schoolId                  String
+  school                    School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  email                     String    @unique
+  passwordHash              String
+  fullName                  String
+  role                      UserRole  @default(Bursar)
+  emailVerified             Boolean   @default(false)
+  emailVerifiedAt           DateTime?
+  verificationCodeHash      String?
+  verificationCodeExpiresAt DateTime?
+  verificationAttempts      Int       @default(0)
+  lastVerificationSentAt    DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   // Relations
   recordedPayments Payment[] @relation("ActorRelation")

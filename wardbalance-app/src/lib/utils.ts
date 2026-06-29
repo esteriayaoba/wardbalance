@@ -26,3 +26,21 @@ export const formatNaira = (amount: number | string | unknown): string => {
 
   return `₦${formatted}`;
 };
+
+/**
+ * Smoothly scrolls to a section by its id, respecting the dynamic
+ * marketing header offset (--marketing-header-offset CSS variable).
+ *
+ * Falls back to 96px if the CSS variable has not been set yet.
+ */
+export const scrollToSection = (id: string): void => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const offsetStr = getComputedStyle(document.documentElement)
+    .getPropertyValue("--marketing-header-offset")
+    .trim();
+  const offset = offsetStr ? parseFloat(offsetStr) : 96;
+  const top = el.getBoundingClientRect().top + window.scrollY - offset;
+  window.scrollTo({ top, behavior: "smooth" });
+};
+

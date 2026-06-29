@@ -10,7 +10,7 @@ export default function PricingSection() {
   return (
     <section
       id="pricing"
-      className="py-16 md:py-24 scroll-mt-24"
+      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] border-t border-b border-neutral-200/60"
       style={{ background: "var(--color-surface-container-low)" }}
       aria-labelledby="pricing-heading"
     >
@@ -39,7 +39,7 @@ export default function PricingSection() {
         </div>
 
         {/* Pricing Cards Grid */}
-        <div className="grid md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
           {PRICING_PLANS.map((plan) => {
             const isCustom = plan.priceDisplay === "Custom";
             const isFree = plan.priceDisplay === "₦0";
@@ -85,7 +85,7 @@ export default function PricingSection() {
                   <h3 className="text-title-large text-neutral-900 font-bold mb-1">
                     {plan.name}
                   </h3>
-                  <p className="text-body-small text-neutral-500 min-h-[36px]">
+                  <p className="text-body-small text-neutral-600 min-h-[36px]">
                     {plan.targetUser}
                   </p>
                 </div>
@@ -95,7 +95,7 @@ export default function PricingSection() {
                   <span className="text-headline-large text-neutral-900 font-bold tracking-tight font-sans tabular-nums">
                     {plan.priceDisplay}
                   </span>
-                  <span className="text-body-medium font-normal text-neutral-500 ml-1">
+                  <span className="text-body-medium font-normal text-neutral-600 ml-1">
                     {plan.billingLabel}
                   </span>
                 </div>
@@ -115,7 +115,9 @@ export default function PricingSection() {
                         }
                         const el = document.getElementById("demo");
                         if (el) {
-                          const top = el.getBoundingClientRect().top + window.scrollY - 84;
+                          const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
+                          const offset = offsetStr ? parseFloat(offsetStr) : 96;
+                          const top = el.getBoundingClientRect().top + window.scrollY - offset;
                           window.scrollTo({ top, behavior: "smooth" });
                         }
                         window.dispatchEvent(
@@ -165,7 +167,7 @@ export default function PricingSection() {
                 <div className="border-t border-neutral-100 my-2" />
 
                 {/* Features Heading */}
-                <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mt-4 mb-3">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-600 mt-4 mb-3">
                   Key Features
                 </div>
 
@@ -202,9 +204,27 @@ export default function PricingSection() {
         <div className="mt-12 text-center max-w-xl mx-auto flex items-start gap-2 p-4 rounded-xl bg-white/40 border border-neutral-200">
           <Info size={18} className="text-primary-500 shrink-0 mt-0.5" />
           <p className="text-body-small text-left text-neutral-600">
-            <strong>Note on plan limits:</strong> Freemium supports up to 50 students, and Business supports up to 500 students. All plans are currently free during our launch phase &mdash; upgrade at any time as your school grows.
+            <strong>Note on plan limits:</strong> Freemium supports up to 50 students, and Business supports up to 500 students. Paid plans are currently waived during our launch phase — pricing will be activated as we grow.
           </p>
         </div>
+        <p className="text-center mt-6 text-body-small text-neutral-500">
+          Have questions about pricing?{" "}
+          <a
+            href="#faq"
+            onClick={(e) => {
+              e.preventDefault();
+              const el = document.getElementById("faq");
+              if (el) {
+                const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
+                const offset = offsetStr ? parseFloat(offsetStr) : 96;
+                window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+              }
+            }}
+            className="text-primary font-semibold hover:underline"
+          >
+            See our FAQ
+          </a>
+        </p>
       </div>
     </section>
   );

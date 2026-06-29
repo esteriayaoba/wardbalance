@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   TrendingUp,
@@ -15,11 +15,12 @@ import {
 } from "lucide-react";
 import { trackEvent } from "@/lib/analytics/posthog";
 import { isCategoryAllowed } from "@/lib/cookies/consent";
+import { scrollToSection } from "@/lib/utils";
 
 export default function HeroSection() {
   const [demoState, setDemoState] = useState<"idle" | "verifying" | "verified">("idle");
 
-  const handleVerify = () => {
+  const handleVerify = useCallback(() => {
     setDemoState("verifying");
     if (isCategoryAllowed("analytics")) {
       trackEvent({ event: "demo_verify_clicked" });
@@ -30,11 +31,22 @@ export default function HeroSection() {
         trackEvent({ event: "demo_verify_success" });
       }
     }, 1200);
-  };
+  }, []);
 
-  const handleReset = () => {
+  const handleReset = useCallback(() => {
     setDemoState("idle");
-  };
+  }, []);
+
+  // Auto-animate the demo loop on mount
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (demoState === "idle") {
+      timer = setTimeout(() => handleVerify(), 5000);
+    } else if (demoState === "verified") {
+      timer = setTimeout(() => handleReset(), 3500);
+    }
+    return () => clearTimeout(timer);
+  }, [demoState, handleVerify, handleReset]);
 
   // Dynamically calculate metrics based on demo verification state
   const expectedRevenue = 12500000;
@@ -49,144 +61,160 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative pt-32 pb-16 md:pt-40 md:pb-24 overflow-hidden"
+      className="relative pt-36 pb-0 md:pt-48 md:pb-0 overflow-hidden"
       aria-labelledby="hero-heading"
     >
+      <style>{`
+        @keyframes scroll-vertical {
+          0%, 16% { transform: translateY(0); }
+          20%, 36% { transform: translateY(-20%); }
+          40%, 56% { transform: translateY(-40%); }
+          60%, 76% { transform: translateY(-60%); }
+          80%, 96% { transform: translateY(-80%); }
+          100% { transform: translateY(-100%); }
+        }
+        @keyframes marquee-scroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .animate-scroll-vertical {
+          animation: scroll-vertical 15s cubic-bezier(0.76, 0, 0.24, 1) infinite;
+        }
+        .animate-marquee {
+          animation: marquee-scroll 30s linear infinite;
+        }
+      `}</style>
+
       {/* Background */}
       <div className="absolute inset-0 gradient-hero" aria-hidden="true" />
 
       {/* Decorative shapes */}
       <div
-        className="absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full opacity-30 blur-[100px] animate-float bg-primary-200"
+        className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full opacity-35 blur-[120px] animate-float bg-primary-200"
         aria-hidden="true"
       />
       <div
-        className="absolute bottom-0 -left-32 w-[500px] h-[500px] rounded-full opacity-20 blur-[100px] animate-float animation-delay-300 bg-primary-300"
+        className="absolute bottom-0 left-1/4 w-[500px] h-[500px] rounded-full opacity-20 blur-[100px] animate-float animation-delay-300 bg-primary-300"
         aria-hidden="true"
       />
 
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Text content */}
-          <div className="text-center lg:text-left">
-            <div
-              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-label-medium animate-fade-in-up bg-primary-light text-primary-dark border border-primary-200"
-            >
-              <span className="w-2 h-2 rounded-full bg-primary" />
-              Now live — free plan, no credit card needed
-            </div>
-
-            <h1
-              id="hero-heading"
-              className="text-headline-large md:text-display-small lg:text-display-medium mb-6 animate-fade-in-up animation-delay-100 font-bold text-foreground"
-            >
-              Know who has paid, how much, and what&rsquo;s still owed &mdash; at WhatsApp-level simplicity.
-            </h1>
-
-            <p className="text-body-large md:text-title-medium mb-8 max-w-xl mx-auto lg:mx-0 animate-fade-in-up animation-delay-200 text-on-surface-variant">
-              WardBalance replaces spreadsheets and WhatsApp receipts with structured invoices, parent balances, payment tracking, and instant receipts &mdash; purpose-built for Nigerian private schools.
-            </p>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start animate-fade-in-up animation-delay-300">
-              <Link
-                href="/signup?plan=freemium&source=hero"
-                onClick={() => {
-                  if (isCategoryAllowed("analytics")) {
-                    trackEvent({ event: "get_started_clicked", properties: { source: "hero" } });
-                  }
-                }}
-                className="inline-flex items-center justify-center px-7 py-3.5 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-xl hover:opacity-90 cursor-pointer bg-primary text-on-primary"
-              >
-                Get Started
-              </Link>
-              <a
-                href="#demo"
-                onClick={(e) => {
-                  e.preventDefault();
-                  if (isCategoryAllowed("analytics")) {
-                    trackEvent({ event: "book_demo_clicked", properties: { source: "book_demo_hero" } });
-                  }
-                  const el = document.getElementById("demo");
-                  if (el) {
-                    const top = el.getBoundingClientRect().top + window.scrollY - 84;
-                    window.scrollTo({ top, behavior: "smooth" });
-                  }
-                  window.dispatchEvent(
-                    new CustomEvent("wb:prefill-demo", {
-                      detail: {
-                        message:
-                          "Hi WardBalance team, I would like to book a demo to understand how WardBalance can help my school manage fees, invoices, payments, and parent balances.",
-                      },
-                    })
-                  );
-                }}
-                className="inline-flex items-center justify-center px-7 py-3.5 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-md cursor-pointer bg-transparent text-primary border-2 border-primary"
-              >
-                Book a Demo
-              </a>
-            </div>
-
-            {/* Trust Line */}
-            <p className="text-body-small mt-6 text-center lg:text-left animate-fade-in-up animation-delay-400 font-medium text-on-surface-variant">
-              Purpose-built for Nigerian private schools &mdash; from nursery to secondary.
-            </p>
+        
+        {/* Centralized Text Content */}
+        <div className="mx-auto max-w-4xl text-center flex flex-col items-center">
+          <div
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-label-medium animate-fade-in-up bg-primary-light text-primary-dark border border-primary-200"
+          >
+            <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            School fee management made clearer
           </div>
 
-          {/* Interactive Dashboard Mockup */}
-          <div className="animate-fade-in-up animation-delay-400 lg:max-w-xl xl:max-w-2xl mx-auto w-full relative">
-            {/* Receipt badge — bottom right only (single badge keeps layout clean) */}
-            <div className="hidden lg:flex absolute -bottom-5 -right-8 z-20 items-center gap-2.5 bg-white border border-neutral-200/80 rounded-xl p-3 shadow-lg max-w-[240px] animate-float animation-delay-300">
-              <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center shrink-0 border border-green-100">
-                <Check size={16} className="text-green-600" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider">Receipt Generated</p>
-                <p className="text-[12px] font-bold text-neutral-800 truncate">Receipt #WB-9821</p>
-                <p className="text-[11px] font-bold text-green-600 font-sans tabular-nums mt-0.5">₦120,000</p>
-              </div>
-            </div>
+          <h1
+            id="hero-heading"
+            className="text-display-small md:text-display-medium lg:text-display-large font-black text-neutral-900 mb-6 animate-fade-in-up animation-delay-100 tracking-tight leading-tight max-w-3xl"
+          >
+            Manage school fees and <br className="sm:hidden" />
+            <span className="relative inline-flex flex-col justify-center overflow-hidden h-[1.2em] text-primary font-black align-top w-full">
+              <span className="absolute inset-x-0 top-0 flex flex-col animate-scroll-vertical">
+                <span className="h-[1.2em] flex items-center justify-center">parent balances</span>
+                <span className="h-[1.2em] flex items-center justify-center">term invoices</span>
+                <span className="h-[1.2em] flex items-center justify-center">expected revenue</span>
+                <span className="h-[1.2em] flex items-center justify-center">class collections</span>
+                <span className="h-[1.2em] flex items-center justify-center">parent balances</span>
+              </span>
+            </span>
+            from one simple workspace.
+          </h1>
 
+          <p className="text-body-large md:text-title-medium mb-8 max-w-2xl animate-fade-in-up animation-delay-200 text-on-surface-variant leading-relaxed">
+            WardBalance helps private schools replace scattered spreadsheets, bank alerts, WhatsApp messages, and manual records with one organized finance workspace.
+          </p>
+
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up animation-delay-300 w-full sm:w-auto">
+            <Link
+              href="/signup?plan=freemium&source=hero"
+              onClick={() => {
+                if (isCategoryAllowed("analytics")) {
+                  trackEvent({ event: "get_started_clicked", properties: { source: "hero" } });
+                }
+              }}
+              className="inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-xl hover:opacity-90 cursor-pointer bg-primary text-on-primary"
+            >
+              Get Started
+            </Link>
+            <a
+              href="#demo"
+              onClick={(e) => {
+                e.preventDefault();
+                if (isCategoryAllowed("analytics")) {
+                  trackEvent({ event: "book_demo_clicked", properties: { source: "book_demo_hero" } });
+                }
+                scrollToSection("demo");
+                window.dispatchEvent(
+                  new CustomEvent("wb:prefill-demo", {
+                    detail: {
+                      message:
+                        "Hi WardBalance team, I would like to book a demo to understand how WardBalance can help my school manage fees, invoices, payments, and parent balances.",
+                    },
+                  })
+                );
+              }}
+              className="inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-md cursor-pointer bg-transparent text-primary border-2 border-primary"
+            >
+              Book a Demo
+            </a>
+          </div>
+
+          {/* Trust Line */}
+          <p className="text-body-small mt-6 text-center animate-fade-in-up animation-delay-400 font-medium text-on-surface-variant">
+            Built for nursery, primary, and secondary schools managing real school fee operations.
+          </p>
+        </div>
+
+        {/* Centralized & Expanded Interactive Dashboard Mockup */}
+        <div className="animate-fade-in-up animation-delay-400 max-w-4xl mx-auto w-full relative mt-16 md:mt-20">
+
+          <div
+            className="relative rounded-2xl p-1 transition-shadow duration-300 hover:shadow-2xl shadow-xl overflow-hidden"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--color-primary-200), var(--color-primary-400), var(--color-primary-200))",
+            }}
+          >
             <div
-              className="relative rounded-2xl p-1 transition-shadow duration-300 hover:shadow-2xl shadow-xl overflow-hidden"
+              className="rounded-2xl overflow-hidden"
               style={{
-                background:
-                  "linear-gradient(135deg, var(--color-primary-200), var(--color-primary-400), var(--color-primary-200))",
+                background: "var(--color-surface-container-lowest)",
               }}
             >
-              <div
-                className="rounded-2xl overflow-hidden"
-                style={{
-                  background: "var(--color-surface-container-lowest)",
-                }}
-              >
-                {/* Browser Header Bar */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-neutral-50/80 backdrop-blur-sm select-none">
-                  {/* macOS window control dots */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className="w-2.5 h-2.5 rounded-full bg-red-400 border border-red-500/20" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-yellow-500/20" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-green-400 border border-green-500/20" />
-                  </div>
-                  {/* Mock URL bar */}
-                  <div className="flex-1 max-w-xs mx-auto flex items-center justify-center bg-white border border-neutral-200/80 rounded-md py-0.5 px-3 text-[11px] font-mono text-neutral-400 truncate shadow-sm">
-                    <span className="text-neutral-300 mr-0.5 select-none">https://</span>
-                    <span className="text-neutral-600 font-medium">app.wardbalance.com.ng</span>
-                  </div>
-                  {/* Live Preview badge */}
-                  <div className="shrink-0 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-                    </span>
-                    <span className="text-[10px] font-bold text-green-700 whitespace-nowrap">Live preview</span>
-                  </div>
+              {/* Browser Header Bar */}
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-neutral-50/80 backdrop-blur-sm select-none">
+                {/* macOS window control dots */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-400 border border-red-500/20" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-yellow-500/20" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-green-400 border border-green-500/20" />
                 </div>
+                {/* Mock URL bar */}
+                <div className="flex-1 max-w-xs mx-auto flex items-center justify-center bg-white border border-neutral-200/80 rounded-md py-0.5 px-3 text-[11px] font-mono text-neutral-400 truncate shadow-sm">
+                  <span className="text-neutral-300 mr-0.5 select-none">https://</span>
+                  <span className="text-neutral-600 font-medium">app.wardbalance.com.ng</span>
+                </div>
+                {/* Live Preview badge */}
+                <div className="shrink-0 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                  </span>
+                  <span className="text-[10px] font-bold text-green-700 whitespace-nowrap">Live finance dashboard</span>
+                </div>
+              </div>
 
-                {/* Dashboard content */}
-                <div className="p-5 md:p-6">
+              {/* Dashboard content */}
+              <div className="p-5 md:p-6 bg-white">
                 {/* Mock top bar */}
-                  <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center justify-between mb-5">
                   <div>
                     <p className="text-label-medium text-on-surface-variant">
                       Bursar Workspace
@@ -198,10 +226,10 @@ export default function HeroSection() {
                 </div>
 
                 {/* KPI Cards Grid */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   {/* Expected Revenue */}
                   <div
-                    className="rounded-lg p-3.5 transition-all duration-200 bg-surface-container-low border border-outline-variant"
+                    className="rounded-lg p-3.5 transition-all duration-200 bg-neutral-50/50 border border-neutral-200/60"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-7 h-7 rounded-md flex items-center justify-center bg-primary-light">
@@ -218,7 +246,7 @@ export default function HeroSection() {
 
                   {/* Collected */}
                   <div
-                    className="rounded-lg p-3.5 transition-all duration-300 bg-surface-container-low"
+                    className="rounded-lg p-3.5 transition-all duration-300 bg-neutral-50/50"
                     style={{
                       border: demoState === "verified" ? "1px solid var(--color-success-500)" : "1px solid var(--color-outline-variant)",
                     }}
@@ -232,7 +260,7 @@ export default function HeroSection() {
                       </span>
                     </div>
                     <p 
-                      className={`text-title-medium font-bold tabular-nums transition-colors duration-300 ${demoState === "verified" ? "text-success-600" : ""}`} 
+                      className={`text-title-medium font-bold tabular-nums transition-colors duration-300 ${demoState === "verified" ? "text-success-600 font-extrabold" : ""}`} 
                       style={{ color: demoState === "verified" ? undefined : "var(--color-on-surface)" }}
                     >
                       {formatNairaVal(collectedRevenue)}
@@ -241,7 +269,7 @@ export default function HeroSection() {
 
                   {/* Outstanding */}
                   <div
-                    className="rounded-lg p-3.5 transition-all duration-200 bg-surface-container-low border border-outline-variant"
+                    className="rounded-lg p-3.5 transition-all duration-200 bg-neutral-50/50 border border-neutral-200/60"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-7 h-7 rounded-md flex items-center justify-center" style={{ background: "rgba(245, 158, 11, 0.1)" }}>
@@ -258,7 +286,7 @@ export default function HeroSection() {
 
                   {/* Pending Verifications */}
                   <div
-                    className="rounded-lg p-3.5 transition-all duration-300 bg-surface-container-low border border-outline-variant"
+                    className="rounded-lg p-3.5 transition-all duration-300 bg-neutral-50/50 border border-neutral-200/60"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <div className="w-7 h-7 rounded-md flex items-center justify-center bg-primary-light">
@@ -278,8 +306,7 @@ export default function HeroSection() {
                 <div className="mt-4">
                   <div className="flex justify-between mb-1.5">
                     <span
-                      className="text-label-small font-medium"
-                      style={{ color: "var(--color-on-surface-variant)" }}
+                      className="text-label-small font-medium text-neutral-500"
                     >
                       Collection Progress
                     </span>
@@ -289,7 +316,7 @@ export default function HeroSection() {
                         color: "var(--color-primary-600)",
                       }}
                     >
-                      {progressPercent}%
+                      <span className="tabular-nums">{progressPercent}%</span>
                     </span>
                   </div>
                   <div
@@ -328,7 +355,7 @@ export default function HeroSection() {
                       </span>
                     </div>
 
-                    <div className="flex items-start gap-3 bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/60 shadow-sm" style={{ background: "var(--color-surface-container-lowest)" }}>
+                    <div className="flex items-start gap-3 bg-white p-3 rounded-lg border border-neutral-200/60 shadow-sm">
                       <div className="w-11 h-11 rounded bg-gray-100 border border-gray-200 flex flex-col items-center justify-center text-gray-400 shrink-0 select-none">
                         <FileText size={18} />
                         <span className="text-[7px] font-bold mt-0.5 uppercase tracking-wider">PROOF</span>
@@ -336,33 +363,24 @@ export default function HeroSection() {
 
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
-                          <h4 className="text-label-medium font-bold truncate" style={{ color: "var(--color-on-surface)" }}>
+                          <h4 className="text-label-medium font-bold truncate text-neutral-800">
                             Tunde Johnson
                           </h4>
                           <span className="text-label-small font-bold font-mono tabular-nums text-primary-700">
                             ₦120,000
                           </span>
                         </div>
-                        <p className="text-[11px] truncate" style={{ color: "var(--color-on-surface-variant)" }}>
+                        <p className="text-[11px] truncate text-neutral-500">
                           JSS 2A • 1st Term Tuition
                         </p>
-                        <p className="text-[9px] font-mono mt-0.5 truncate text-gray-500">
+                        <p className="text-[9px] font-mono mt-0.5 truncate text-gray-400">
                           Ref: GTB-TRSF-8492019482
                         </p>
                       </div>
                     </div>
 
-                    <div className="flex gap-2 mt-4 justify-end items-center relative">
-                      {demoState === "idle" && (
-                        <span 
-                          className="absolute -top-9 right-2 text-white text-[10px] font-bold px-2.5 py-1 rounded-md shadow-md animate-bounce flex items-center gap-1 select-none pointer-events-none z-10"
-                          style={{ background: "var(--color-primary-600)" }}
-                        >
-                          <span>👇 Try clicking this!</span>
-                          <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
-                        </span>
-                      )}
-                      <button disabled className="px-3 py-1.5 rounded text-[11px] font-medium border border-outline-variant text-gray-400 cursor-not-allowed">
+                    <div className="flex gap-2 mt-4 justify-end items-center">
+                      <button disabled className="px-3 py-1.5 rounded text-[11px] font-medium border border-neutral-200 text-gray-400 cursor-not-allowed">
                         Reject
                       </button>
                       <button
@@ -412,12 +430,61 @@ export default function HeroSection() {
                     </button>
                   </div>
                 )}
-                </div>
               </div>
             </div>
           </div>
         </div>
+
       </div>
+
+      {/* Horizontal Feature Ticker Marquee */}
+      <div className="w-full overflow-hidden relative py-8 mt-20 border-t border-neutral-200/50 bg-neutral-50/20 select-none">
+        <div className="flex gap-8 animate-marquee whitespace-nowrap">
+          {/* Set 1 */}
+          {[
+            "Fee Item Catalogue",
+            "Class Fee Templates",
+            "Automatic Invoices",
+            "Naira Currency Formatting",
+            "Manual Payment Recording",
+            "Audit Log Recording",
+            "WhatsApp Invoice Invites",
+            "Flutterwave Payment Links",
+            "Bursar & Owner Roles",
+            "Session & Term Locking",
+          ].map((f, i) => (
+            <div
+              key={i}
+              className="inline-flex items-center gap-2 bg-white border border-neutral-200/60 rounded-full px-5 py-2.5 shadow-sm text-body-medium font-bold text-neutral-700"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              {f}
+            </div>
+          ))}
+          {/* Set 2 */}
+          {[
+            "Fee Item Catalogue",
+            "Class Fee Templates",
+            "Automatic Invoices",
+            "Naira Currency Formatting",
+            "Manual Payment Recording",
+            "Audit Log Recording",
+            "WhatsApp Invoice Invites",
+            "Flutterwave Payment Links",
+            "Bursar & Owner Roles",
+            "Session & Term Locking",
+          ].map((f, i) => (
+            <div
+              key={`dup-${i}`}
+              className="inline-flex items-center gap-2 bg-white border border-neutral-200/60 rounded-full px-5 py-2.5 shadow-sm text-body-medium font-bold text-neutral-700"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+              {f}
+            </div>
+          ))}
+        </div>
+      </div>
+
     </section>
   );
 }

@@ -49,6 +49,7 @@ export default function FeeStructurePage() {
   const [activeTab, setActiveTab] = useState<"library" | "templates">("library");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(true);
   
   // Data lists
   const [feeItems, setFeeItems] = useState<FeeItem[]>([]);
@@ -90,10 +91,12 @@ export default function FeeStructurePage() {
       fetch("/api/admin/fees/templates").then((r) => r.json()),
       fetch("/api/admin/academic/classes").then((r) => r.json()),
       fetch("/api/admin/academic/terms").then((r) => r.json()),
+      fetch("/api/admin/verify-email").then((r) => r.json()).catch(() => ({ emailVerified: true })),
     ])
-      .then(([libRes, tempRes, classRes, termRes]) => {
+      .then(([libRes, tempRes, classRes, termRes, verifyRes]) => {
         setFeeItems(libRes.data || []);
         setTemplates(tempRes.data || []);
+        setEmailVerified(verifyRes.emailVerified ?? true);
         
         // Flatten class levels from divisions
         const divisions = classRes.data || [];
@@ -356,7 +359,9 @@ export default function FeeStructurePage() {
           {activeTab === "library" ? (
             <button
               onClick={() => handleOpenLibraryDrawer(null)}
-              className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm"
+              disabled={!emailVerified}
+              title={!emailVerified ? "Verify your email to use this action." : undefined}
+              className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               Add Fee Item
@@ -364,7 +369,9 @@ export default function FeeStructurePage() {
           ) : (
             <button
               onClick={() => handleOpenTemplateDrawer(null)}
-              className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm"
+              disabled={!emailVerified}
+              title={!emailVerified ? "Verify your email to use this action." : undefined}
+              className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Plus className="w-4 h-4" />
               Create Class Template
@@ -497,16 +504,17 @@ export default function FeeStructurePage() {
                   <td className="px-6 py-4 text-right space-x-2">
                     <button
                       onClick={() => handleOpenLibraryDrawer(item)}
-                      className="p-1.5 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 rounded-lg inline-flex items-center transition"
-                      title="Edit Item"
+                      disabled={!emailVerified}
+                      title={!emailVerified ? "Verify your email to use this action." : "Edit Item"}
+                      className="p-1.5 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 rounded-lg inline-flex items-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      disabled={actionLoading}
+                      disabled={actionLoading || !emailVerified}
                       onClick={() => handleDeleteLibraryItem(item.id)}
-                      className="p-1.5 border border-neutral-200 hover:bg-red-50 text-error rounded-lg inline-flex items-center transition"
-                      title="Delete Item"
+                      title={!emailVerified ? "Verify your email to use this action." : "Delete Item"}
+                      className="p-1.5 border border-neutral-200 hover:bg-red-50 text-error rounded-lg inline-flex items-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -587,16 +595,17 @@ export default function FeeStructurePage() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => handleOpenTemplateDrawer(temp)}
-                      className="p-2 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 rounded-lg transition"
-                      title="Edit template"
+                      disabled={!emailVerified}
+                      title={!emailVerified ? "Verify your email to use this action." : "Edit template"}
+                      className="p-2 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      disabled={actionLoading}
+                      disabled={actionLoading || !emailVerified}
                       onClick={() => handleDeleteTemplate(temp.id)}
-                      className="p-2 border border-neutral-200 hover:bg-red-50 text-error rounded-lg transition"
-                      title="Delete template"
+                      title={!emailVerified ? "Verify your email to use this action." : "Delete template"}
+                      className="p-2 border border-neutral-200 hover:bg-red-50 text-error rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

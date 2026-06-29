@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, ShieldCheck, CheckCircle2, UserPlus, AlertCircle, Copy, Check } from "lucide-react";
+import { Loader2, CheckCircle2, UserPlus, AlertCircle, Copy, Check } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface Lead {
   id: string;
@@ -93,8 +94,13 @@ export default function LeadsPortalPage() {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-neutral-200 pb-6">
           <div className="space-y-1">
-            <span className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-1.5 mb-2">
-              <ShieldCheck className="w-6 h-6" />
+            <span className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-2 mb-2">
+              <Image
+                src="/logo-v5.png"
+                alt="WardBalance logo"
+                width={36}
+                height={36}
+              />
               WardBalance
             </span>
             <h1 className="text-headline-small text-neutral-900 font-bold">

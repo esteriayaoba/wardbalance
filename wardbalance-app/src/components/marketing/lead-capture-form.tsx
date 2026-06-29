@@ -19,6 +19,12 @@ const formSchema = z.object({
     .string()
     .min(1, "Email is required")
     .email("Please enter a valid email address"),
+  phone: z
+    .string()
+    .min(1, "Phone number is required")
+    .max(30, "Phone number is too long"),
+  numberOfStudents: z.string().optional(),
+  numberOfBranches: z.string().optional(),
   consentToContact: z.boolean().refine((v) => v === true, {
     message: "You must agree to be contacted",
   }),
@@ -119,6 +125,9 @@ export default function LeadCaptureForm() {
       fullName: raw.fullName ?? "",
       schoolName: raw.schoolName ?? "",
       email: raw.email ?? "",
+      phone: raw.phone ?? "",
+      numberOfStudents: raw.numberOfStudents ?? "",
+      numberOfBranches: raw.numberOfBranches ?? "",
       consentToContact: raw.consentToContact === "on",
       message: raw.message ?? "",
       website: raw.website ?? "",
@@ -160,6 +169,9 @@ export default function LeadCaptureForm() {
           schoolName: values.schoolName,
           role: "other",
           email: values.email,
+          phone: values.phone,
+          numberOfStudents: values.numberOfStudents || undefined,
+          numberOfBranches: values.numberOfBranches || undefined,
           consentToContact: values.consentToContact,
           message: values.message || undefined,
           source,
@@ -199,7 +211,7 @@ export default function LeadCaptureForm() {
 
   if (status === "success") {
     return (
-      <section id="demo" className="py-16 md:py-24 scroll-mt-24 gradient-grid-mesh border-t border-neutral-200/60">
+      <section id="demo" className="py-24 md:py-32 lg:py-36 scroll-mt-24 gradient-grid-mesh border-t border-neutral-200/60">
         <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
           <div className="card-elevated p-10 md:p-16 flex flex-col items-center">
             <CheckCircle2 size={64} className="mb-6" style={{ color: "var(--color-tertiary)" }} />
@@ -223,17 +235,21 @@ export default function LeadCaptureForm() {
   }
 
   return (
-    <section id="demo" className="py-16 md:py-24 scroll-mt-24 gradient-grid-mesh border-t border-neutral-200/60">
+    <section
+      id="demo"
+      aria-labelledby="demo-heading"
+      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] gradient-grid-mesh border-t border-neutral-200/60"
+    >
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
           <p className="text-label-large mb-3 font-bold" style={{ color: "var(--color-primary-500)" }}>
             BOOK A DEMO
           </p>
-          <h2 className="text-headline-small md:text-headline-large mb-4 font-bold" style={{ color: "var(--color-on-surface)" }}>
-            Want to see WardBalance in action?
+          <h2 id="demo-heading" className="text-headline-small md:text-headline-large mb-4 font-bold" style={{ color: "var(--color-on-surface)" }}>
+            Need help choosing the right setup?
           </h2>
           <p className="text-body-large" style={{ color: "var(--color-on-surface-variant)" }}>
-            Fill in your details and we&rsquo;ll schedule a personalised walkthrough of WardBalance for your school — at a time that works for you.
+            Book a demo and we&rsquo;ll help you understand the best WardBalance plan for your school or group of schools.
           </p>
         </div>
 
@@ -290,7 +306,7 @@ export default function LeadCaptureForm() {
               {errors.schoolName && <p className="text-label-small" style={{ color: "var(--color-error)" }}>{errors.schoolName}</p>}
             </div>
 
-            <div className="space-y-1.5 md:col-span-2">
+            <div className="space-y-1.5">
               <label htmlFor="email" className="text-label-medium block" style={{ color: "var(--color-on-surface)" }}>
                 Email Address <span style={{ color: "var(--color-error)" }}>*</span>
               </label>
@@ -307,6 +323,65 @@ export default function LeadCaptureForm() {
                 }}
               />
               {errors.email && <p className="text-label-small" style={{ color: "var(--color-error)" }}>{errors.email}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="phone" className="text-label-medium block" style={{ color: "var(--color-on-surface)" }}>
+                Phone Number <span style={{ color: "var(--color-error)" }}>*</span>
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                disabled={isLoading}
+                className="w-full px-4 py-2.5 rounded-lg border border-neutral-300 transition-colors focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 font-sans"
+                style={{
+                  background: "var(--color-surface-container-lowest)",
+                  borderColor: errors.phone ? "var(--color-error)" : "var(--color-outline-variant)",
+                  color: "var(--color-on-surface)",
+                }}
+              />
+              {errors.phone && <p className="text-label-small" style={{ color: "var(--color-error)" }}>{errors.phone}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="numberOfStudents" className="text-label-medium block" style={{ color: "var(--color-on-surface)" }}>
+                Number of Students
+              </label>
+              <input
+                id="numberOfStudents"
+                name="numberOfStudents"
+                type="text"
+                placeholder="e.g. 250"
+                disabled={isLoading}
+                className="w-full px-4 py-2.5 rounded-lg border border-neutral-300 transition-colors focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 font-sans"
+                style={{
+                  background: "var(--color-surface-container-lowest)",
+                  borderColor: errors.numberOfStudents ? "var(--color-error)" : "var(--color-outline-variant)",
+                  color: "var(--color-on-surface)",
+                }}
+              />
+              {errors.numberOfStudents && <p className="text-label-small" style={{ color: "var(--color-error)" }}>{errors.numberOfStudents}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="numberOfBranches" className="text-label-medium block" style={{ color: "var(--color-on-surface)" }}>
+                Number of Branches
+              </label>
+              <input
+                id="numberOfBranches"
+                name="numberOfBranches"
+                type="text"
+                placeholder="e.g. 1"
+                disabled={isLoading}
+                className="w-full px-4 py-2.5 rounded-lg border border-neutral-300 transition-colors focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 font-sans"
+                style={{
+                  background: "var(--color-surface-container-lowest)",
+                  borderColor: errors.numberOfBranches ? "var(--color-error)" : "var(--color-outline-variant)",
+                  color: "var(--color-on-surface)",
+                }}
+              />
+              {errors.numberOfBranches && <p className="text-label-small" style={{ color: "var(--color-error)" }}>{errors.numberOfBranches}</p>}
             </div>
           </div>
 
@@ -365,7 +440,7 @@ export default function LeadCaptureForm() {
                   Submitting...
                 </>
               ) : (
-                "Book a Demo"
+                "Request Demo"
               )}
             </button>
           </div>

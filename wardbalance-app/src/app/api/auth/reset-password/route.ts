@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { upstashGet, upstashDel } from "@/lib/redis";
+import { upstashGet, upstashDel, rateLimit } from "@/lib/redis";
 import { encryptPassword } from "@/lib/auth/auth";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 const Schema = z.object({
@@ -16,6 +17,16 @@ const Schema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const headersList = await headers();
+    const ip = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "unknown";
+    const rl = await rateLimit(ip, { prefix: "rate_limit:reset_password", maxRequests: 5, windowSeconds: 900 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many password reset attempts. Please try again later.", code: "TOO_MANY_REQUESTS" },
+        { status: 429 },
+      );
+    }
+
     const body = await request.json();
     const parsed = Schema.safeParse(body);
 

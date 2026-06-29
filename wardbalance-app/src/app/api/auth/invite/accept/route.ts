@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { encryptPassword, signJWT } from "@/lib/auth/auth";
+import { rateLimit } from "@/lib/redis";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 const AcceptInviteSchema = z.object({
@@ -12,6 +14,16 @@ const AcceptInviteSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const headersList = await headers();
+    const ip = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "unknown";
+    const rl = await rateLimit(ip, { prefix: "rate_limit:invite_accept", maxRequests: 10, windowSeconds: 900 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please try again later.", code: "TOO_MANY_REQUESTS" },
+        { status: 429 },
+      );
+    }
+
     const body = await request.json();
     const parsed = AcceptInviteSchema.safeParse(body);
 
@@ -125,10 +137,11 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Failed to accept invitation";
     console.error("[invite] Acceptance error:", err);
     return NextResponse.json(
-      { error: err.message ?? "Failed to accept invitation", code: "INTERNAL_ERROR" },
+      { error: message, code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

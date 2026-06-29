@@ -1,3 +1,5 @@
+import crypto from "crypto";
+
 /**
  * Simple Redis client using Upstash REST API.
  * Avoids extra node_modules and works in serverless environments.
@@ -83,6 +85,67 @@ export async function upstashDel(key: string): Promise<void> {
     });
   } catch (err) {
     console.error("[redis] upstashDel failed:", err);
+  }
+}
+
+interface RateLimitConfig {
+  prefix: string;
+  maxRequests: number;
+  windowSeconds: number;
+}
+
+interface RateLimitResult {
+  allowed: boolean;
+  remaining: number;
+  resetAt: number;
+}
+
+export async function rateLimit(
+  ip: string,
+  config: RateLimitConfig,
+): Promise<RateLimitResult> {
+  const { url, token } = getRedisConfig();
+  if (!url || !token) {
+    return { allowed: true, remaining: config.maxRequests, resetAt: 0 };
+  }
+
+  const key = `${config.prefix}:${ip}`;
+  const now = Math.floor(Date.now() / 1000);
+  const windowStart = now - config.windowSeconds;
+
+  try {
+    const multiRes = await fetch(`${url}/multi`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([
+        ["ZREMRANGEBYSCORE", key, 0, windowStart],
+        ["ZCARD", key],
+        ["ZADD", key, now, `${now}:${crypto.randomUUID().slice(0, 8)}`],
+        ["EXPIRE", key, config.windowSeconds],
+      ]),
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (!multiRes.ok) {
+      return { allowed: true, remaining: config.maxRequests, resetAt: 0 };
+    }
+
+    const multiData = await multiRes.json();
+    const results = multiData as Array<{ result: unknown }>;
+
+    const count = typeof results[1]?.result === "number" ? results[1].result + 1 : 1;
+
+    return {
+      allowed: count <= config.maxRequests,
+      remaining: Math.max(0, config.maxRequests - count),
+      resetAt: now + config.windowSeconds,
+    };
+  } catch (err) {
+    console.error("[redis] rateLimit failed:", err);
+    return { allowed: true, remaining: config.maxRequests, resetAt: 0 };
   }
 }
 

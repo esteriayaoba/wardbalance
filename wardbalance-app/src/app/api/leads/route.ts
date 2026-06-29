@@ -3,10 +3,22 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { CreateLeadSchema } from "@/modules/leads/lead.schema";
 import { sendLeadNotification } from "@/modules/leads/send-lead-notification";
+import { rateLimit } from "@/lib/redis";
 import { headers } from "next/headers";
 
 export async function POST(request: NextRequest) {
   try {
+    const headersList = await headers();
+    const ipAddress = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "unknown";
+
+    const rl = await rateLimit(ipAddress, { prefix: "rate_limit:lead_form", maxRequests: 5, windowSeconds: 3600 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many submissions. Please try again later.", code: "TOO_MANY_REQUESTS" },
+        { status: 429 },
+      );
+    }
+
     const body = await request.json();
 
     // Validate with Zod
@@ -37,15 +49,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // TODO: add IP-based rate limiting via Upstash Redis when available
-    // Rate-limit key pattern: `rate_limit:lead_form:{ip}`
-    // When Upstash env vars (UPSTASH_REDIS_REST_URL, UPSTASH_REDIS_REST_TOKEN) are set,
-    // add a Redis check before querying the database:
-    //   1. Increment a sliding-window counter for the IP
-    //   2. If count > N per window, return 429
-
-    const headersList = await headers();
-    const ipAddress = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "unknown";
     const userAgent = headersList.get("user-agent") ?? undefined;
 
     // Normalize UTM values
@@ -80,6 +83,7 @@ export async function POST(request: NextRequest) {
         consentTimestamp: data.consentTimestamp
           ? new Date(data.consentTimestamp)
           : now,
+        metadata: data.numberOfBranches ? { numberOfBranches: data.numberOfBranches } : undefined,
         consentVersion: data.consentVersion ?? "lead-contact-consent-v1",
         utmSource,
         utmMedium,
@@ -103,6 +107,7 @@ export async function POST(request: NextRequest) {
         consentTimestamp: data.consentTimestamp
           ? new Date(data.consentTimestamp)
           : now,
+        metadata: data.numberOfBranches ? { numberOfBranches: data.numberOfBranches } : undefined,
         consentVersion: data.consentVersion ?? "lead-contact-consent-v1",
         utmSource,
         utmMedium,

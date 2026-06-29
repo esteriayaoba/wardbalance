@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle, ArrowRight, User, TrendingUp, CreditCard, ChevronRight } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
@@ -36,21 +36,61 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/portal/dashboard")
-      .then((r) => {
-        if (!r.ok) throw new Error("Failed to load dashboard data");
-        return r.json();
-      })
-      .then((res) => {
-        setData(res.data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/portal/dashboard");
+      if (!res.ok) throw new Error("Failed to load dashboard data");
+      const body = await res.json();
+      setData(body.data);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Something went wrong";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Pull-to-refresh support
+  useEffect(() => {
+    let startY = 0;
+    let pulling = false;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (window.scrollY === 0) {
+        startY = e.touches[0].clientY;
+        pulling = true;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!pulling) return;
+      const diff = e.touches[0].clientY - startY;
+      if (diff > 120 && !loading) {
+        pulling = false;
+        fetchData();
+      }
+    };
+
+    const onTouchEnd = () => {
+      pulling = false;
+    };
+
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [loading, fetchData]);
 
   if (loading) {
     return (
@@ -68,7 +108,7 @@ export default function ParentDashboard() {
         <h3 className="text-title-medium text-neutral-900 font-bold mb-2">Could Not Load Dashboard</h3>
         <p className="text-body-medium text-neutral-600 mb-6">{error ?? "Something went wrong"}</p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={fetchData}
           className="px-4 py-2 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition cursor-pointer"
         >
           Try Again
@@ -79,6 +119,25 @@ export default function ParentDashboard() {
 
   const outstandingNum = Number(data.totalOutstanding);
   const hasOutstanding = outstandingNum > 0;
+
+  const getStatusBadge = (outstanding: number, invoiceCount: number) => {
+    if (outstanding <= 0) {
+      return {
+        label: "Paid",
+        bg: "bg-green-100 text-green-700",
+      };
+    }
+    if (invoiceCount > 0) {
+      return {
+        label: "Overdue",
+        bg: "bg-red-100 text-red-700",
+      };
+    }
+    return {
+      label: "Partial",
+      bg: "bg-amber-100 text-amber-700",
+    };
+  };
 
   return (
     <div className="space-y-6">
@@ -105,8 +164,8 @@ export default function ParentDashboard() {
 
         <div className="flex items-center justify-between border-t border-neutral-100 pt-4">
           <span className="text-body-small text-neutral-500">
-            {hasOutstanding 
-              ? `${data.wards.reduce((acc, w) => acc + w.invoiceCount, 0)} unpaid term invoices pending` 
+            {hasOutstanding
+              ? `${data.wards.reduce((acc, w) => acc + w.invoiceCount, 0)} unpaid term invoices pending`
               : "All academic terms fees are fully settled."
             }
           </span>
@@ -127,7 +186,7 @@ export default function ParentDashboard() {
         <h3 className="text-label-medium text-neutral-900 font-bold uppercase tracking-wider">
           Student Registries ({data.wards.length})
         </h3>
-        
+
         {data.wards.length === 0 ? (
           <div className="bg-white border border-neutral-200 rounded-2xl p-8 text-center space-y-3">
             <div className="w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mx-auto text-neutral-400">
@@ -144,12 +203,18 @@ export default function ParentDashboard() {
           <div className="grid grid-cols-1 gap-4">
             {data.wards.map((ward) => {
               const wardOutstanding = Number(ward.outstanding);
-              const isWardSettled = wardOutstanding <= 0;
+              const badge = getStatusBadge(wardOutstanding, ward.invoiceCount);
 
               return (
                 <div
                   key={ward.id}
                   onClick={() => router.push(`/parent/invoices?studentId=${ward.id}`)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") router.push(`/parent/invoices?studentId=${ward.id}`);
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`View invoices for ${ward.firstName} ${ward.lastName}`}
                   className="bg-white border border-neutral-200 rounded-xl p-5 hover:border-primary/45 transition shadow-sm cursor-pointer flex justify-between items-center group"
                 >
                   <div className="space-y-3 flex-1 min-w-0">
@@ -162,7 +227,7 @@ export default function ParentDashboard() {
                           {ward.lastName}, {ward.firstName}
                         </h4>
                         <span className="text-[11px] text-neutral-400">
-                          {ward.className} • Adm No: {ward.admissionNumber}
+                          {ward.className} &bull; Adm No: {ward.admissionNumber}
                         </span>
                       </div>
                     </div>
@@ -172,7 +237,7 @@ export default function ParentDashboard() {
                         Outstanding
                       </span>
                       <span className={`text-title-medium font-extrabold tabular-nums ${
-                        isWardSettled ? "text-green-600" : "text-amber-600"
+                        wardOutstanding <= 0 ? "text-green-600" : "text-amber-600"
                       }`}>
                         {formatNaira(ward.outstanding)}
                       </span>
@@ -180,10 +245,8 @@ export default function ParentDashboard() {
                   </div>
 
                   <div className="ml-4 shrink-0 flex items-center gap-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      isWardSettled ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-                    }`}>
-                      {isWardSettled ? "Paid" : `${ward.invoiceCount} Unpaid`}
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badge.bg}`}>
+                      {badge.label}
                     </span>
                     <ChevronRight className="w-5 h-5 text-neutral-300 group-hover:text-primary transition-colors" />
                   </div>
@@ -220,7 +283,7 @@ export default function ParentDashboard() {
                     Payment of {formatNaira(p.amount)}
                   </p>
                   <span className="text-[10px] text-neutral-400">
-                    For {p.studentName} • {p.method.replace("_", " ")}
+                    For {p.studentName} &bull; {p.method.replace("_", " ")}
                   </span>
                 </div>
                 <div className="text-right">
@@ -230,7 +293,13 @@ export default function ParentDashboard() {
                       day: "numeric",
                     })}
                   </span>
-                  <span className="text-[9px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded border border-green-100 uppercase font-extrabold mt-0.5 inline-block">
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded border uppercase font-extrabold mt-0.5 inline-block ${
+                    p.status === "recorded"
+                      ? "bg-green-50 text-green-600 border-green-100"
+                      : p.status === "void"
+                      ? "bg-red-50 text-red-600 border-red-100"
+                      : "bg-amber-50 text-amber-600 border-amber-100"
+                  }`}>
                     {p.status}
                   </span>
                 </div>

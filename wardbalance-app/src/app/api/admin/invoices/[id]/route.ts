@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
+import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
 
 const UpdateInvoiceSchema = z.object({
   status: z.enum(["draft", "issued", "partial", "paid", "overdue"]).optional(),
@@ -76,14 +77,11 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const guard = await requireVerifiedAdminUser();
+    if (!guard.authorized) {
+      return guard.response;
     }
+    const session = guard.session;
 
     const { id } = await params;
     const body = await request.json();
@@ -226,14 +224,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const guard = await requireVerifiedAdminUser();
+    if (!guard.authorized) {
+      return guard.response;
     }
+    const session = guard.session;
 
     const { id } = await params;
 

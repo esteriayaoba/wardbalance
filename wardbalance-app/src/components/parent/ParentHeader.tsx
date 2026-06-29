@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ShieldCheck, Bell, LogOut } from "lucide-react";
+import Image from "next/image";
+import { Bell, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 interface ParentHeaderProps {
@@ -24,8 +25,13 @@ export default function ParentHeader({ parentName, schoolName }: ParentHeaderPro
 
   return (
     <header className="sticky top-0 z-40 w-full h-14 bg-white border-b border-neutral-200/80 px-4 md:px-8 flex items-center justify-between shadow-sm">
-      <Link href="/parent/dashboard" className="flex items-center gap-1.5 font-bold text-primary">
-        <ShieldCheck className="w-5 h-5 text-primary" />
+      <Link href="/parent/dashboard" className="flex items-center gap-2 font-bold text-primary">
+        <Image
+          src="/logo-v5.png"
+          alt="WardBalance logo"
+          width={32}
+          height={32}
+        />
         <span className="text-title-small tracking-tight">WardBalance</span>
       </Link>
 

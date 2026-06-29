@@ -4,10 +4,14 @@ import Link from "next/link";
 import { ArrowRight, Sparkles } from "lucide-react";
 import { trackEvent } from "@/lib/analytics/posthog";
 import { isCategoryAllowed } from "@/lib/cookies/consent";
+import { scrollToSection } from "@/lib/utils";
 
 export default function CTASection() {
   return (
-    <section className="py-16 px-4 sm:px-6 lg:px-8">
+    <section
+      aria-labelledby="cta-heading"
+      className="py-24 md:py-32 px-4 sm:px-6 lg:px-8 bg-white border-t border-neutral-200/60"
+    >
       <div className="mx-auto max-w-6xl">
         <div className="gradient-cta rounded-3xl p-8 md:p-16 text-center relative overflow-hidden shadow-2xl">
           {/* Decorative glows */}
@@ -27,12 +31,12 @@ export default function CTASection() {
               <span>Get started in under 10 minutes</span>
             </div>
 
-            <h2 className="text-headline-medium md:text-display-small text-white font-bold mb-6 leading-tight">
-              Ready to bring structured financial clarity to your school?
+            <h2 id="cta-heading" className="text-headline-medium md:text-display-small text-white font-bold mb-6 leading-tight">
+              Ready to bring clarity to your school fee operations?
             </h2>
 
             <p className="text-body-large text-blue-100 mb-10 max-w-xl">
-              Create your free workspace today. Invite your bursar, structure your fees, and start tracking every payment with WhatsApp-level simplicity.
+              Create your WardBalance workspace and start organizing school fees, payments, receipts, and balances from one place.
             </p>
 
             {/* CTA Buttons */}
@@ -56,11 +60,7 @@ export default function CTASection() {
                   if (isCategoryAllowed("analytics")) {
                     trackEvent({ event: "book_demo_clicked", properties: { source: "book_demo_final_cta" } });
                   }
-                  const el = document.getElementById("demo");
-                  if (el) {
-                    const top = el.getBoundingClientRect().top + window.scrollY - 84;
-                    window.scrollTo({ top, behavior: "smooth" });
-                  }
+                  scrollToSection("demo");
                   window.dispatchEvent(
                     new CustomEvent("wb:prefill-demo", {
                       detail: {

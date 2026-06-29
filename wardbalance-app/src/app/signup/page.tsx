@@ -3,7 +3,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ArrowLeft, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
+import Image from "next/image";
+import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { PRICING_PLANS, PlanId } from "@/constants/pricing";
 import { trackEvent } from "@/lib/analytics/posthog";
 import { isCategoryAllowed } from "@/lib/cookies/consent";
@@ -689,7 +690,7 @@ function SignupContent() {
                 ✅ You are signed in
               </p>
               <p className="text-body-small text-success-700">
-                No email verification required. You can go straight to the setup checklist.
+                You can proceed to the setup checklist. Email verification will be required later for financial actions like generating invoices and recording payments.
               </p>
             </div>
 
@@ -713,8 +714,13 @@ export default function SignupPage() {
   return (
     <main className="min-h-screen bg-neutral-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
-        <Link href="/" className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-1.5">
-          <ShieldCheck className="w-6 h-6" />
+        <Link href="/" className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-2">
+          <Image
+            src="/logo-v5.png"
+            alt="WardBalance logo"
+            width={40}
+            height={40}
+          />
           WardBalance
         </Link>
         <p className="text-body-small text-neutral-600 mt-2">

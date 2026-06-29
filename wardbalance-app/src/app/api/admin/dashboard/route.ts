@@ -85,10 +85,11 @@ export async function GET(request: NextRequest) {
         recentActivity,
       },
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "An unexpected error occurred";
     console.error("[dashboard] GET error:", err);
     return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: message, code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

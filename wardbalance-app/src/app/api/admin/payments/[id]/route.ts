@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
+import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const guard = await requireVerifiedAdminUser();
+    if (!guard.authorized) {
+      return guard.response;
     }
+    const session = guard.session;
 
     const { id } = await params;
     const body = await request.json();

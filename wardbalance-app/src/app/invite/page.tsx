@@ -2,7 +2,8 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Loader2, ShieldCheck, AlertCircle, Sparkles } from "lucide-react";
+import Image from "next/image";
+import { Loader2, AlertCircle, Sparkles } from "lucide-react";
 
 function InviteContent() {
   const searchParams = useSearchParams();
@@ -257,8 +258,13 @@ export default function InvitePage() {
     <main className="min-h-screen bg-neutral-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
         {/* WardBalance Logo / Branding */}
-        <span className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-1.5">
-          <ShieldCheck className="w-6 h-6" />
+        <span className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-2">
+          <Image
+            src="/logo-v5.png"
+            alt="WardBalance logo"
+            width={40}
+            height={40}
+          />
           WardBalance
         </span>
       </div>

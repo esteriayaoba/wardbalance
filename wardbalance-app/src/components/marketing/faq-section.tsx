@@ -6,43 +6,35 @@ import { Plus } from "lucide-react";
 const faqs = [
   {
     question: "Can I start using WardBalance without booking a demo?",
-    answer: "Yes, absolutely! WardBalance is now fully self-service. You can sign up, create your school workspace, and start configuring your class fee templates and student records immediately without any required calls.",
-  },
-  {
-    question: "Is there a free plan?",
-    answer: "Yes. Our Freemium plan is free forever and supports up to 50 students. It's perfect for small schools getting started with digital fee tracking.",
-  },
-  {
-    question: "Do I need to pay before creating a school workspace?",
-    answer: "No. You can create your workspace on the Freemium plan for ₦0 with no credit card required. You only pay if you choose to upgrade to the Business plan as your school grows.",
-  },
-  {
-    question: "Can I upgrade from Freemium to Business later?",
-    answer: "Yes, you can upgrade your workspace plan from your settings tab at any time to unlock larger student limits, class fee templates, custom discounts, and advanced reporting.",
-  },
-  {
-    question: "Does WardBalance support Flutterwave payment links?",
-    answer: "Yes. WardBalance integrates securely with Flutterwave. You can configure your payment keys to dispatch automated transaction links to parents so they pay online, and their balances update instantly.",
-  },
-  {
-    question: "Can schools record cash, POS, cheque, and bank transfer payments?",
-    answer: "Yes, WardBalance is built for reality. Bursars can easily record any offline payment. For bank transfers made outside the portal, parents can upload their receipt screenshot for bursar verification.",
-  },
-  {
-    question: "Can one parent manage multiple wards?",
-    answer: "Absolutely. Parents log in with their phone number or email and instantly see a combined dashboard showing all their children in the school, even if they are in different classes or divisions.",
-  },
-  {
-    question: "Can I invite my bursar or administrator later?",
-    answer: "Yes. Workspace owners can invite other staff members (bursars, accountants, administrators) to collaborate inside the dashboard based on their role permissions.",
-  },
-  {
-    question: "Can I manage more than one school or branch?",
-    answer: "Our Multi-School plan is designed specifically for school groups and branch operators. Because these setups require custom routing and branch consolidation, they need a guided setup — please book a branch demo to get started.",
+    answer: "Yes. You can create a school workspace and start with the Starter plan. Schools that need guided setup or multi-branch support can book a demo.",
   },
   {
     question: "Is WardBalance a full school management system?",
-    answer: "No. WardBalance focuses 100% on financial operations—invoices, payments, receipts, and reporting. We do not build CBT, attendance, results, or timetables because we believe in doing one thing exceptionally well.",
+    answer: "No. WardBalance focuses on school fee operations. It does not handle CBT, attendance, results, timetable, payroll, LMS, hostel, inventory, or AI features.",
+  },
+  {
+    question: "Can one parent manage more than one child?",
+    answer: "Yes. A parent can be linked to multiple wards and can view invoices, balances, payment status, and receipts for each child separately.",
+  },
+  {
+    question: "Can schools record offline payments?",
+    answer: "Yes. Schools can record cash, POS, cheque, and bank transfer payments so bursars can track payments even when parents pay outside online checkout.",
+  },
+  {
+    question: "Does WardBalance support online payment?",
+    answer: "WardBalance is designed with Flutterwave payment readiness. Online payment flows can be enabled where payment setup is configured.",
+  },
+  {
+    question: "Can WardBalance support multiple branches?",
+    answer: "Yes. Multi-school or multi-branch setup is available through the Group plan. We recommend booking a demo so the structure can be configured properly.",
+  },
+  {
+    question: "Can I upgrade later?",
+    answer: "Yes. Schools can start with a simple plan and upgrade as their student population, staff team, and reporting needs grow.",
+  },
+  {
+    question: "Can I invite my bursar or administrator?",
+    answer: "Yes. Depending on your plan, you can add school staff and assign access based on their responsibilities.",
   },
 ];
 
@@ -56,7 +48,7 @@ export default function FAQSection() {
   return (
     <section
       id="faq"
-      className="py-16 md:py-24 scroll-mt-24 relative overflow-hidden bg-background"
+      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] relative overflow-hidden bg-white border-b border-neutral-200/60"
       aria-labelledby="faq-heading"
     >
       {/* Subtle blurred background gradient blobs */}
@@ -81,11 +73,33 @@ export default function FAQSection() {
           >
             Frequently Asked Questions
           </h2>
+          <p className="text-body-large text-on-surface-variant max-w-xl mx-auto">
+            Can&apos;t find your answer?{" "}
+            <a
+              href="#demo"
+              onClick={(e) => {
+                e.preventDefault();
+                const el = document.getElementById("demo");
+                if (el) {
+                  const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
+                  const offset = offsetStr ? parseFloat(offsetStr) : 96;
+                  el.scrollIntoView();
+                  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+                }
+              }}
+              className="text-primary font-semibold hover:underline"
+            >
+              Book a demo
+            </a>{" "}
+            and we&apos;ll walk you through it.
+          </p>
         </div>
 
         <div className="space-y-4">
           {faqs.map((faq, index) => {
             const isOpen = openIndex === index;
+            const panelId = `faq-panel-${index}`;
+            const buttonId = `faq-btn-${index}`;
             return (
               <div
                 key={index}
@@ -98,9 +112,11 @@ export default function FAQSection() {
                 }}
               >
                 <button
+                  id={buttonId}
                   onClick={() => toggleOpen(index)}
                   className="w-full flex items-center justify-between p-5 text-left focus:outline-2 focus:outline-primary focus:outline-offset-2 rounded-xl hover:bg-surface-container-low transition-colors duration-200 cursor-pointer"
                   aria-expanded={isOpen}
+                  aria-controls={panelId}
                 >
                   <span
                     className="text-title-medium pr-8"
@@ -116,11 +132,14 @@ export default function FAQSection() {
                       isOpen ? "rotate-45" : ""
                     }`}
                     style={{
-                      color: isOpen ? "var(--color-primary-600)" : "var(--color-outline)",
+                      color: isOpen ? "var(--color-primary-600)" : "var(--color-on-surface-variant)",
                     }}
                   />
                 </button>
                 <div
+                  id={panelId}
+                  role="region"
+                  aria-labelledby={buttonId}
                   className={`overflow-hidden transition-all duration-300 ease-in-out ${
                     isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
                   }`}

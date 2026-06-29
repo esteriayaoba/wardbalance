@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, CheckCircle2, Lock, ArrowRight, Sparkles, Check, Zap } from "lucide-react";
+import { Loader2, CheckCircle2, Lock, ArrowRight, Sparkles, Check, Zap, AlertCircle } from "lucide-react";
 
 interface Step {
   id: number;
@@ -21,6 +21,9 @@ interface Progress {
   percentage: number;
 }
 
+const SVG_RADIUS = 28;
+const SVG_CIRCUMFERENCE = 2 * Math.PI * SVG_RADIUS;
+
 export default function SetupChecklistPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -28,28 +31,31 @@ export default function SetupChecklistPage() {
   const [progress, setProgress] = useState<Progress | null>(null);
   const [schoolStatus, setSchoolStatus] = useState<string>("");
 
-  const fetchStatus = useCallback(() => {
-    fetch("/api/admin/setup/status")
-      .then(async (res) => {
-        const body = await res.json();
-        if (res.ok) {
-          setSteps(body.data.steps);
-          setProgress(body.data.progress);
-          setSchoolStatus(body.data.schoolStatus);
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/setup/status");
+      const body = await res.json();
+      if (res.ok) {
+        setSteps(body.data.steps);
+        setProgress(body.data.progress);
+        const newStatus = body.data.schoolStatus;
+        setSchoolStatus(newStatus);
+
+        if (body.data.progress.completed === body.data.progress.total && newStatus === "onboarding") {
+          await fetch("/api/admin/setup/complete", { method: "POST" });
+          setSchoolStatus("active");
         }
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load checklist status:", err);
-        setLoading(false);
-      });
+      }
+      setLoading(false);
+    } catch {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     fetchStatus();
   }, [fetchStatus]);
 
-  // Auto-refresh when the user returns to this tab after completing a step
   useEffect(() => {
     const handleFocus = () => fetchStatus();
     window.addEventListener("focus", handleFocus);
@@ -65,7 +71,6 @@ export default function SetupChecklistPage() {
     );
   }
 
-  // Find the first actionable (not_started, not blocked) step
   const nextStepId = steps.find((s) => s.status === "not_started" && !s.blocked)?.id ?? null;
 
   return (
@@ -95,15 +100,15 @@ export default function SetupChecklistPage() {
         {progress && (
           <div className="flex items-center gap-4 shrink-0 bg-neutral-50 p-4 rounded-xl border border-neutral-200">
             <div className="relative w-16 h-16 flex items-center justify-center">
-              <svg className="absolute w-full h-full transform -rotate-90">
-                <circle cx="32" cy="32" r="28" className="stroke-neutral-200" strokeWidth="4" fill="transparent" />
+              <svg className="absolute w-full h-full transform -rotate-90" aria-hidden="true">
+                <circle cx="32" cy="32" r={SVG_RADIUS} className="stroke-neutral-200" strokeWidth="4" fill="transparent" />
                 <circle
-                  cx="32" cy="32" r="28"
+                  cx="32" cy="32" r={SVG_RADIUS}
                   className="stroke-primary transition-all duration-500"
                   strokeWidth="4"
                   fill="transparent"
-                  strokeDasharray={175}
-                  strokeDashoffset={175 - (175 * progress.percentage) / 100}
+                  strokeDasharray={SVG_CIRCUMFERENCE}
+                  strokeDashoffset={SVG_CIRCUMFERENCE - (SVG_CIRCUMFERENCE * progress.percentage) / 100}
                 />
               </svg>
               <span className="text-title-medium text-neutral-950 font-bold">{progress.percentage}%</span>
@@ -194,7 +199,7 @@ export default function SetupChecklistPage() {
                 {isCompleted ? (
                   <button
                     onClick={() => router.push(step.href)}
-                    className="px-4 py-2 border border-green-200 text-green-700 rounded-lg text-body-small font-bold bg-green-50 hover:bg-green-100 transition inline-flex items-center gap-1.5"
+                    className="px-4 py-2 border border-green-200 text-green-700 rounded-lg text-body-small font-bold bg-green-50 hover:bg-green-100 transition inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     View / Edit
                   </button>
@@ -209,7 +214,7 @@ export default function SetupChecklistPage() {
                 ) : (
                   <button
                     onClick={() => router.push(step.href)}
-                    className={`px-4 py-2 rounded-lg text-body-small font-bold transition inline-flex items-center gap-1.5 shadow-sm ${
+                    className={`px-4 py-2 rounded-lg text-body-small font-bold transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       isNext
                         ? "bg-primary text-white hover:bg-primary-dark ring-2 ring-primary/30"
                         : "bg-primary text-white hover:bg-primary-dark"
@@ -239,7 +244,7 @@ export default function SetupChecklistPage() {
           </div>
           <button
             onClick={() => router.push("/admin/dashboard")}
-            className="px-6 py-3 bg-white text-green-700 font-bold rounded-lg text-label-large hover:bg-green-50 transition shadow shrink-0"
+            className="px-6 py-3 bg-white text-green-700 font-bold rounded-lg text-label-large hover:bg-green-50 transition shadow shrink-0 cursor-pointer"
           >
             Go to Dashboard
           </button>

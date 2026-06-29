@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     "school fees Nigeria",
   ],
   icons: {
-    icon: "/logo.png",
+    icon: "/logo-v5.png",
   },
   openGraph: {
     title: "WardBalance — School Fee Management Software for African Schools",
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_NG",
     // TODO: replace with dedicated OG image when ready
-    images: [{ url: "/logo.png", width: 512, height: 512 }],
+    images: [{ url: "/logo-v5.png", width: 512, height: 512 }],
   },
   twitter: {
     card: "summary_large_image",
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     description:
       "Create a WardBalance school workspace to manage invoices, parent balances, payments, receipts, and school fee reports from one dashboard.",
     // TODO: replace with dedicated OG image when ready
-    images: ["/logo.png"],
+    images: ["/logo-v5.png"],
   },
   robots: {
     index: true,
@@ -64,7 +64,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${outfit.variable} h-full`}>
+    <html lang="en" className={`${outfit.variable} h-full`} data-scroll-behavior="smooth">
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <StructuredData />
         {children}

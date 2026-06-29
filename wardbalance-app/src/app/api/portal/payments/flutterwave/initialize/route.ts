@@ -65,9 +65,14 @@ export async function POST(request: NextRequest) {
     const isMockMode = !flwSecretKey || flwSecretKey === "mock";
 
     if (isMockMode) {
+      const isProd = process.env.NODE_ENV === "production";
+      if (isProd) {
+        throw new Error("Payment gateway key missing in production config. Mock checkout is not allowed in production.");
+      }
+
       // Generate a mock checkout page redirect URL
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-      const mockCheckoutUrl = `${appUrl}/parent/payments/status?status=completed&tx_ref=${txRef}&amount=${amount}&invoiceId=${invoiceId}`;
+      const mockCheckoutUrl = `${appUrl}/parent/payments/status?status=completed&tx_ref=${txRef}&amount=${amount}&invoiceId=${invoiceId}&is_demo_checkout=true`;
       
       console.log(`[Flutterwave Mock] Payment initialized for Invoice ${invoiceId}:
         Ref: ${txRef}

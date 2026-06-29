@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
+import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
 
 const FeeItemSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -44,14 +45,11 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const guard = await requireVerifiedAdminUser();
+    if (!guard.authorized) {
+      return guard.response;
     }
+    const session = guard.session;
 
     const body = await request.json();
     const parsed = FeeItemSchema.safeParse(body);
@@ -123,14 +121,11 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const guard = await requireVerifiedAdminUser();
+    if (!guard.authorized) {
+      return guard.response;
     }
+    const session = guard.session;
 
     const body = await request.json();
     const parsed = UpdateFeeItemSchema.safeParse(body);
@@ -215,14 +210,11 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const guard = await requireVerifiedAdminUser();
+    if (!guard.authorized) {
+      return guard.response;
     }
+    const session = guard.session;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");

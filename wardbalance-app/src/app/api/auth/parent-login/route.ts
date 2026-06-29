@@ -55,13 +55,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      const isProd = process.env.NODE_ENV === "production";
+      const message = isProd 
+        ? "Verification code sent successfully. Please check your registered email or phone."
+        : "OTP sent successfully. For demo purposes, use code: 123456";
+
       // In a real app, send actual SMS/Email. For Phase 2A/3 UI scaffolding, we mock it.
       console.log(`[Parent Auth] Generated OTP 123456 for parent ${parent.firstName} ${parent.lastName}`);
 
       return NextResponse.json({
         data: {
           success: true,
-          message: "OTP sent successfully. For demo purposes, use code: 123456",
+          message,
         },
       });
     }
@@ -70,6 +75,16 @@ export async function POST(request: NextRequest) {
     if (data.action === "verify") {
       const input = data.phoneOrEmail.trim().toLowerCase();
       const { otp } = data;
+
+      const isProd = process.env.NODE_ENV === "production";
+
+      if (isProd) {
+        // In production, mock OTP verification is strictly disabled
+        return NextResponse.json(
+          { error: "Secure OTP system is active. Production parent logins must use a verified email/SMS integration.", code: "UNAUTHORIZED" },
+          { status: 401 }
+        );
+      }
 
       if (otp !== "123456") {
         return NextResponse.json(
@@ -104,6 +119,14 @@ export async function POST(request: NextRequest) {
 
     // STEP 3: Demo Login Shortcut
     if (data.action === "demo") {
+      const isProd = process.env.NODE_ENV === "production";
+      if (isProd) {
+        return NextResponse.json(
+          { error: "Demo logins are disabled in production for security.", code: "FORBIDDEN" },
+          { status: 403 }
+        );
+      }
+
       const parent = await prisma.parent.findUnique({
         where: { id: data.parentId },
         include: {

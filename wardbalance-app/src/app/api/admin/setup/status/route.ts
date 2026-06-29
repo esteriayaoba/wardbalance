@@ -216,16 +216,6 @@ export async function GET(request: NextRequest) {
     const totalCount = steps.length;
     const isSetupComplete = completedCount === totalCount;
 
-    // Automatically transition onboarding school to active if setup completed
-    if (isSetupComplete && school.status === "onboarding") {
-      await prisma.school.update({
-        where: { id: schoolId },
-        data: { status: "active" },
-      });
-      // Update school status in variables
-      school.status = "active";
-    }
-
     return NextResponse.json({
       data: {
         steps,
@@ -237,10 +227,11 @@ export async function GET(request: NextRequest) {
         schoolStatus: school.status,
       },
     });
-  } catch (err) {
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "An unexpected error occurred";
     console.error("[setup] Resolver error:", err);
     return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: message, code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

@@ -3,7 +3,8 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ShieldCheck, AlertCircle, PlayCircle, Eye, EyeOff } from "lucide-react";
+import Image from "next/image";
+import { Loader2, AlertCircle, PlayCircle, Eye, EyeOff } from "lucide-react";
 
 function LoginContent() {
   const router = useRouter();
@@ -201,8 +202,13 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-neutral-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
-        <Link href="/" className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-1.5">
-          <ShieldCheck className="w-6 h-6" />
+        <Link href="/" className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-2">
+          <Image
+            src="/logo-v5.png"
+            alt="WardBalance logo"
+            width={40}
+            height={40}
+          />
           WardBalance
         </Link>
       </div>

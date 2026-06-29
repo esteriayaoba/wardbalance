@@ -13,31 +13,18 @@ export default function FeatureCard({
 }: FeatureCardProps) {
   return (
     <div
-      className="card-elevated p-6 flex flex-col h-full group relative overflow-hidden transition-all duration-500 bg-surface-container-lowest"
+      className="border border-neutral-200/60 rounded-2xl p-6 flex flex-col h-full bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-primary-200/60"
     >
-      {/* Expandable Wave Circle Overlay - Sharp Brand Color */}
-      <div
-        className="absolute bottom-0 right-0 translate-x-[40%] translate-y-[40%] w-[320px] h-[320px] rounded-full transition-all duration-700 ease-out group-hover:scale-[2.8] pointer-events-none z-0 opacity-0 group-hover:opacity-100 bg-primary"
-      />
-
-      {/* Content wrapper with z-index to stay above background wave */}
-      <div className="relative z-10 flex flex-col h-full pointer-events-none">
+      <div className="flex flex-col h-full">
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 transition-all duration-300 group-hover:scale-110 card-icon-bg bg-primary-light group-hover:bg-white"
+          className="w-12 h-12 rounded-xl flex items-center justify-center mb-5 bg-primary-container text-primary"
         >
-          <Icon 
-            size={24} 
-            className="transition-colors duration-300 text-primary-600 group-hover:text-primary" 
-          />
+          <Icon size={24} />
         </div>
-        <h3
-          className="text-title-medium mb-2.5 transition-colors duration-300 text-on-surface group-hover:text-white"
-        >
+        <h3 className="text-title-medium mb-2.5 text-neutral-900 font-bold">
           {title}
         </h3>
-        <p
-          className="text-body-medium flex-1 transition-colors duration-300 text-on-surface-variant group-hover:text-white/90"
-        >
+        <p className="text-body-medium flex-1 text-neutral-600 leading-relaxed">
           {description}
         </p>
       </div>

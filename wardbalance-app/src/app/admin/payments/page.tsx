@@ -32,6 +32,7 @@ interface Payment {
   recordedBy: { fullName: string };
   receipts: PaymentReceipt[];
   createdAt: string;
+  updatedAt: string;
 }
 
 interface UnpaidInvoice {
@@ -57,6 +58,7 @@ export default function PaymentsPage() {
   const [actionLoading, setActionLoading] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [unpaidInvoices, setUnpaidInvoices] = useState<UnpaidInvoice[]>([]);
+  const [emailVerified, setEmailVerified] = useState(true);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,14 +81,19 @@ export default function PaymentsPage() {
   // Voiding State
   const [paymentToVoid, setPaymentToVoid] = useState<string | null>(null);
 
+  // Drawer Detail State
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+
   const loadData = () => {
     setLoading(true);
     Promise.all([
       fetch("/api/admin/payments").then((r) => r.json()),
       fetch("/api/admin/invoices").then((r) => r.json()), // to find invoices to record payments against
+      fetch("/api/admin/verify-email").then((r) => r.json()).catch(() => ({ emailVerified: true })),
     ])
-      .then(([paymentRes, invoiceRes]) => {
+      .then(([paymentRes, invoiceRes, verifyRes]) => {
         setPayments(paymentRes.data || []);
+        setEmailVerified(verifyRes.emailVerified ?? true);
         
         // Find invoices that have remaining balance due and are not draft
         const allInvoices = invoiceRes.data || [];
@@ -223,7 +230,9 @@ export default function PaymentsPage() {
 
         <button
           onClick={() => setShowRecordDrawer(true)}
-          className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm shrink-0"
+          disabled={!emailVerified}
+          title={!emailVerified ? "Verify your email to use this action." : undefined}
+          className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus className="w-4 h-4" />
           Record Payment
@@ -308,7 +317,11 @@ export default function PaymentsPage() {
             {filteredPayments.map((p) => {
               const isVoid = p.status === "void";
               return (
-                <tr key={p.id} className={`text-body-medium text-neutral-800 hover:bg-neutral-50/50 ${isVoid ? "opacity-55 bg-neutral-50/50" : ""}`}>
+                <tr
+                  key={p.id}
+                  onClick={() => setSelectedPayment(p)}
+                  className={`text-body-medium text-neutral-800 hover:bg-neutral-50/50 cursor-pointer ${isVoid ? "opacity-55 bg-neutral-50/50" : ""}`}
+                >
                   <td className="px-6 py-4">
                     <div className="font-bold text-neutral-900">
                       {p.student.lastName}, {p.student.firstName}
@@ -343,9 +356,10 @@ export default function PaymentsPage() {
                   <td className="px-6 py-4 text-right">
                     {!isVoid ? (
                       <button
-                        onClick={() => setPaymentToVoid(p.id)}
-                        disabled={actionLoading}
-                        className="px-2.5 py-1.5 border border-red-200 hover:bg-red-50 text-error rounded-lg text-body-small font-bold transition inline-flex items-center gap-1"
+                        onClick={(e) => { e.stopPropagation(); setPaymentToVoid(p.id); }}
+                        disabled={actionLoading || !emailVerified}
+                        title={!emailVerified ? "Verify your email to use this action." : undefined}
+                        className="px-2.5 py-1.5 border border-red-200 hover:bg-red-50 text-error rounded-lg text-body-small font-bold transition inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <XCircle className="w-3.5 h-3.5" />
                         Void
@@ -498,6 +512,179 @@ export default function PaymentsPage() {
                   Record Manual Payment
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Slide-over Drawer: Payment Details */}
+      {selectedPayment && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
+          <div className="bg-white w-full max-w-md h-full overflow-y-auto p-8 shadow-xl flex flex-col border-l border-neutral-200">
+            <div className="space-y-6">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
+                <div>
+                  <h3 className="text-title-small text-neutral-900 font-bold">
+                    Payment Details
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setSelectedPayment(null)}
+                  className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Status Badge */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-neutral-500 font-semibold uppercase">Status</span>
+                  {selectedPayment.status === "void" ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 text-xs font-bold">
+                      <XCircle className="w-3 h-3" />
+                      Voided
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-bold">
+                      <CheckCircle className="w-3 h-3" />
+                      Recorded
+                    </span>
+                  )}
+                </div>
+
+                {/* Payment Summary Card */}
+                <div className="p-4 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-3">
+                  <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider">
+                    Payment Summary
+                  </span>
+                  <div className="space-y-2.5 text-body-medium">
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-500 flex items-center gap-1.5">
+                        <Coins className="w-3.5 h-3.5 text-neutral-400" />
+                        Amount
+                      </span>
+                      <span className="font-bold text-neutral-950 text-title-small tabular-nums">
+                        {formatNaira(selectedPayment.amount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-500">Method</span>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-neutral-100 text-neutral-700">
+                        {selectedPayment.method.replace("_", " ")}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-500">Reference</span>
+                      <span className="font-mono text-body-small text-neutral-700 font-bold truncate max-w-[200px]">
+                        {selectedPayment.reference || "—"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Student Info */}
+                <div className="p-4 rounded-xl border border-neutral-200 space-y-3">
+                  <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                    <User className="w-3 h-3" />
+                    Student Information
+                  </span>
+                  <div className="space-y-2.5 text-body-medium">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Name</span>
+                      <span className="font-bold text-neutral-800">
+                        {selectedPayment.student.lastName}, {selectedPayment.student.firstName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Admission No.</span>
+                      <span className="font-mono font-bold text-neutral-800">
+                        {selectedPayment.student.admissionNumber}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Class</span>
+                      <span className="font-bold text-neutral-800">
+                        {selectedPayment.student.classLevel.name} — {selectedPayment.student.classArm.name}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Receipt & Recorder Info */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-4 rounded-xl border border-neutral-200 space-y-2">
+                    <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <Receipt className="w-3 h-3" />
+                      Receipt
+                    </span>
+                    <p className="font-mono font-bold text-neutral-800 text-body-medium break-all">
+                      {selectedPayment.receipts[0]?.receiptNumber || "N/A"}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl border border-neutral-200 space-y-2">
+                    <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <FileText className="w-3 h-3" />
+                      Invoice
+                    </span>
+                    <p className="font-mono font-bold text-neutral-800 text-body-medium break-all">
+                      {selectedPayment.invoiceId.slice(0, 8)}...
+                    </p>
+                  </div>
+                </div>
+
+                {/* Recorder Info */}
+                <div className="p-4 rounded-xl border border-neutral-200 space-y-3">
+                  <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                    <ShieldAlert className="w-3 h-3" />
+                    Recorded By
+                  </span>
+                  <div className="space-y-2.5 text-body-medium">
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Name</span>
+                      <span className="font-bold text-neutral-800">
+                        {selectedPayment.recordedBy?.fullName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-neutral-500">Date</span>
+                      <span className="font-bold text-neutral-800 inline-flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-neutral-400" />
+                        {new Date(selectedPayment.createdAt).toLocaleDateString("en-NG", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Voided Info */}
+                {selectedPayment.status === "void" && (
+                  <div className="p-4 rounded-xl border border-red-200 bg-red-50/30 space-y-2">
+                    <span className="text-[10px] text-red-600 font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <XCircle className="w-3 h-3" />
+                      Voided Details
+                    </span>
+                    <div className="flex justify-between text-body-medium">
+                      <span className="text-red-600">Voided at</span>
+                      <span className="font-bold text-red-700 inline-flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5" />
+                        {new Date(selectedPayment.updatedAt).toLocaleDateString("en-NG", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -1,20 +1,25 @@
-import { Building2, Send, CheckCircle2 } from "lucide-react";
+import { Building2, Users, FileText, Coins, ChevronRight } from "lucide-react";
 
 const steps = [
   {
     icon: Building2,
-    title: "Create your school workspace",
-    description: "Sign up in seconds and build a dedicated billing environment tailored to your school's profile.",
+    title: "Create your workspace",
+    description: "Sign up, choose a plan, and set up your school profile.",
   },
   {
-    icon: Send,
-    title: "Set up classes, students, parents, and fees",
-    description: "Configure divisions, class arms, parent contacts, and fee templates for the active term.",
+    icon: Users,
+    title: "Add your school structure",
+    description: "Set up classes, students, parents, and parent-to-ward links.",
   },
   {
-    icon: CheckCircle2,
-    title: "Generate invoices and track payments",
-    description: "Bulk-issue term invoices, record manual payments (cash, transfer, POS), and verify parent bank transfers.",
+    icon: FileText,
+    title: "Build fees and invoices",
+    description: "Create fee templates and generate invoices for the right students, classes, terms, or sessions.",
+  },
+  {
+    icon: Coins,
+    title: "Track payments clearly",
+    description: "Record payments, issue receipts, monitor outstanding balances, and view reports.",
   },
 ];
 
@@ -22,61 +27,57 @@ export default function HowItWorksSection() {
   return (
     <section
       id="how-it-works"
-      className="py-16 md:py-24 scroll-mt-24 bg-surface-container-low"
+      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] bg-neutral-50/40 border-y border-neutral-200/50"
       aria-labelledby="how-it-works-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-2xl mx-auto mb-16">
-          <p className="text-label-large mb-3 flex items-center justify-center gap-2 text-primary">
-            <span className="w-8 h-px bg-current opacity-50 hidden sm:block"></span>
+        
+        {/* Section Header */}
+        <div className="text-center max-w-2xl mx-auto mb-20">
+          <p className="text-label-large mb-3 flex items-center justify-center gap-2 text-primary uppercase font-bold tracking-wider">
+            <span className="w-8 h-px bg-current opacity-30 hidden sm:block"></span>
             HOW IT WORKS
-            <span className="w-8 h-px bg-current opacity-50 hidden sm:block"></span>
+            <span className="w-8 h-px bg-current opacity-30 hidden sm:block"></span>
           </p>
           <h2
             id="how-it-works-heading"
-            className="text-headline-small md:text-headline-large mb-4 text-on-surface"
+            className="text-headline-small md:text-headline-large mb-4 text-neutral-900 font-bold"
           >
-            From setup to payment in 3 steps
+            Start managing school fees in four simple steps.
           </h2>
-          <p className="text-body-large text-on-surface-variant">
-            We&apos;ve streamlined the entire financial workflow so your school can focus on education, not Excel sheets.
-          </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 relative">
-          {/* Subtle connecting line behind cards (desktop only) */}
-          <div className="hidden md:block absolute top-12 left-[16%] right-[16%] h-px border-t-2 border-dashed border-outline-variant opacity-50 z-0" />
-
-          {steps.map((step) => {
+        {/* Steps Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 relative">
+          {steps.map((step, index) => {
             const Icon = step.icon;
             return (
               <div
                 key={step.title}
-                className="card-elevated p-8 text-center relative z-10 flex flex-col items-center group overflow-hidden transition-all duration-500 bg-surface-container-lowest"
+                className="border border-neutral-200/60 rounded-3xl p-8 text-center relative z-10 flex flex-col items-center bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-primary-200/60"
               >
-                {/* Expandable Wave Circle Overlay - Solid Brand Color */}
-                <div
-                  className="absolute bottom-0 right-0 translate-x-[40%] translate-y-[40%] w-[320px] h-[320px] rounded-full transition-all duration-700 ease-out group-hover:scale-[2.8] pointer-events-none z-0 opacity-0 group-hover:opacity-100 bg-primary"
-                />
+                {/* Step Number Badge */}
+                <div className="absolute top-4 right-6 text-label-large font-black text-neutral-300 select-none">
+                  0{index + 1}
+                </div>
 
-                {/* Content wrapper with z-index to stay above background wave */}
-                <div className="relative z-10 flex flex-col items-center h-full pointer-events-none">
-                  <div 
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 transition-all duration-300 group-hover:scale-110 card-icon-bg bg-surface-bright group-hover:bg-white shadow-sm"
-                  >
-                    <Icon 
-                      size={32} 
-                      className="transition-colors duration-300 text-primary" 
-                    />
+                {/* Right Connector Arrow (desktop only) */}
+                {index < steps.length - 1 && (
+                  <div className="hidden lg:flex absolute top-1/2 -translate-y-1/2 -right-4 translate-x-1/2 z-20 w-8 h-8 rounded-full border border-neutral-200 bg-white shadow-sm items-center justify-center text-neutral-400">
+                    <ChevronRight size={14} className="stroke-[3]" />
                   </div>
-                  <h3 
-                    className="text-title-large mb-3 transition-colors duration-300 text-on-surface group-hover:text-white"
+                )}
+
+                <div className="flex flex-col items-center h-full">
+                  <div 
+                    className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 bg-primary-container text-primary shadow-sm border border-primary-100/50"
                   >
+                    <Icon size={30} />
+                  </div>
+                  <h3 className="text-title-large mb-3 text-neutral-900 font-bold">
                     {step.title}
                   </h3>
-                  <p 
-                    className="text-body-medium transition-colors duration-300 text-on-surface-variant group-hover:text-white/90"
-                  >
+                  <p className="text-body-medium text-neutral-600 leading-relaxed">
                     {step.description}
                   </p>
                 </div>

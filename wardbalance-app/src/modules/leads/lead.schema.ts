@@ -28,6 +28,7 @@ export const CreateLeadSchema = z.object({
     .optional()
     .or(z.literal("")),
   numberOfStudents: z.string().optional(),
+  numberOfBranches: z.string().optional(),
   preferredContactMethod: z.enum(["email", "phone", "whatsapp"]).default("email"),
   message: z
     .string()

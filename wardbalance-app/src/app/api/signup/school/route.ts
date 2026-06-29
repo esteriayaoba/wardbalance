@@ -5,6 +5,7 @@ import { encryptPassword, signJWT } from "@/lib/auth/auth";
 import { upstashIncr } from "@/lib/redis";
 import { sendEmail } from "@/lib/email/resend";
 import { headers } from "next/headers";
+import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
   try {
@@ -73,6 +74,11 @@ export async function POST(request: NextRequest) {
     // 5. Hash owner password
     const passwordHash = await encryptPassword(data.password);
 
+    // Generate secure 6-digit OTP
+    const rawOtp = crypto.randomInt(100000, 1000000).toString();
+    const codeHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
+
     // 6. Execute database transaction
     const { school, user } = await prisma.$transaction(async (tx) => {
       // a. Create School Workspace
@@ -103,6 +109,11 @@ export async function POST(request: NextRequest) {
           passwordHash,
           fullName: data.ownerFullName,
           role: "SchoolOwner",
+          emailVerified: false,
+          verificationCodeHash: codeHash,
+          verificationCodeExpiresAt: expiresAt,
+          verificationAttempts: 0,
+          lastVerificationSentAt: new Date(),
         },
       });
 
@@ -142,7 +153,12 @@ export async function POST(request: NextRequest) {
     const welcomeHtml = `
       <h1>Welcome to WardBalance, ${user.fullName}!</h1>
       <p>Your school workspace <strong>${school.name}</strong> has been created successfully.</p>
-      <p>Your account is active and ready. Complete the onboarding checklist to set up your academic structure and start generating invoices.</p>
+      <p>Your email verification code is:</p>
+      <h2 style="font-size: 24px; font-weight: bold; letter-spacing: 2px; color: #155EEF; margin: 16px 0;">${rawOtp}</h2>
+      <p>Please click the following link to verify your email and unlock financial actions:</p>
+      <p><a href="${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/admin/verify-email" style="display: inline-block; padding: 10px 20px; background-color: #155EEF; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">Verify Email Address</a></p>
+      <p>Or manually enter the code on the verification page.</p>
+      <p>Please complete your onboarding checklist to start recording fee items and generating invoices.</p>
       <p>If you need any help getting started, reply to this email — we&apos;re here.</p>
     `;
     sendEmail({
@@ -195,6 +211,16 @@ export async function POST(request: NextRequest) {
       path: "/",
       maxAge: 60 * 60 * 24, // 24 hours
     });
+
+    if (process.env.NODE_ENV !== "production") {
+      response.cookies.set("dev_otp", rawOtp, {
+        httpOnly: true,
+        secure: false,
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 15, // 15 minutes
+      });
+    }
 
     return response;
   } catch (err) {

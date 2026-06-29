@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { comparePassword, signJWT } from "@/lib/auth/auth";
+import { rateLimit } from "@/lib/redis";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 const LoginSchema = z.object({
@@ -11,6 +13,16 @@ const LoginSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const headersList = await headers();
+    const ip = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "unknown";
+    const rl = await rateLimit(ip, { prefix: "rate_limit:login", maxRequests: 10, windowSeconds: 900 });
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many login attempts. Please try again later.", code: "TOO_MANY_REQUESTS" },
+        { status: 429, headers: { "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": String(rl.resetAt) } },
+      );
+    }
+
     const body = await request.json();
 
     const parsed = LoginSchema.safeParse(body);

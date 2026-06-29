@@ -40,7 +40,13 @@ export async function POST(request: NextRequest) {
 
     // Check if payment was already recorded (Idempotency)
     const existingPayment = await prisma.payment.findFirst({
-      where: { schoolId, reference: txRef },
+      where: {
+        schoolId,
+        OR: [
+          { reference: txRef },
+          ...(transactionId ? [{ reference: transactionId }] : []),
+        ],
+      },
     });
 
     if (existingPayment) {
@@ -59,6 +65,14 @@ export async function POST(request: NextRequest) {
     const isMock = !flwSecretKey || flwSecretKey === "mock";
 
     if (isMock) {
+      const isProd = process.env.NODE_ENV === "production";
+      if (isProd) {
+        return NextResponse.json(
+          { error: "Mock payment verification is disabled in production.", code: "FORBIDDEN" },
+          { status: 403 }
+        );
+      }
+
       if (status !== "completed" || !invoiceId || !amount) {
         return NextResponse.json(
           { error: "Transaction verification failed", code: "PAYMENT_FAILED" },
@@ -166,8 +180,32 @@ export async function POST(request: NextRequest) {
 
     // REAL FLUTTERWAVE VERIFICATION (Phase 2B integration scaffold)
     if (!transactionId) {
+      await prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName || "Parent User",
+          action: "payment.verify_failed",
+          entityType: "Payment",
+          entityId: txRef,
+          newValue: { reason: "missing_transaction_id", txRef },
+        },
+      });
       return NextResponse.json({ error: "Missing Flutterwave transaction ID" }, { status: 400 });
     }
+
+    // Log the initial verification attempt
+    await prisma.auditLog.create({
+      data: {
+        schoolId,
+        actorId: parentId,
+        actorName: session.fullName || "Parent User",
+        action: "payment.verify_attempt",
+        entityType: "Payment",
+        entityId: transactionId,
+        newValue: { txRef, transactionId },
+      },
+    });
 
     const flwResponse = await fetch(
       `https://api.flutterwave.com/v3/transactions/${transactionId}/verify`,
@@ -178,6 +216,22 @@ export async function POST(request: NextRequest) {
     const flwBody = await flwResponse.json();
 
     if (!flwResponse.ok || flwBody.data.status !== "successful") {
+      await prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName || "Parent User",
+          action: "payment.verify_failed",
+          entityType: "Payment",
+          entityId: transactionId,
+          newValue: {
+            reason: "flutterwave_api_verification_failed",
+            txRef,
+            transactionId,
+            flwMessage: flwBody.message,
+          },
+        },
+      });
       return NextResponse.json(
         { error: "Verification via Flutterwave API failed", code: "PAYMENT_FAILED" },
         { status: 400 }
@@ -185,16 +239,149 @@ export async function POST(request: NextRequest) {
     }
 
     const verifiedData = flwBody.data;
-    const verifiedAmount = new Prisma.Decimal(verifiedData.amount);
-    const invoiceIdMeta = verifiedData.meta.invoiceId;
 
-    // Fetch invoice
+    // Safety checks: verify currency, status, amount, and invoiceId metadata
+    if (verifiedData.currency !== "NGN") {
+      await prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName || "Parent User",
+          action: "payment.currency_mismatch",
+          entityType: "Payment",
+          entityId: transactionId,
+          newValue: {
+            reason: "currency_mismatch",
+            expected: "NGN",
+            actual: verifiedData.currency,
+            txRef,
+            transactionId,
+          },
+        },
+      });
+      return NextResponse.json(
+        { error: "Payment currency mismatch. Only NGN transactions are allowed.", code: "PAYMENT_FAILED" },
+        { status: 400 }
+      );
+    }
+
+    if (verifiedData.status !== "successful") {
+      await prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName || "Parent User",
+          action: "payment.verify_failed",
+          entityType: "Payment",
+          entityId: transactionId,
+          newValue: {
+            reason: "transaction_not_successful",
+            actualStatus: verifiedData.status,
+            txRef,
+            transactionId,
+          },
+        },
+      });
+      return NextResponse.json(
+        { error: "Payment transaction was not successful.", code: "PAYMENT_FAILED" },
+        { status: 400 }
+      );
+    }
+
+    const verifiedAmount = new Prisma.Decimal(verifiedData.amount);
+    const invoiceIdMeta = verifiedData.meta?.invoiceId;
+
+    if (!invoiceIdMeta) {
+      await prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName || "Parent User",
+          action: "payment.verify_failed",
+          entityType: "Payment",
+          entityId: transactionId,
+          newValue: { reason: "missing_invoice_id_metadata", txRef, transactionId },
+        },
+      });
+      return NextResponse.json(
+        { error: "Missing invoice ID in payment metadata.", code: "PAYMENT_FAILED" },
+        { status: 400 }
+      );
+    }
+
+    // Fetch invoice and check parent-ward ownership
     const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceIdMeta, schoolId },
+      where: {
+        id: invoiceIdMeta,
+        schoolId,
+        student: {
+          parents: { some: { parentId } },
+        },
+      },
+      include: { term: true },
     });
 
     if (!invoice) {
-      return NextResponse.json({ error: "Associated invoice not found" }, { status: 404 });
+      await prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName || "Parent User",
+          action: "payment.parent_authorization_failed",
+          entityType: "Payment",
+          entityId: transactionId,
+          newValue: {
+            reason: "invoice_not_found_or_unauthorized",
+            invoiceId: invoiceIdMeta,
+            parentId,
+            txRef,
+            transactionId,
+          },
+        },
+      });
+      return NextResponse.json({ error: "Associated invoice not found or unauthorized.", code: "NOT_FOUND" }, { status: 404 });
+    }
+
+    if (invoice.term.status === "locked") {
+      await prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName || "Parent User",
+          action: "payment.verify_failed",
+          entityType: "Payment",
+          entityId: transactionId,
+          newValue: {
+            reason: "term_locked",
+            invoiceId: invoiceIdMeta,
+            txRef,
+            transactionId,
+          },
+        },
+      });
+      return NextResponse.json({ error: "Write attempted on a locked term.", code: "TERM_LOCKED" }, { status: 422 });
+    }
+
+    if (verifiedAmount.greaterThan(invoice.balanceDue)) {
+      await prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: session.fullName || "Parent User",
+          action: "payment.amount_mismatch",
+          entityType: "Payment",
+          entityId: transactionId,
+          newValue: {
+            reason: "amount_exceeds_balance_due",
+            invoiceId: invoiceIdMeta,
+            balanceDue: invoice.balanceDue.toNumber(),
+            verifiedAmount: verifiedAmount.toNumber(),
+            txRef,
+            transactionId,
+          },
+        },
+      });
+      return NextResponse.json({ error: "Payment amount exceeds invoice balance due.", code: "BAD_REQUEST" }, { status: 400 });
     }
 
     // Execute payment in transaction
@@ -241,7 +428,7 @@ export async function POST(request: NextRequest) {
           schoolId,
           actorId: parentId,
           actorName: session.fullName,
-          action: "payment.recorded",
+          action: "payment.verify_success",
           entityType: "Payment",
           entityId: payment.id,
           newValue: { amount: verifiedAmount.toNumber(), reference: txRef },

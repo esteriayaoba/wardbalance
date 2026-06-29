@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, ShieldCheck, AlertCircle, ArrowLeft, KeyRound, Smartphone, Star } from "lucide-react";
+import Image from "next/image";
+import { Loader2, AlertCircle, ArrowLeft, KeyRound, Smartphone, Star } from "lucide-react";
 
 interface DemoParent {
   id: string;
@@ -118,8 +119,13 @@ export default function ParentLoginPage() {
   return (
     <main className="min-h-screen bg-neutral-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
-        <Link href="/" className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-1.5">
-          <ShieldCheck className="w-6 h-6" />
+        <Link href="/" className="text-title-large text-primary font-bold tracking-tight inline-flex items-center gap-2">
+          <Image
+            src="/logo-v5.png"
+            alt="WardBalance logo"
+            width={40}
+            height={40}
+          />
           WardBalance
         </Link>
         <span className="ml-2 px-2 py-0.5 rounded bg-primary-100 text-primary text-[10px] font-bold uppercase tracking-wider">
@@ -234,8 +240,8 @@ export default function ParentLoginPage() {
             </form>
           )}
 
-          {/* Demo Section */}
-          {demoParents.length > 0 && (
+          {/* Demo Section (Hidden in Production) */}
+          {process.env.NODE_ENV !== "production" && demoParents.length > 0 && (
             <div className="mt-8 pt-6 border-t border-neutral-200">
               {!showDemoList ? (
                 <button
@@ -270,7 +276,7 @@ export default function ParentLoginPage() {
                         <div className="font-bold text-neutral-800">
                           {parent.firstName} {parent.lastName}
                         </div>
-                        <div className="text-[10px] text-neutral-500 flex justify-between w-full mt-0.5">
+                        <div className="text-[10px] text-neutral-550 flex justify-between w-full mt-0.5">
                           <span>{parent.school.name}</span>
                           <span className="font-mono">{parent.phone}</span>
                         </div>
