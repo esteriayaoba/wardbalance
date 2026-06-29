@@ -166,7 +166,7 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
       }
 
       let baselineAmount = new Prisma.Decimal(0);
-      const lineItemsData: { feeItemId?: string; name: string; amount: Prisma.Decimal; lineType: "fee_item" | "carryover" }[] = [];
+      const lineItemsData: { feeItemId?: string; name: string; amount: Prisma.Decimal; lineType: "fee_item" | "carryover" | "discount" }[] = [];
 
       for (const item of templateItems) {
         const amount = item.amountOverride ?? item.feeItem.amount;
@@ -188,6 +188,53 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
         });
       }
 
+      // Start Sibling Discount Auto-Application logic
+      const siblingRules = await tx.discountRule.findMany({
+        where: { schoolId, isActive: true, condition: "sibling_count" }
+      });
+
+      let calculatedDiscount = new Prisma.Decimal(0);
+      
+      if (siblingRules.length > 0) {
+        // Find if this student has linked parents
+        const studentParents = await tx.parentWardLink.findMany({
+          where: { studentId: student.id }
+        });
+        
+        if (studentParents.length > 0) {
+          // Check sibling counts for these parents
+          for (const sp of studentParents) {
+            const siblingsCount = await tx.parentWardLink.count({
+              where: { parentId: sp.parentId }
+            });
+            
+            for (const rule of siblingRules) {
+              const threshold = parseInt(rule.conditionValue || "2", 10);
+              // Basic heuristic: if the parent has enough kids, apply the discount.
+              // Note: a perfect system orders kids by age, but we just check total siblings linked here for Phase 2B.
+              if (siblingsCount >= threshold) {
+                let ruleDiscount = new Prisma.Decimal(0);
+                if (rule.type === "percentage") {
+                  ruleDiscount = baselineAmount.times(new Prisma.Decimal(rule.value)).dividedBy(100);
+                } else {
+                  ruleDiscount = new Prisma.Decimal(rule.value);
+                }
+                
+                calculatedDiscount = calculatedDiscount.plus(ruleDiscount);
+                
+                lineItemsData.push({
+                  name: `Discount: ${rule.name}`,
+                  amount: ruleDiscount, // Positive in db, UI subtracts or display logic handles it
+                  lineType: "discount",
+                });
+              }
+            }
+          }
+        }
+      }
+
+      const finalAmount = Prisma.Decimal.max(0, baselineAmount.minus(calculatedDiscount));
+
       const invoice = await tx.invoice.create({
         data: {
           schoolId,
@@ -197,10 +244,10 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
           status: "draft",
           dueDate,
           totalAmount: baselineAmount,
-          discountAmount: new Prisma.Decimal(0),
-          finalAmount: baselineAmount,
+          discountAmount: calculatedDiscount,
+          finalAmount: finalAmount,
           amountPaid: new Prisma.Decimal(0),
-          balanceDue: baselineAmount,
+          balanceDue: finalAmount,
           lineItems: { create: lineItemsData },
         },
       });

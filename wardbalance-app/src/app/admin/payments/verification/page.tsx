@@ -97,7 +97,15 @@ export default function VerificationQueuePage() {
   const [rejectReason, setRejectReason] = useState("");
   const [reuploadReason, setReuploadReason] = useState("");
 
-  const activeSubmission = submissions[selectedIndex] || null;
+  const filteredSubmissions = submissions.filter((sub) => {
+    const searchLower = searchQuery.toLowerCase();
+    const fullName = `${sub.student.firstName} ${sub.student.lastName}`.toLowerCase();
+    const admissionNumber = sub.student.admissionNumber.toLowerCase();
+    const reference = sub.reference.toLowerCase();
+    return fullName.includes(searchLower) || admissionNumber.includes(searchLower) || reference.includes(searchLower);
+  });
+
+  const activeSubmission = filteredSubmissions[selectedIndex] || null;
 
   const loadSubmissions = async (status: string) => {
     setLoading(true);
@@ -167,15 +175,6 @@ export default function VerificationQueuePage() {
       setActionLoading(false);
     }
   };
-
-  const filteredSubmissions = submissions.filter((sub) => {
-    const searchLower = searchQuery.toLowerCase();
-    const fullName = `${sub.student.firstName} ${sub.student.lastName}`.toLowerCase();
-    const admissionNumber = sub.student.admissionNumber.toLowerCase();
-    const reference = sub.reference.toLowerCase();
-    
-    return fullName.includes(searchLower) || admissionNumber.includes(searchLower) || reference.includes(searchLower);
-  });
 
   return (
     <div className="space-y-6 max-h-[calc(100vh-6rem)] flex flex-col h-full font-sans">
@@ -316,20 +315,22 @@ export default function VerificationQueuePage() {
                     setSuccessMessage(null);
                   }}
                   className="p-1 hover:bg-neutral-200 rounded disabled:opacity-40 cursor-pointer"
+                  aria-label="Previous submission"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <span className="font-bold">
-                  {selectedIndex + 1} of {submissions.length}
+                  {selectedIndex + 1} of {filteredSubmissions.length}
                 </span>
                 <button
-                  disabled={selectedIndex === submissions.length - 1}
+                  disabled={selectedIndex === filteredSubmissions.length - 1}
                   onClick={() => {
-                    setSelectedIndex((prev) => Math.min(submissions.length - 1, prev + 1));
+                    setSelectedIndex((prev) => Math.min(filteredSubmissions.length - 1, prev + 1));
                     setActionError(null);
                     setSuccessMessage(null);
                   }}
                   className="p-1 hover:bg-neutral-200 rounded disabled:opacity-40 cursor-pointer"
+                  aria-label="Next submission"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
+import { logError } from "@/lib/logger";
 
 const ProofUploadSchema = z.object({
   invoiceId: z.string().min(1, "Invoice is required"),
@@ -108,10 +109,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: allLogs,
     });
-  } catch (err: any) {
-    console.error("[portal/payments] GET error:", err);
+  } catch (err) {
+    logError("portal-payments GET", err);
     return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }
@@ -120,12 +121,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getSession();
-
     if (!session || session.role !== "Parent") {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const parentId = session.userId;
@@ -133,7 +130,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const parsed = ProofUploadSchema.safeParse(body);
-
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.issues[0]?.message ?? "Invalid proof payload", code: "VALIDATION_ERROR" },
@@ -143,88 +139,47 @@ export async function POST(request: NextRequest) {
 
     const { invoiceId, amount, reference, proofFileKey, proofFileName, proofFileType, proofFileSize } = parsed.data;
 
-    // Verify invoice belongs to a ward of the parent
     const invoice = await prisma.invoice.findFirst({
-      where: {
-        id: invoiceId,
-        schoolId,
-        student: {
-          parents: {
-            some: { parentId },
-          },
-        },
-      },
-      select: {
-        id: true,
-        studentId: true,
-        status: true,
-        balanceDue: true,
-      },
+      where: { id: invoiceId, schoolId, student: { parents: { some: { parentId } } } },
+      select: { id: true, studentId: true, status: true, balanceDue: true },
     });
 
     if (!invoice) {
-      return NextResponse.json(
-        { error: "Invoice not found or unauthorized.", code: "NOT_FOUND" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Invoice not found or unauthorized.", code: "NOT_FOUND" }, { status: 404 });
     }
 
     if (invoice.status === "paid") {
-      return NextResponse.json(
-        { error: "This invoice is already fully paid.", code: "BAD_REQUEST" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "This invoice is already fully paid.", code: "BAD_REQUEST" }, { status: 400 });
     }
 
-    // Create entry in ManualPaymentSubmission table (Verification Queue)
-    const submission = await prisma.manualPaymentSubmission.create({
-      data: {
-        schoolId,
-        invoiceId,
-        studentId: invoice.studentId,
-        parentId,
-        submittedById: parentId,
-        amount: new Prisma.Decimal(amount),
-        reference: reference.trim(),
-        proofFileKey,
-        proofFileName,
-        proofFileType,
-        proofFileSize,
-        status: "Pending",
-      },
-    });
-
-    // Create Audit Log
-    await prisma.auditLog.create({
-      data: {
-        schoolId,
-        actorId: parentId,
-        actorName: session.fullName || "Parent User",
-        action: "PAYMENT_PROOF_SUBMITTED",
-        entityType: "ManualPaymentSubmission",
-        entityId: submission.id,
-        newValue: {
-          amount,
-          reference,
-          proofFileKey,
-          invoiceId,
+    const result = await prisma.$transaction(async (tx) => {
+      const submission = await tx.manualPaymentSubmission.create({
+        data: {
+          schoolId, invoiceId, studentId: invoice.studentId, parentId,
+          submittedById: parentId, amount: new Prisma.Decimal(amount),
+          reference: reference.trim(), proofFileKey, proofFileName, proofFileType, proofFileSize,
+          status: "Pending",
         },
-      },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          schoolId, actorId: parentId, actorName: session.fullName || "Parent User",
+          action: "PAYMENT_PROOF_SUBMITTED", entityType: "ManualPaymentSubmission",
+          entityId: submission.id, newValue: { amount, reference, proofFileKey, invoiceId },
+        },
+      });
+
+      return submission;
     });
 
     return NextResponse.json({
-      data: {
-        success: true,
-        status: "Pending",
-        reference,
-        amount: amount.toString(),
-        message: "Proof of payment submitted successfully and is awaiting bursar verification.",
-      },
+      data: { success: true, status: "Pending", reference, amount: amount.toString(), message: "Proof of payment submitted successfully and is awaiting bursar verification." },
     });
-  } catch (err: any) {
-    console.error("[portal/payments] POST error:", err);
+  } catch (err) {
+    logError("portal-payments POST", err);
     return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: err instanceof Error ? err.message : "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

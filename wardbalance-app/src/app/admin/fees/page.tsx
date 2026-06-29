@@ -230,6 +230,10 @@ export default function FeeStructurePage() {
             className={`pb-4 text-label-large font-bold transition border-b-2 px-1 ${activeTab === "templates" ? "border-primary text-primary" : "border-transparent text-neutral-500 hover:text-neutral-900"}`}>
             Class Fee Templates ({templates.length})
           </button>
+          <a href="/admin/fees/discounts"
+            className="pb-4 text-label-large font-bold transition border-b-2 px-1 border-transparent text-neutral-500 hover:text-neutral-900 block">
+            Discount Rules
+          </a>
         </div>
       </div>
 

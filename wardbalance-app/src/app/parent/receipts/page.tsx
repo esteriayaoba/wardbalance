@@ -99,6 +99,10 @@ export default function ParentReceiptsPage() {
             <div
               key={r.id}
               onClick={() => setSelectedReceipt(r)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelectedReceipt(r); }}
+              role="button"
+              tabIndex={0}
+              aria-label={`View receipt ${r.receiptNumber}`}
               className="p-4 flex items-center justify-between hover:bg-neutral-50/50 transition-colors cursor-pointer group"
             >
               <div className="space-y-1 min-w-0 flex-1 pr-4">
@@ -137,12 +141,13 @@ export default function ParentReceiptsPage() {
       {/* Printable Receipt Detail Popup overlay */}
       {selectedReceipt && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4 print:relative print:inset-auto print:bg-white print:p-0">
-          <div className="bg-white rounded-2xl border border-neutral-200 w-full max-w-md overflow-hidden shadow-2xl z-10 print:border-none print:shadow-none print:rounded-none animate-fade-in-up">
+          <div role="dialog" aria-modal="true" aria-label="Receipt detail" className="bg-white rounded-2xl border border-neutral-200 w-full max-w-md overflow-hidden shadow-2xl z-10 print:border-none print:shadow-none print:rounded-none motion-safe:animate-fade-in-up">
             {/* Header */}
             <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between print:hidden">
               <h3 className="text-title-small text-neutral-900 font-bold">View Receipt</h3>
               <button
                 onClick={() => setSelectedReceipt(null)}
+                aria-label="Close receipt"
                 className="p-1 text-neutral-400 hover:text-neutral-950 rounded-lg hover:bg-neutral-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -215,8 +220,9 @@ export default function ParentReceiptsPage() {
                 Print Receipt
               </button>
               <button
-                onClick={() => alert("PDF download is coming in Phase 2B.")}
-                className="flex-1 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg font-bold text-body-small flex items-center justify-center gap-1.5 transition cursor-pointer"
+                disabled
+                title="PDF download will be available in a future update"
+                className="flex-1 py-2.5 bg-neutral-300 text-neutral-500 rounded-lg font-bold text-body-small flex items-center justify-center gap-1.5 cursor-not-allowed"
               >
                 <Download className="w-4 h-4" />
                 Download PDF

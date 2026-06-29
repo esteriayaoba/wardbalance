@@ -92,7 +92,7 @@ function InvoicesContent() {
         setLoadingDetail(false);
       })
       .catch((err) => {
-        alert(err.message);
+        setError(err.message);
         setLoadingDetail(false);
       });
   };
@@ -254,7 +254,7 @@ function InvoicesContent() {
       {/* Invoice Breakdown sheet dialog popup */}
       {selectedInvoice && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-end justify-center sm:items-center p-4">
-          <div className="bg-white rounded-t-2xl sm:rounded-2xl border border-neutral-200 w-full max-w-lg overflow-hidden shadow-2xl z-10 max-h-[85vh] flex flex-col animate-fade-in-up">
+          <div role="dialog" aria-modal="true" aria-label="Invoice breakdown" className="bg-white rounded-t-2xl sm:rounded-2xl border border-neutral-200 w-full max-w-lg overflow-hidden shadow-2xl z-10 max-h-[85vh] flex flex-col motion-safe:animate-fade-in-up">
             {/* Header */}
             <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between shrink-0">
               <div>
@@ -265,6 +265,7 @@ function InvoicesContent() {
               </div>
               <button
                 onClick={() => setSelectedInvoice(null)}
+                aria-label="Close breakdown"
                 className="p-1 text-neutral-400 hover:text-neutral-900 rounded-lg hover:bg-neutral-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />

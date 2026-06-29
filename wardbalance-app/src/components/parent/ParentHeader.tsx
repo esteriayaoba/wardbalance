@@ -48,9 +48,9 @@ export default function ParentHeader({ parentName, schoolName }: ParentHeaderPro
           </span>
         )}
 
-        <button className="relative p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors">
+        <button className="relative p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors" aria-label="Notifications">
           <Bell className="w-4 h-4" />
-          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-error rounded-full" />
+          <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-error rounded-full" aria-hidden="true" />
         </button>
 
         <button

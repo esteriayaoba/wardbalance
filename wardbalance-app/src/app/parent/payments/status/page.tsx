@@ -62,7 +62,7 @@ function PaymentStatusContent() {
 
   if (verifying) {
     return (
-      <div className="bg-white border border-neutral-200 rounded-2xl p-10 max-w-md mx-auto text-center space-y-6 shadow-sm">
+      <div className="bg-white border border-neutral-200 rounded-2xl p-10 max-w-md mx-auto text-center space-y-6 shadow-sm" aria-live="polite" role="status">
         <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
           <Loader2 className="w-12 h-12 text-primary animate-spin" />
         </div>
@@ -111,7 +111,7 @@ function PaymentStatusContent() {
   return (
     <div className="bg-white border border-neutral-200 rounded-2xl p-10 max-w-md mx-auto text-center space-y-6 shadow-sm">
       <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto border border-green-150">
-        <CheckCircle2 className="w-8 h-8 animate-bounce" />
+        <CheckCircle2 className="w-8 h-8 motion-safe:animate-bounce" />
       </div>
       
       <div className="space-y-2">

@@ -50,6 +50,7 @@ interface AcademicTerm {
 export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState<"revenue" | "debtors" | "classes">("revenue");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [reportData, setReportData] = useState<(RevenueSummaryRow | DebtorRow | ClassSummaryRow)[]>([]);
 
   // Filter lists
@@ -86,6 +87,7 @@ export default function ReportsPage() {
 
   const loadReport = () => {
     setLoading(true);
+    setError(null);
     let typeParam = "revenue_summary";
     if (activeReport === "debtors") typeParam = "debtors";
     if (activeReport === "classes") typeParam = "class_summary";
@@ -101,7 +103,7 @@ export default function ReportsPage() {
         setLoading(false);
       })
       .catch((err) => {
-        console.error("Failed to load report data:", err);
+        setError(err.message || "Failed to load report data");
         setLoading(false);
       });
   };
@@ -237,8 +239,16 @@ export default function ReportsPage() {
           <Loader2 className="w-10 h-10 text-primary animate-spin mb-4" />
           <p className="text-body-large text-neutral-600">Compiling financial metrics...</p>
         </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center p-8 text-center min-h-[200px] bg-white rounded-xl border border-neutral-200 shadow-sm">
+          <AlertCircle className="w-10 h-10 text-error mb-3" />
+          <h3 className="text-title-small text-neutral-900 font-bold mb-1">Could Not Load Report</h3>
+          <p className="text-body-small text-neutral-600 mb-4">{error}</p>
+          <button onClick={loadReport}
+            className="px-4 py-2 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition cursor-pointer">Retry</button>
+        </div>
       ) : (
-        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden overflow-x-auto">
           {/* Report 1: Revenue Summary */}
           {activeReport === "revenue" && (
             <table className="w-full text-left">
@@ -278,7 +288,7 @@ export default function ReportsPage() {
                               ? "bg-green-100 text-green-700"
                               : colRate >= 50
                               ? "bg-amber-100 text-amber-700"
-                              : "bg-red-105 bg-red-100 text-red-700"
+                              : "bg-red-100 text-red-700"
                           }`}
                         >
                           {colRate}%

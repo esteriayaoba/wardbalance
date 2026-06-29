@@ -32,7 +32,7 @@ export default function WhoItIsForSection() {
       aria-labelledby="audience-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        
+
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16 md:mb-24">
           <p className="text-label-large mb-3 text-primary uppercase font-bold tracking-wider">

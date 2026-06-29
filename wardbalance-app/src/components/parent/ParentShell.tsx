@@ -11,15 +11,13 @@ interface ParentShellProps {
 export default function ParentShell({ children, parentName, schoolName }: ParentShellProps) {
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col pb-[64px] md:pb-0">
-      {/* Top Header */}
+      <a href="#parent-main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-primary focus:rounded-lg focus:shadow-lg focus:border focus:border-primary focus:font-bold">
+        Skip to main content
+      </a>
       <ParentHeader parentName={parentName} schoolName={schoolName} />
-
-      {/* Main Content Area */}
-      <main className="flex-1 w-full max-w-lg mx-auto px-4 py-6 md:max-w-4xl md:px-8">
+      <main id="parent-main-content" className="flex-1 w-full max-w-lg mx-auto px-4 py-6 md:max-w-4xl md:px-8">
         {children}
       </main>
-
-      {/* Bottom Nav on Mobile */}
       <ParentBottomNav />
     </div>
   );

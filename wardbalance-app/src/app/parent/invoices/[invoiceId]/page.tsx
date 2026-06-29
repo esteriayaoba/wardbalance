@@ -98,8 +98,8 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
 
       // Redirect to Flutterwave checkout link (or mock URL in demo mode)
       router.push(body.data.link);
-    } catch (err: any) {
-      setError(err.message ?? "Online payment initiation failed.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Online payment initiation failed.");
       setInitializingPayment(false);
     }
   };
@@ -181,8 +181,8 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
       if (!res.ok) throw new Error(body.error ?? "Failed to submit payment proof.");
 
       setProofSubmitted(true);
-    } catch (err: any) {
-      setError(err.message ?? "Failed to submit proof.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit proof.");
     } finally {
       setSubmittingProof(false);
     }
@@ -435,6 +435,10 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
                       
                       <div
                         onClick={() => fileInputRef.current?.click()}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInputRef.current?.click(); }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Select proof of payment file"
                         className={`border-2 border-dashed rounded-xl p-6 text-center hover:bg-neutral-50 transition cursor-pointer ${
                           selectedFile ? "border-primary bg-primary-50/10" : "border-neutral-300"
                         }`}

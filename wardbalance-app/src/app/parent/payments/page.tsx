@@ -105,7 +105,7 @@ export default function ParentPaymentsPage() {
                         ? "bg-red-50 text-red-650 border-red-100" 
                         : p.status === "recorded" || p.status === "approved"
                         ? "bg-green-50 text-green-750 border-green-150"
-                        : p.status === "pending"
+                        : p.status === "pending" || p.status === "reupload requested"
                         ? "bg-amber-50 text-amber-700 border-amber-150"
                         : "bg-neutral-50 text-neutral-600 border-neutral-200"
                     }`}>
