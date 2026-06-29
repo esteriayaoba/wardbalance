@@ -1,38 +1,38 @@
 import type { Metadata } from "next";
 import MarketingHeader from "@/components/marketing/marketing-header";
-import PricingSection from "@/components/marketing/pricing-section";
+import FAQSection from "@/components/marketing/faq-section";
 import BookDemoSection from "@/components/marketing/book-demo-section";
 import FinalCtaBanner from "@/components/marketing/final-cta-banner";
 import MarketingFooter from "@/components/marketing/marketing-footer";
 
 export const metadata: Metadata = {
-  title: "Pricing — WardBalance",
-  description: "Choose the right WardBalance plan for your school. Start with a simple plan and upgrade as your school's fee operations grow.",
+  title: "FAQ — WardBalance",
+  description: "Find answers about setting up WardBalance, managing fees, recording payments, parent access, receipts, and multi-school support.",
   openGraph: {
-    title: "Pricing — WardBalance",
-    description: "Simple, predictable plans for every school. Start free and scale as your school grows.",
+    title: "FAQ — WardBalance",
+    description: "Questions schools usually ask about school fee management, payments, and parent portals.",
   },
 };
 
-export default function PricingPage() {
+export default function FAQPage() {
   return (
     <>
       <MarketingHeader />
       <main id="main-content" className="focus:outline-none" tabIndex={-1}>
-        {/* Pricing Hero */}
+        {/* FAQ Hero */}
         <section className="pt-32 pb-12 md:pt-40 md:pb-16 px-4 sm:px-6 lg:px-8 text-center bg-white border-b border-neutral-200/60">
           <div className="mx-auto max-w-3xl">
             <h1 className="text-headline-medium md:text-display-small font-bold mb-4" style={{ color: "var(--color-on-surface)" }}>
-              Choose the right WardBalance plan for your school.
+              Questions schools usually ask.
             </h1>
             <p className="text-body-large" style={{ color: "var(--color-on-surface-variant)" }}>
-              Start with a simple plan and upgrade as your school&apos;s fee operations grow.
+              Find answers about setting up WardBalance, managing fees, recording payments, parent access, receipts, and multi-school support.
             </p>
           </div>
         </section>
 
-        {/* Full Pricing Section */}
-        <PricingSection />
+        {/* Full FAQ Section */}
+        <FAQSection />
 
         {/* Book a Demo */}
         <BookDemoSection />

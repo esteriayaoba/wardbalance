@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 
 const faqs = [
@@ -39,6 +41,8 @@ const faqs = [
 ];
 
 export default function FAQSection() {
+  const pathname = usePathname();
+  const isFAQPage = pathname === "/faq";
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const toggleOpen = (index: number) => {
@@ -47,8 +51,8 @@ export default function FAQSection() {
 
   return (
     <section
-      id="faq"
-      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] relative overflow-hidden bg-white border-b border-neutral-200/60"
+      id={isFAQPage ? undefined : "faq"}
+      className={`py-24 md:py-32 lg:py-36 ${isFAQPage ? "" : "scroll-mt-[var(--marketing-header-offset)]"} relative overflow-hidden bg-white border-b border-neutral-200/60`}
       aria-labelledby="faq-heading"
     >
       {/* Subtle blurred background gradient blobs */}
@@ -75,22 +79,24 @@ export default function FAQSection() {
           </h2>
           <p className="text-body-large text-on-surface-variant max-w-xl mx-auto">
             Can&apos;t find your answer?{" "}
-            <a
-              href="#demo"
+            <Link
+              href={isFAQPage ? "/faq#demo" : "/#demo"}
               onClick={(e) => {
-                e.preventDefault();
-                const el = document.getElementById("demo");
-                if (el) {
-                  const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
-                  const offset = offsetStr ? parseFloat(offsetStr) : 96;
-                  el.scrollIntoView();
-                  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+                if (!isFAQPage) {
+                  e.preventDefault();
+                  const el = document.getElementById("demo");
+                  if (el) {
+                    const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
+                    const offset = offsetStr ? parseFloat(offsetStr) : 96;
+                    el.scrollIntoView();
+                    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
+                  }
                 }
               }}
               className="text-primary font-semibold hover:underline"
             >
               Book a demo
-            </a>{" "}
+            </Link>{" "}
             and we&apos;ll walk you through it.
           </p>
         </div>

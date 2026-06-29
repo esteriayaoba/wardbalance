@@ -2,41 +2,37 @@
 
 import { Check, Info, Sparkles, Layers, Globe } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { PRICING_PLANS } from "@/constants/pricing";
 import { trackEvent } from "@/lib/analytics/posthog";
 import { isCategoryAllowed } from "@/lib/cookies/consent";
 
 export default function PricingSection() {
+  const pathname = usePathname();
+  const isPricingPage = pathname === "/pricing";
+
   return (
     <section
-      id="pricing"
-      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] border-t border-b border-neutral-200/60"
+      id={isPricingPage ? undefined : "pricing"}
+      className={`py-24 md:py-32 lg:py-36 ${isPricingPage ? "" : "scroll-mt-[var(--marketing-header-offset)] border-t border-b border-neutral-200/60"}`}
       style={{ background: "var(--color-surface-container-low)" }}
       aria-labelledby="pricing-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        {/* Section Header */}
-        <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
-          <p
-            className="text-label-large mb-3 font-bold"
-            style={{ color: "var(--color-primary-500)" }}
-          >
-            PRICING
-          </p>
-          <h2
-            id="pricing-heading"
-            className="text-headline-small md:text-headline-large mb-4 font-bold"
-            style={{ color: "var(--color-on-surface)" }}
-          >
-            Simple, predictable plans for every school
-          </h2>
-          <p
-            className="text-body-large"
-            style={{ color: "var(--color-on-surface-variant)" }}
-          >
-            Start for free and scale as your school grows. No credit card required.
-          </p>
-        </div>
+        {/* Section Header — hidden on /pricing to avoid duplicating the page hero */}
+        {!isPricingPage && (
+          <div className="text-center max-w-2xl mx-auto mb-12 md:mb-16">
+            <p className="text-label-large mb-3 font-bold" style={{ color: "var(--color-primary-500)" }}>
+              PRICING
+            </p>
+            <h2 id="pricing-heading" className="text-headline-small md:text-headline-large mb-4 font-bold" style={{ color: "var(--color-on-surface)" }}>
+              Simple, predictable plans for every school
+            </h2>
+            <p className="text-body-large" style={{ color: "var(--color-on-surface-variant)" }}>
+              Start for free and scale as your school grows. No credit card required.
+            </p>
+          </div>
+        )}
 
         {/* Pricing Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch max-w-6xl mx-auto">
@@ -103,22 +99,24 @@ export default function PricingSection() {
                 {/* CTA Button (above features, consistent height/radius across all cards) */}
                 <div className="mb-6">
                   {plan.id === "multi_school" ? (
-                    <a
-                      href="#demo"
+                    <Link
+                      href={isPricingPage ? "/pricing#demo" : "/#demo"}
                       onClick={(e) => {
-                        e.preventDefault();
                         if (isCategoryAllowed("analytics")) {
                           trackEvent({
                             event: "book_demo_clicked",
                             properties: { source: "book_demo_pricing_multi_school" },
                           });
                         }
-                        const el = document.getElementById("demo");
-                        if (el) {
-                          const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
-                          const offset = offsetStr ? parseFloat(offsetStr) : 96;
-                          const top = el.getBoundingClientRect().top + window.scrollY - offset;
-                          window.scrollTo({ top, behavior: "smooth" });
+                        if (!isPricingPage) {
+                          e.preventDefault();
+                          const el = document.getElementById("demo");
+                          if (el) {
+                            const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
+                            const offset = offsetStr ? parseFloat(offsetStr) : 96;
+                            const top = el.getBoundingClientRect().top + window.scrollY - offset;
+                            window.scrollTo({ top, behavior: "smooth" });
+                          }
                         }
                         window.dispatchEvent(
                           new CustomEvent("wb:prefill-demo", {
@@ -137,7 +135,7 @@ export default function PricingSection() {
                       }}
                     >
                       Book a Demo
-                    </a>
+                    </Link>
                   ) : (
                     <Link
                       href={`/signup?plan=${plan.id}&source=pricing`}
@@ -209,21 +207,9 @@ export default function PricingSection() {
         </div>
         <p className="text-center mt-6 text-body-small text-neutral-500">
           Have questions about pricing?{" "}
-          <a
-            href="#faq"
-            onClick={(e) => {
-              e.preventDefault();
-              const el = document.getElementById("faq");
-              if (el) {
-                const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
-                const offset = offsetStr ? parseFloat(offsetStr) : 96;
-                window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior: "smooth" });
-              }
-            }}
-            className="text-primary font-semibold hover:underline"
-          >
+          <Link href="/faq" className="text-primary font-semibold hover:underline">
             See our FAQ
-          </a>
+          </Link>
         </p>
       </div>
     </section>

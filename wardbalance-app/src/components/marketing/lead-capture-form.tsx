@@ -423,7 +423,7 @@ export default function LeadCaptureForm() {
 
           {/* Privacy notice */}
           <p className="text-body-small" style={{ color: "var(--color-on-surface-variant)" }}>
-            By submitting this form, you agree that WardBalance may contact you about early access,
+            By submitting this form, you agree that WardBalance may contact you about
             demos, and product updates. We will not sell your information. See our{" "}
             <a href="/privacy" className="underline" style={{ color: "var(--color-primary-600)" }}>Privacy Policy</a>.
           </p>
