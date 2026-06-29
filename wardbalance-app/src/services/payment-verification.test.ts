@@ -1,0 +1,326 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { Decimal } from "@prisma/client-runtime-utils";
+
+// Mock prisma
+const mockPrisma = {
+  manualPaymentSubmission: {
+    findMany: vi.fn(),
+    findUnique: vi.fn(),
+    update: vi.fn(),
+  },
+  invoice: {
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+    update: vi.fn(),
+  },
+  payment: {
+    create: vi.fn(),
+    aggregate: vi.fn(),
+    findMany: vi.fn(),
+  },
+  receipt: { create: vi.fn() },
+  auditLog: { create: vi.fn() },
+  $transaction: vi.fn(),
+};
+
+vi.mock("@/lib/prisma", () => ({
+  prisma: mockPrisma,
+}));
+
+vi.mock("@/lib/r2", () => ({
+  getPresignedGetUrl: vi.fn().mockResolvedValue("https://cdn.example.com/proof.jpg"),
+}));
+
+// Import after mocking
+const {
+  fetchVerificationQueue,
+  approvePaymentSubmission,
+  rejectPaymentSubmission,
+  requestReuploadSubmission,
+  recordManualPayment,
+} = await import("./payment-verification.service");
+
+describe("fetchVerificationQueue", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("fetches submissions and enhances with proof URLs", async () => {
+    const mockSubmissions = [
+      {
+        id: "sub-1",
+        schoolId: "school-1",
+        invoiceId: "inv-1",
+        studentId: "student-1",
+        parentId: "parent-1",
+        amount: new Decimal("50000"),
+        paymentMethod: "bank_transfer",
+        reference: "REF-001",
+        proofFileKey: "proofs/test.jpg",
+        proofFileName: "test.jpg",
+        proofFileType: "image/jpeg",
+        status: "Pending",
+        submittedAt: new Date(),
+        student: {
+          id: "student-1", firstName: "John", lastName: "Doe",
+          admissionNumber: "ADM-001",
+          classLevel: { name: "JSS1" },
+          classArm: { name: "A" },
+        },
+        parent: { id: "parent-1", firstName: "Jane", lastName: "Doe", phone: "08012345678", email: "jane@test.com" },
+        invoice: {
+          id: "inv-1", status: "issued", dueDate: new Date(),
+          finalAmount: new Decimal("100000"), amountPaid: new Decimal("0"), balanceDue: new Decimal("100000"),
+          term: { name: "First Term" },
+        },
+      },
+    ];
+
+    mockPrisma.manualPaymentSubmission.findMany.mockResolvedValue(mockSubmissions);
+
+    const result = await fetchVerificationQueue("school-1", "Pending");
+
+    expect(result).toHaveLength(1);
+    expect(result[0].amount).toBe("50000");
+    expect(result[0].proofUrl).toBe("https://cdn.example.com/proof.jpg");
+    expect(result[0].invoice.finalAmount).toBe("100000");
+  });
+
+  it("handles empty queue", async () => {
+    mockPrisma.manualPaymentSubmission.findMany.mockResolvedValue([]);
+    const result = await fetchVerificationQueue("school-1", "Approved");
+    expect(result).toHaveLength(0);
+  });
+});
+
+describe("approvePaymentSubmission", () => {
+  const baseOptions = {
+    schoolId: "school-1",
+    actorId: "user-1",
+    actorName: "Admin User",
+    submissionId: "sub-1",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("approves a pending submission and updates invoice", async () => {
+    const mockSubmission = {
+      id: "sub-1",
+      schoolId: "school-1",
+      invoiceId: "inv-1",
+      studentId: "student-1",
+      parentId: "parent-1",
+      amount: new Decimal("50000"),
+      paymentMethod: "bank_transfer",
+      reference: "REF-001",
+      status: "Pending",
+    };
+
+    const mockInvoice = {
+      id: "inv-1",
+      status: "issued",
+      amountPaid: new Decimal("0"),
+      balanceDue: new Decimal("100000"),
+      finalAmount: new Decimal("100000"),
+    };
+
+    const mockUpdatedSubmission = { ...mockSubmission, status: "Approved" };
+    const mockPayment = { id: "pay-1", amount: new Decimal("50000") };
+    const mockReceipt = { id: "rcpt-1", receiptNumber: "REC-20260629-ABCD" };
+    const mockUpdatedInvoice = {
+      ...mockInvoice,
+      amountPaid: new Decimal("50000"),
+      balanceDue: new Decimal("50000"),
+      status: "partial",
+    };
+
+    const tx: any = {
+      manualPaymentSubmission: { update: vi.fn().mockResolvedValue(mockUpdatedSubmission), findUnique: vi.fn().mockResolvedValue(mockSubmission) },
+      invoice: { findUnique: vi.fn().mockResolvedValue(mockInvoice), update: vi.fn().mockResolvedValue(mockUpdatedInvoice) },
+      payment: { create: vi.fn().mockResolvedValue(mockPayment) },
+      receipt: { create: vi.fn().mockResolvedValue(mockReceipt) },
+      auditLog: { create: vi.fn().mockResolvedValue({}) },
+    };
+
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
+
+    const result = await approvePaymentSubmission(baseOptions);
+
+    expect(result.submission.status).toBe("Approved");
+    expect(result.payment.id).toBe("pay-1");
+    expect(result.receipt.id).toBe("rcpt-1");
+    expect(result.invoice.status).toBe("partial");
+    expect(tx.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          action: "MANUAL_PAYMENT_APPROVED",
+          entityType: "ManualPaymentSubmission",
+        }),
+      })
+    );
+  });
+
+  it("rejects if already reviewed", async () => {
+    const mockSubmission = {
+      id: "sub-1",
+      invoiceId: "inv-1",
+      amount: new Decimal("50000"),
+      status: "Approved",
+      paymentMethod: "bank_transfer",
+    };
+
+    const tx: any = {
+      manualPaymentSubmission: {
+        findUnique: vi.fn().mockResolvedValue(mockSubmission),
+      },
+    };
+
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
+
+    await expect(approvePaymentSubmission(baseOptions)).rejects.toThrow(
+      /already reviewed/i
+    );
+  });
+
+  it("rejects if amount exceeds balance due", async () => {
+    const mockSubmission = {
+      id: "sub-1",
+      invoiceId: "inv-1",
+      amount: new Decimal("150000"),
+      status: "Pending",
+      paymentMethod: "bank_transfer",
+    };
+
+    const mockInvoice = {
+      id: "inv-1",
+      status: "issued",
+      amountPaid: new Decimal("0"),
+      balanceDue: new Decimal("100000"),
+      finalAmount: new Decimal("100000"),
+    };
+
+    const tx: any = {
+      manualPaymentSubmission: {
+        findUnique: vi.fn().mockResolvedValue(mockSubmission),
+      },
+      invoice: {
+        findUnique: vi.fn().mockResolvedValue(mockInvoice),
+      },
+    };
+
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
+
+    await expect(approvePaymentSubmission(baseOptions)).rejects.toThrow(
+      /exceeds/i
+    );
+  });
+});
+
+describe("rejectPaymentSubmission", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("rejects a submission with reason", async () => {
+    const tx: any = {
+      manualPaymentSubmission: {
+        update: vi.fn().mockResolvedValue({ id: "sub-1", status: "Rejected", rejectionReason: "Blurry proof" }),
+      },
+      auditLog: { create: vi.fn() },
+    };
+
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
+
+    const result = await rejectPaymentSubmission({
+      schoolId: "school-1", actorId: "user-1", actorName: "Admin",
+      submissionId: "sub-1", reason: "Blurry proof",
+    });
+
+    expect(result.status).toBe("Rejected");
+    expect(result.rejectionReason).toBe("Blurry proof");
+    expect(tx.auditLog.create).toHaveBeenCalled();
+  });
+});
+
+describe("requestReuploadSubmission", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("marks submission as ReuploadRequested", async () => {
+    const tx: any = {
+      manualPaymentSubmission: {
+        update: vi.fn().mockResolvedValue({ id: "sub-1", status: "ReuploadRequested", reuploadReason: "Image too blurry" }),
+      },
+      auditLog: { create: vi.fn() },
+    };
+
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
+
+    const result = await requestReuploadSubmission({
+      schoolId: "school-1", actorId: "user-1", actorName: "Admin",
+      submissionId: "sub-1", reason: "Image too blurry",
+    });
+
+    expect(result.status).toBe("ReuploadRequested");
+    expect(result.reuploadReason).toBe("Image too blurry");
+  });
+});
+
+describe("recordManualPayment", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("records a manual cash payment", async () => {
+    const mockInvoice = {
+      id: "inv-1",
+      studentId: "student-1",
+      term: { status: "active" },
+      amountPaid: new Decimal("0"),
+      balanceDue: new Decimal("100000"),
+      finalAmount: new Decimal("100000"),
+      status: "issued",
+      student: {
+        parents: [{ parentId: "parent-1", isPrimaryContact: true }],
+      },
+    };
+
+    mockPrisma.invoice.findFirst.mockResolvedValue(mockInvoice);
+
+    const tx: any = {
+      payment: { create: vi.fn().mockResolvedValue({ id: "pay-1" }) },
+      receipt: { create: vi.fn().mockResolvedValue({ id: "rcpt-1", receiptNumber: "REC-TEST" }) },
+      invoice: { update: vi.fn().mockResolvedValue({ ...mockInvoice, amountPaid: new Decimal("100000"), balanceDue: new Decimal("0"), status: "paid" }) },
+      auditLog: { create: vi.fn() },
+    };
+
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
+
+    const result = await recordManualPayment({
+      schoolId: "school-1",
+      actorId: "user-1",
+      actorName: "Admin",
+      invoiceId: "inv-1",
+      amount: new Decimal("100000"),
+      method: "cash",
+    });
+
+    expect(result.payment.id).toBe("pay-1");
+    expect(result.invoice.status).toBe("paid");
+    expect(tx.auditLog.create).toHaveBeenCalled();
+  });
+
+  it("rejects payment when term is locked", async () => {
+    mockPrisma.invoice.findFirst.mockResolvedValue({
+      id: "inv-1",
+      studentId: "student-1",
+      term: { status: "locked" },
+      amountPaid: new Decimal("0"),
+      balanceDue: new Decimal("100000"),
+      status: "issued",
+      student: { parents: [] },
+    });
+
+    await expect(recordManualPayment({
+      schoolId: "school-1", actorId: "user-1", actorName: "Admin",
+      invoiceId: "inv-1", amount: new Decimal("50000"), method: "cash",
+    })).rejects.toThrow(/locked/i);
+  });
+});
