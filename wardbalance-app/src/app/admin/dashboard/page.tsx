@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar } from "lucide-react";
+import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import { DashboardStatCard, DashboardStatCardSkeleton } from "@/components/admin/shared/dashboard-stat-card";
 
@@ -12,6 +12,11 @@ interface DashboardStats {
   collectedRevenue: string;
   outstandingBalance: string;
   studentsWithoutParents: number;
+  overdue: {
+    overdueCount: number;
+    overdueTotal: string;
+    pendingReminders: number;
+  };
 }
 
 interface AuditLog {
@@ -252,6 +257,28 @@ export default function DashboardPage() {
           href="/admin/invoices"
         />
       </div>
+
+      {stats && stats.overdue.overdueCount > 0 && (
+        <div
+          onClick={() => router.push("/admin/reports")}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/reports"); }}
+          role="button"
+          tabIndex={0}
+          aria-label={`${stats.overdue.overdueCount} overdue invoices totalling ${stats.overdue.overdueTotal}. Click to view reports.`}
+          className="flex items-center justify-between gap-4 p-4 rounded-xl bg-red-50 text-red-900 border border-red-200 shadow-sm cursor-pointer hover:bg-red-100/60 transition"
+        >
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-red-600 shrink-0" />
+            <span className="text-body-medium">
+              <strong>{stats.overdue.overdueCount} overdue invoice{stats.overdue.overdueCount !== 1 ? "s" : ""}</strong> totalling <strong>{formatNaira(stats.overdue.overdueTotal)}</strong>. {stats.overdue.pendingReminders > 0 && ` ${stats.overdue.pendingReminders} reminder${stats.overdue.pendingReminders !== 1 ? "s" : ""} pending delivery.`}
+            </span>
+          </div>
+          <button className="text-body-small text-red-700 hover:underline font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer">
+            View Debtors
+            <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <div
         onClick={() => router.push("/admin/reports")}

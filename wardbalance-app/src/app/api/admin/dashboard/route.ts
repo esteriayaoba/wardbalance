@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { logError } from "@/lib/logger";
+import { getOverdueStats } from "@/lib/invoices/overdue";
 
 export async function GET(_request: NextRequest) {
   try {
@@ -76,6 +77,8 @@ export async function GET(_request: NextRequest) {
     const collectedRevenue = collectedAgg._sum.amount ?? new Prisma.Decimal(0);
     const outstandingBalance = expectedRevenue.minus(collectedRevenue);
 
+    const overdueStats = await getOverdueStats(schoolId);
+
     return NextResponse.json({
       data: {
         schoolStatus: school.status,
@@ -88,6 +91,7 @@ export async function GET(_request: NextRequest) {
           collectedRevenue: collectedRevenue.toString(),
           outstandingBalance: outstandingBalance.toString(),
           studentsWithoutParents: studentsWithoutParentsCount,
+          overdue: overdueStats,
         },
         recentActivity,
       },

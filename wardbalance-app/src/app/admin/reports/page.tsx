@@ -50,7 +50,7 @@ interface AcademicTerm {
 export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState<"revenue" | "debtors" | "classes">("revenue");
   const [loading, setLoading] = useState(true);
-  const [reportData, setReportData] = useState<any[]>([]);
+  const [reportData, setReportData] = useState<(RevenueSummaryRow | DebtorRow | ClassSummaryRow)[]>([]);
 
   // Filter lists
   const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
@@ -67,16 +67,16 @@ export default function ReportsPage() {
       fetch("/api/admin/academic/terms").then((r) => r.json()),
     ])
       .then(([classRes, termRes]) => {
-        const divisions = classRes.data || [];
-        const flatLevels = divisions.flatMap((d: any) =>
-          d.classLevels.map((l: any) => ({ id: l.id, name: `${d.name} — ${l.name}` }))
+        const divisions: Array<{ name: string; classLevels: Array<{ id: string; name: string }> }> = classRes.data || [];
+        const flatLevels = divisions.flatMap((d) =>
+          d.classLevels.map((l) => ({ id: l.id, name: `${d.name} — ${l.name}` }))
         );
         setClassLevels(flatLevels);
 
-        const termsList = termRes.data || [];
+        const termsList: AcademicTerm[] = termRes.data || [];
         setTerms(termsList);
 
-        const activeTerm = termsList.find((t: any) => t.isActive);
+        const activeTerm = termsList.find((t) => t.isActive);
         if (activeTerm) {
           setFilterTermId(activeTerm.id);
         }
@@ -126,11 +126,22 @@ export default function ReportsPage() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="space-y-1">
-        <h1 className="text-headline-small text-neutral-900 font-bold">Financial Reports</h1>
-        <p className="text-body-medium text-neutral-600">
-          Analyze school collections billing trends, outstanding debtor balances, and classroom aggregate metrics.
-        </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div className="space-y-1">
+          <h1 className="text-headline-small text-neutral-900 font-bold">Financial Reports</h1>
+          <p className="text-body-medium text-neutral-600">
+            Analyze school collections billing trends, outstanding debtor balances, and classroom aggregate metrics.
+          </p>
+        </div>
+        {(activeReport === "debtors" || activeReport === "revenue" || activeReport === "classes") && (
+          <a
+            href={`/api/admin/reports/export?type=${activeReport === "classes" ? "collection" : activeReport}${filterTermId ? `&termId=${filterTermId}` : ""}${filterClassLevelId && activeReport === "debtors" ? `&classLevelId=${filterClassLevelId}` : ""}`}
+            className="px-4 py-2 bg-neutral-900 text-white hover:bg-neutral-800 font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm shrink-0"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Export CSV
+          </a>
+        )}
       </div>
 
       {/* Reports Tab Selectors */}

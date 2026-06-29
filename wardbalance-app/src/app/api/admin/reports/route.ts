@@ -2,16 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { logError } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
-
     if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const schoolId = session.schoolId;
@@ -20,19 +17,12 @@ export async function GET(request: NextRequest) {
     const termId = searchParams.get("termId") || undefined;
     const classLevelId = searchParams.get("classLevelId") || undefined;
 
-    // Report Type 1: Revenue Summary
     if (reportType === "revenue_summary") {
       const terms = await prisma.academicTerm.findMany({
         where: { schoolId },
         include: {
-          session: true,
-          invoices: {
-            select: {
-              finalAmount: true,
-              amountPaid: true,
-              balanceDue: true,
-            },
-          },
+          session: { select: { name: true } },
+          invoices: { select: { finalAmount: true, amountPaid: true, balanceDue: true } },
         },
         orderBy: { startDate: "desc" },
       });
@@ -61,38 +51,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data });
     }
 
-    // Report Type 2: Outstanding Balance / Debtors List
     if (reportType === "debtors") {
-      const whereClause: any = {
-        schoolId,
-        balanceDue: { gt: 0 },
-      };
-
-      if (termId) whereClause.termId = termId;
-      if (classLevelId) {
-        whereClause.student = {
-          classLevelId,
-        };
-      }
+      const where: Record<string, unknown> = { schoolId, balanceDue: { gt: 0 } };
+      if (termId) where.termId = termId;
+      if (classLevelId) where.student = { classLevelId };
 
       const invoices = await prisma.invoice.findMany({
-        where: whereClause,
+        where,
         include: {
           student: {
             select: {
-              firstName: true,
-              lastName: true,
-              admissionNumber: true,
+              firstName: true, lastName: true, admissionNumber: true,
               classLevel: { select: { name: true } },
               classArm: { select: { name: true } },
             },
           },
-          term: {
-            select: {
-              name: true,
-              session: { select: { name: true } },
-            },
-          },
+          term: { select: { name: true, session: { select: { name: true } } } },
         },
         orderBy: { balanceDue: "desc" },
       });
@@ -113,25 +87,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data });
     }
 
-    // Report Type 3: Class Collection Summary
     if (reportType === "class_summary") {
-      // Get all class arms in the school
       const classArms = await prisma.classArm.findMany({
         where: { schoolId },
         include: {
-          classLevel: true,
+          classLevel: { select: { name: true } },
           students: {
             where: { status: "active" },
-            include: {
-              invoices: termId ? { where: { termId } } : true,
-            },
+            include: { invoices: termId ? { where: { termId } } : { select: { finalAmount: true, amountPaid: true, balanceDue: true } } },
           },
         },
         orderBy: { classLevel: { name: "asc" } },
       });
 
       const data = classArms.map((arm) => {
-        let studentCount = arm.students.length;
         let expected = new Prisma.Decimal(0);
         let collected = new Prisma.Decimal(0);
         let outstanding = new Prisma.Decimal(0);
@@ -147,7 +116,7 @@ export async function GET(request: NextRequest) {
         return {
           classArmId: arm.id,
           className: `${arm.classLevel.name} — ${arm.name}`,
-          studentCount,
+          studentCount: arm.students.length,
           expected: expected.toString(),
           collected: collected.toString(),
           outstanding: outstanding.toString(),
@@ -157,15 +126,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ data });
     }
 
-    return NextResponse.json(
-      { error: "Invalid report type requested", code: "BAD_REQUEST" },
-      { status: 400 }
-    );
-  } catch (err: any) {
-    console.error("[reports] GET error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Invalid report type", code: "BAD_REQUEST" }, { status: 400 });
+  } catch (err) {
+    logError("reports", err);
+    return NextResponse.json({ error: "An unexpected error occurred", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
