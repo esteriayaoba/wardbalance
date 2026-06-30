@@ -1,4 +1,4 @@
-// Trigger redeployment after Vercel reconnect
+// Trigger redeployment after GitHub app permissions updated
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
