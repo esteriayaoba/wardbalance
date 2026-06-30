@@ -108,14 +108,18 @@ export default function PricingSection() {
                             properties: { source: "book_demo_pricing_multi_school" },
                           });
                         }
-                        if (!isPricingPage) {
+                        const el = document.getElementById("demo");
+                        if (el) {
                           e.preventDefault();
-                          const el = document.getElementById("demo");
-                          if (el) {
-                            const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
-                            const offset = offsetStr ? parseFloat(offsetStr) : 96;
-                            const top = el.getBoundingClientRect().top + window.scrollY - offset;
-                            window.scrollTo({ top, behavior: "smooth" });
+                          const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
+                          const offset = offsetStr ? parseFloat(offsetStr) : 96;
+                          const top = el.getBoundingClientRect().top + window.scrollY - offset;
+                          window.scrollTo({ top, behavior: "smooth" });
+                          
+                          // Focus the first form input for accessibility and speed
+                          const nameField = document.getElementById("fullName");
+                          if (nameField) {
+                            nameField.focus();
                           }
                         }
                         window.dispatchEvent(

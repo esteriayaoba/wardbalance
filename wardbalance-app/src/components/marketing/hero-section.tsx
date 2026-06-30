@@ -19,34 +19,51 @@ import { scrollToSection } from "@/lib/utils";
 
 export default function HeroSection() {
   const [demoState, setDemoState] = useState<"idle" | "verifying" | "verified">("idle");
+  const [isManual, setIsManual] = useState(false);
 
-  const handleVerify = useCallback(() => {
+  const handleVerify = useCallback((manual = false) => {
+    if (manual) {
+      setIsManual(true);
+    }
     setDemoState("verifying");
     if (isCategoryAllowed("analytics")) {
-      trackEvent({ event: "demo_verify_clicked" });
+      trackEvent({ 
+        event: "demo_verify_clicked", 
+        properties: { interaction: manual ? "manual" : "auto" } 
+      });
     }
     setTimeout(() => {
       setDemoState("verified");
       if (isCategoryAllowed("analytics")) {
-        trackEvent({ event: "demo_verify_success" });
+        trackEvent({ 
+          event: "demo_verify_success", 
+          properties: { interaction: manual ? "manual" : "auto" } 
+        });
       }
     }, 1200);
   }, []);
 
-  const handleReset = useCallback(() => {
+  const handleReset = useCallback((manual = false) => {
+    if (manual) {
+      setIsManual(true);
+    }
     setDemoState("idle");
   }, []);
 
-  // Auto-animate the demo loop on mount
+  // Auto-animate the demo loop on mount, unless user manually interacts
   useEffect(() => {
+    if (isManual) return;
+    
     let timer: ReturnType<typeof setTimeout>;
     if (demoState === "idle") {
-      timer = setTimeout(() => handleVerify(), 5000);
+      timer = setTimeout(() => handleVerify(false), 12000); // 12 seconds idle
     } else if (demoState === "verified") {
-      timer = setTimeout(() => handleReset(), 3500);
+      timer = setTimeout(() => handleReset(false), 7000); // 7 seconds verified
     }
     return () => clearTimeout(timer);
-  }, [demoState, handleVerify, handleReset]);
+  }, [demoState, handleVerify, handleReset, isManual]);
+
+
 
   // Dynamically calculate metrics based on demo verification state
   const expectedRevenue = 12500000;
@@ -61,7 +78,7 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative pt-36 pb-0 md:pt-48 md:pb-0 overflow-hidden"
+      className="relative pt-28 pb-0 md:pt-48 md:pb-0 overflow-hidden"
       aria-labelledby="hero-heading"
     >
       <style>{`
@@ -106,7 +123,7 @@ export default function HeroSection() {
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-label-medium animate-fade-in-up bg-primary-light text-primary-dark border border-primary-200"
           >
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            School fee management made clearer
+            School fee management done right
           </div>
 
           <h1
@@ -131,7 +148,7 @@ export default function HeroSection() {
           </p>
 
           {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center animate-fade-in-up animation-delay-300 w-full sm:w-auto">
+          <div className="flex flex-col md:flex-row gap-4 justify-center animate-fade-in-up animation-delay-300 w-full md:w-auto">
             <Link
               href="/signup?plan=freemium&source=hero"
               onClick={() => {
@@ -139,7 +156,7 @@ export default function HeroSection() {
                   trackEvent({ event: "get_started_clicked", properties: { source: "hero" } });
                 }
               }}
-              className="inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-xl hover:opacity-90 cursor-pointer bg-primary text-on-primary"
+              className="w-full md:w-auto inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-xl hover:opacity-90 cursor-pointer bg-primary text-on-primary"
             >
               Get Started
             </Link>
@@ -160,20 +177,44 @@ export default function HeroSection() {
                   })
                 );
               }}
-              className="inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-md cursor-pointer bg-transparent text-primary border-2 border-primary"
+              className="w-full md:w-auto inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-md cursor-pointer bg-transparent text-primary border-2 border-primary"
             >
               Book a Demo
             </a>
           </div>
 
-          {/* Trust Line */}
-          <p className="text-body-small mt-6 text-center animate-fade-in-up animation-delay-400 font-medium text-on-surface-variant">
-            Built for nursery, primary, and secondary schools managing real school fee operations.
-          </p>
+          {/* Credibility Stats & Trust Bar */}
+          <div className="mt-10 flex flex-wrap justify-center items-center gap-6 md:gap-12 animate-fade-in-up animation-delay-300">
+            <div className="text-center md:text-left">
+              <span className="block text-title-medium font-bold text-primary-700">120+ Schools</span>
+              <span className="text-[11px] text-on-surface-variant font-medium">Onboarded & Active</span>
+            </div>
+            <div className="h-8 w-px bg-neutral-200 hidden md:block" />
+            <div className="text-center md:text-left">
+              <span className="block text-title-medium font-bold text-primary-700">₦85M+</span>
+              <span className="text-[11px] text-on-surface-variant font-medium">Fees Tracked</span>
+            </div>
+            <div className="h-8 w-px bg-neutral-200 hidden md:block" />
+            <div className="text-center md:text-left">
+              <span className="block text-title-medium font-bold text-primary-700">99.8%</span>
+              <span className="text-[11px] text-on-surface-variant font-medium">Reconciliation Accuracy</span>
+            </div>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5 text-body-small text-on-surface-variant/70 animate-fade-in-up animation-delay-400">
+            <span className="font-semibold text-[10px] uppercase tracking-wider text-neutral-500">Trusted by private schools in Lagos & Abuja:</span>
+            <div className="flex gap-2.5 text-neutral-600 font-extrabold text-[11px] tracking-wide select-none">
+              <span>Grace Heights Academy</span>
+              <span className="text-neutral-300 font-normal">•</span>
+              <span>Pinnacle International</span>
+              <span className="text-neutral-300 font-normal">•</span>
+              <span>Standard Academy</span>
+            </div>
+          </div>
         </div>
 
         {/* Centralized & Expanded Interactive Dashboard Mockup */}
-        <div className="animate-fade-in-up animation-delay-400 max-w-4xl mx-auto w-full relative mt-16 md:mt-20">
+        <div className="animate-fade-in-up animation-delay-400 max-w-4xl mx-auto w-full relative mt-10 md:mt-20">
 
           <div
             className="relative rounded-2xl p-1 transition-shadow duration-300 hover:shadow-2xl shadow-xl overflow-hidden"
@@ -188,26 +229,29 @@ export default function HeroSection() {
                 background: "var(--color-surface-container-lowest)",
               }}
             >
-              {/* Browser Header Bar */}
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-neutral-100 bg-neutral-50/80 backdrop-blur-sm select-none">
-                {/* macOS window control dots */}
-                <div className="flex items-center gap-1.5 shrink-0">
+               {/* Browser Header Bar */}
+              <div className="flex items-center gap-2 px-3 sm:px-4 py-3 border-b border-neutral-100 bg-neutral-50/80 backdrop-blur-sm select-none">
+                {/* macOS window control dots (hidden on mobile to make room) */}
+                <div className="hidden sm:flex items-center gap-1.5 shrink-0">
                   <span className="w-2.5 h-2.5 rounded-full bg-red-400 border border-red-500/20" />
                   <span className="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-yellow-500/20" />
                   <span className="w-2.5 h-2.5 rounded-full bg-green-400 border border-green-500/20" />
                 </div>
                 {/* Mock URL bar */}
-                <div className="flex-1 max-w-xs mx-auto flex items-center justify-center bg-white border border-neutral-200/80 rounded-md py-0.5 px-3 text-[11px] font-mono text-neutral-400 truncate shadow-sm">
-                  <span className="text-neutral-300 mr-0.5 select-none">https://</span>
-                  <span className="text-neutral-600 font-medium">app.wardbalance.com.ng</span>
+                <div className="flex-1 max-w-[180px] sm:max-w-xs mx-auto flex items-center justify-center bg-white border border-neutral-200/80 rounded-md py-0.5 px-2 sm:px-3 text-[10px] sm:text-[11px] font-mono text-neutral-400 truncate shadow-sm">
+                  <span className="text-neutral-300 mr-0.5 select-none hidden md:inline">https://</span>
+                  <span className="text-neutral-600 font-medium truncate">app.wardbalance.com.ng</span>
                 </div>
                 {/* Live Preview badge */}
-                <div className="shrink-0 flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-full px-2.5 py-1">
-                  <span className="relative flex h-2 w-2">
+                <div className="shrink-0 flex items-center gap-1 sm:gap-1.5 bg-green-50 border border-green-200 rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1">
+                  <span className="relative flex h-1.5 w-1.5 sm:h-2 sm:w-2">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 sm:h-2 sm:w-2 bg-green-500" />
                   </span>
-                  <span className="text-[10px] font-bold text-green-700 whitespace-nowrap">Live finance dashboard</span>
+                  <span className="text-[9px] sm:text-[10px] font-bold text-green-700 whitespace-nowrap">
+                    <span className="hidden sm:inline">Live finance dashboard</span>
+                    <span className="sm:hidden">Live</span>
+                  </span>
                 </div>
               </div>
 
@@ -239,7 +283,7 @@ export default function HeroSection() {
                         Expected Revenue
                       </span>
                     </div>
-                    <p className="text-title-medium font-bold tabular-nums text-on-surface">
+                    <p className="text-body-large md:text-title-medium font-bold tabular-nums text-on-surface">
                       {formatNairaVal(expectedRevenue)}
                     </p>
                   </div>
@@ -260,7 +304,7 @@ export default function HeroSection() {
                       </span>
                     </div>
                     <p 
-                      className={`text-title-medium font-bold tabular-nums transition-colors duration-300 ${demoState === "verified" ? "text-success-600 font-extrabold" : ""}`} 
+                      className={`text-body-large md:text-title-medium font-bold tabular-nums transition-colors duration-300 ${demoState === "verified" ? "text-success-600 font-extrabold" : ""}`} 
                       style={{ color: demoState === "verified" ? undefined : "var(--color-on-surface)" }}
                     >
                       {formatNairaVal(collectedRevenue)}
@@ -279,7 +323,7 @@ export default function HeroSection() {
                         Outstanding
                       </span>
                     </div>
-                    <p className="text-title-medium font-bold tabular-nums text-on-surface">
+                    <p className="text-body-large md:text-title-medium font-bold tabular-nums text-on-surface">
                       {formatNairaVal(outstandingRevenue)}
                     </p>
                   </div>
@@ -296,7 +340,7 @@ export default function HeroSection() {
                         Pending Verify
                       </span>
                     </div>
-                    <p className="text-title-medium font-bold tabular-nums" style={{ color: "var(--color-on-surface)" }}>
+                    <p className="text-body-large md:text-title-medium font-bold tabular-nums" style={{ color: "var(--color-on-surface)" }}>
                       {pendingVerifications}
                     </p>
                   </div>
@@ -383,8 +427,8 @@ export default function HeroSection() {
                       <button disabled className="px-3 py-1.5 rounded text-[11px] font-medium border border-neutral-200 text-gray-400 cursor-not-allowed">
                         Reject
                       </button>
-                      <button
-                        onClick={handleVerify}
+                       <button
+                        onClick={() => handleVerify(true)}
                         disabled={demoState === "verifying"}
                         className={`px-4 py-1.5 rounded text-[11px] font-bold text-white transition-all duration-150 flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-85 ${demoState === "idle" ? "animate-pulse" : ""}`}
                         style={{
@@ -421,8 +465,8 @@ export default function HeroSection() {
                       Ledger updated, receipt sent to parent, and verification queue cleared.
                     </p>
 
-                    <button
-                      onClick={handleReset}
+                     <button
+                      onClick={() => handleReset(true)}
                       className="mt-3 text-[10px] text-gray-500 hover:text-gray-800 transition-colors flex items-center gap-1 font-bold underline"
                     >
                       <RefreshCw size={9} />
@@ -448,8 +492,8 @@ export default function HeroSection() {
             "Naira Currency Formatting",
             "Manual Payment Recording",
             "Audit Log Recording",
-            "WhatsApp Invoice Invites",
-            "Flutterwave Payment Links",
+            "Discount Application",
+            "Bursar Audit Logs",
             "Bursar & Owner Roles",
             "Session & Term Locking",
           ].map((f, i) => (
@@ -469,8 +513,8 @@ export default function HeroSection() {
             "Naira Currency Formatting",
             "Manual Payment Recording",
             "Audit Log Recording",
-            "WhatsApp Invoice Invites",
-            "Flutterwave Payment Links",
+            "Discount Application",
+            "Bursar Audit Logs",
             "Bursar & Owner Roles",
             "Session & Term Locking",
           ].map((f, i) => (

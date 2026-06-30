@@ -144,6 +144,14 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
     return { invoices: [], count: 0, message: "No active students found." };
   }
 
+  const targetTerm = await prisma.academicTerm.findUnique({
+    where: { id: termId }
+  });
+
+  if (!targetTerm) {
+    throw new Error("Target term not found");
+  }
+
   const previousTerm = await getPreviousTerm(schoolId, termId);
 
   const results = await prisma.$transaction(async (tx) => {
@@ -185,6 +193,26 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
           name: "Previous Term Balance",
           amount: carryoverAmount,
           lineType: "carryover",
+        });
+      }
+
+      // Add optional fee enrolments
+      const optionalEnrolments = await tx.studentActivityEnrolment.findMany({
+        where: {
+          studentId: student.id,
+          sessionId: targetTerm.sessionId,
+        },
+        include: { feeItem: true },
+      });
+
+      for (const enrolment of optionalEnrolments) {
+        const amount = enrolment.feeItem.amount;
+        baselineAmount = baselineAmount.plus(amount);
+        lineItemsData.push({
+          feeItemId: enrolment.feeItemId,
+          name: `${enrolment.feeItem.name} (Optional)`,
+          amount,
+          lineType: "fee_item", // Treated as a standard fee item line
         });
       }
 

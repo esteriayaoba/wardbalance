@@ -71,17 +71,17 @@ export default function MarketingHeader() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, [isHomePage]);
 
-  const handleNavClick = (href: string) => {
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
     setIsMobileMenuOpen(false);
 
     if (!href.includes("#")) return;
 
     const targetId = href.split("#")[1];
     if (!isHomePage) {
-      window.location.href = `/${href}`;
       return;
     }
 
+    e.preventDefault();
     const el = document.getElementById(targetId);
     if (el) {
       const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
@@ -132,7 +132,7 @@ export default function MarketingHeader() {
               const active = isNavActive(link.href);
               return (
                 <Link key={link.href} href={link.href}
-                  onClick={() => handleNavClick(link.href)}
+                  onClick={(e) => handleNavClick(e, link.href)}
                   className="text-body-medium transition-colors duration-200 hover:opacity-80"
                   style={{
                     color: active ? "var(--color-primary-500)" : "var(--color-on-surface-variant)",
@@ -175,8 +175,10 @@ export default function MarketingHeader() {
 
         {/* Mobile Menu */}
         <div id="mobile-nav"
-          className={`md:hidden absolute top-full left-0 right-0 transition-all duration-300 overflow-hidden ${
-            isMobileMenuOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+          className={`md:hidden absolute top-full left-0 right-0 transition-all duration-300 transform origin-top ${
+            isMobileMenuOpen 
+              ? "translate-y-0 opacity-100 pointer-events-auto" 
+              : "-translate-y-4 opacity-0 pointer-events-none"
           }`}
           style={{
             background: "hsla(240,100%,99%,0.97)",
@@ -188,7 +190,7 @@ export default function MarketingHeader() {
               const active = isNavActive(link.href);
               return (
                 <Link key={link.href} href={link.href}
-                  onClick={() => handleNavClick(link.href)}
+                  onClick={(e) => handleNavClick(e, link.href)}
                   className="py-3 px-4 rounded-lg text-body-large text-left transition-colors hover:opacity-80"
                   style={{
                     color: active ? "var(--color-primary-500)" : "var(--color-on-surface)",

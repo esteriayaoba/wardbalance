@@ -45,7 +45,7 @@ const features = [
     icon: Users,
     title: "Parent Portal",
     description: "Give parents a simple way to view wards, invoices, payment status, and receipts.",
-    comingSoon: true,
+    comingSoon: false,
   },
   {
     icon: FileSearch,
@@ -59,13 +59,13 @@ export default function FeaturesSection() {
   return (
     <section
       id="features"
-      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] bg-white border-t border-neutral-200/60"
+      className="py-16 md:py-24 lg:py-32 scroll-mt-[var(--marketing-header-offset)] bg-white border-t border-neutral-200/60"
       aria-labelledby="features-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16 md:mb-24">
+        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-20">
           <p className="text-label-large mb-3 text-primary uppercase font-bold tracking-wider">
             Features
           </p>
@@ -81,7 +81,7 @@ export default function FeaturesSection() {
         </div>
 
         {/* Feature Grid (4 columns at lg/xl to accommodate 8 items cleanly) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-6xl mx-auto">
           {features.map((feature) => (
             <div key={feature.title} className="relative">
               {feature.comingSoon && (

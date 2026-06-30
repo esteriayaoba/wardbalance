@@ -27,13 +27,13 @@ export default function HowItWorksSection() {
   return (
     <section
       id="how-it-works"
-      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] bg-neutral-50/40 border-y border-neutral-200/50"
+      className="py-16 md:py-24 lg:py-32 scroll-mt-[var(--marketing-header-offset)] bg-neutral-50/40 border-y border-neutral-200/50"
       aria-labelledby="how-it-works-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="text-center max-w-2xl mx-auto mb-20">
+        <div className="text-center max-w-2xl mx-auto mb-16">
           <p className="text-label-large mb-3 flex items-center justify-center gap-2 text-primary uppercase font-bold tracking-wider">
             <span className="w-8 h-px bg-current opacity-30 hidden sm:block"></span>
             HOW IT WORKS
@@ -48,13 +48,13 @@ export default function HowItWorksSection() {
         </div>
 
         {/* Steps Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 relative">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 relative">
           {steps.map((step, index) => {
             const Icon = step.icon;
             return (
               <div
                 key={step.title}
-                className="border border-neutral-200/60 rounded-3xl p-8 text-center relative z-10 flex flex-col items-center bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-primary-200/60"
+                className="border border-neutral-200/60 rounded-3xl p-6 md:p-8 text-center relative z-10 flex flex-col items-center bg-white transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-primary-200/60"
               >
                 {/* Step Number Badge */}
                 <div className="absolute top-4 right-6 text-label-large font-black text-neutral-300 select-none">

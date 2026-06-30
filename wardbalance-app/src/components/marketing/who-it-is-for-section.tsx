@@ -20,7 +20,6 @@ const audiences: { icon: typeof ShieldCheck; role: string; description: string; 
     icon: Receipt,
     role: "Parents",
     description: "Access a dedicated portal to view invoices, track payment status, download receipts, and follow ward financial logs.",
-    comingSoon: true,
   },
 ];
 
@@ -28,13 +27,13 @@ export default function WhoItIsForSection() {
   return (
     <section
       id="audience"
-      className="py-24 md:py-32 lg:py-36 bg-white border-b border-neutral-200/60"
+      className="py-16 md:py-24 lg:py-32 bg-white border-b border-neutral-200/60"
       aria-labelledby="audience-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16 md:mb-24">
+        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-20">
           <p className="text-label-large mb-3 text-primary uppercase font-bold tracking-wider">
             Built for school teams
           </p>
@@ -47,13 +46,13 @@ export default function WhoItIsForSection() {
         </div>
 
         {/* Audience Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 max-w-6xl mx-auto">
           {audiences.map((audience, idx) => {
             const Icon = audience.icon;
             return (
               <div
                 key={idx}
-                className="border border-neutral-200/60 rounded-3xl p-8 flex flex-col bg-white hover:-translate-y-1 hover:shadow-md hover:border-primary-200/60 transition-all duration-300 relative"
+                className="border border-neutral-200/60 rounded-3xl p-6 md:p-8 flex flex-col bg-white hover:-translate-y-1 hover:shadow-md hover:border-primary-200/60 transition-all duration-300 relative"
               >
                 {audience.comingSoon && (
                   <span className="absolute top-4 right-4 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-700">

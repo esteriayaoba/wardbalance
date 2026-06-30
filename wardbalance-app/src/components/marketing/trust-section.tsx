@@ -37,14 +37,14 @@ export default function TrustSection() {
   return (
     <section
       id="trust"
-      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] border-b border-neutral-200/60"
+      className="py-16 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] border-b border-neutral-200/60"
       style={{ background: "var(--color-primary-container)" }}
       aria-labelledby="trust-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         
         {/* Section Header */}
-        <div className="text-center max-w-3xl mx-auto mb-16 md:mb-24">
+        <div className="text-center max-w-3xl mx-auto mb-10 md:mb-24">
           <p className="text-label-large mb-3 text-primary uppercase font-bold tracking-wider">
             Trust and clarity
           </p>
@@ -60,7 +60,7 @@ export default function TrustSection() {
         </div>
 
         {/* Trust Points Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 max-w-6xl mx-auto">
           {trustPoints.map((point, idx) => {
             const Icon = point.icon;
             return (

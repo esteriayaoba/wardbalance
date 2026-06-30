@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface FeeSample {
@@ -70,12 +70,35 @@ const sampleFees: FeeSample[] = [
   },
 ];
 
-const CARDS_VISIBLE = 3; // number of cards visible at once on desktop
-
 export default function SampleFeesCarousel() {
+  const [cardsVisible, setCardsVisible] = useState(3);
   const [currentIndex, setCurrentIndex] = useState(0);
   const trackRef = useRef<HTMLDivElement>(null);
-  const maxIndex = sampleFees.length - CARDS_VISIBLE;
+  const maxIndex = Math.max(0, sampleFees.length - cardsVisible);
+
+  useEffect(() => {
+    const handleResize = () => {
+      let visible = 3;
+      if (window.innerWidth < 768) {
+        visible = 1;
+      } else if (window.innerWidth < 1024) {
+        visible = 2;
+      }
+      setCardsVisible(visible);
+      setCurrentIndex((prev) => Math.min(prev, Math.max(0, sampleFees.length - visible)));
+    };
+    handleResize();
+    let debounceTimer: ReturnType<typeof setTimeout>;
+    const debouncedResize = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(handleResize, 150);
+    };
+    window.addEventListener("resize", debouncedResize);
+    return () => {
+      window.removeEventListener("resize", debouncedResize);
+      clearTimeout(debounceTimer);
+    };
+  }, []);
 
   const formatNaira = (amount: number) => {
     return `₦${amount.toLocaleString("en-NG")}`;
@@ -96,7 +119,7 @@ export default function SampleFeesCarousel() {
     <section
       id="fees"
       aria-labelledby="fees-heading"
-      className="py-24 md:py-32 lg:py-36 bg-neutral-50/40 border-t border-b border-neutral-200/60 scroll-mt-[var(--marketing-header-offset)] relative overflow-hidden"
+      className="py-16 md:py-32 lg:py-36 bg-neutral-50/40 border-t border-b border-neutral-200/60 scroll-mt-[var(--marketing-header-offset)] relative overflow-hidden"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
 
@@ -117,7 +140,7 @@ export default function SampleFeesCarousel() {
           {/* Arrow Controls */}
           <div className="flex items-center gap-3 shrink-0">
             <span className="text-label-small text-neutral-500 tabular-nums mr-1">
-              {currentIndex + 1} – {Math.min(currentIndex + CARDS_VISIBLE, sampleFees.length)} of {sampleFees.length}
+              {currentIndex + 1} – {Math.min(currentIndex + cardsVisible, sampleFees.length)} of {sampleFees.length}
             </span>
             <button
               onClick={prev}
@@ -151,13 +174,13 @@ export default function SampleFeesCarousel() {
           <div
             ref={trackRef}
             className="flex gap-6 transition-transform duration-500 ease-in-out"
-            style={{ transform: `translateX(calc(-${currentIndex} * (100% / ${CARDS_VISIBLE} + 8px)))` }}
+            style={{ transform: `translateX(calc(-${currentIndex} * (100% / ${cardsVisible} + ${24 / cardsVisible}px)))` }}
           >
             {sampleFees.map((fee, idx) => (
               <div
                 key={idx}
                 className="border border-neutral-200/60 bg-white rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-primary-200/60 hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between shrink-0"
-                style={{ width: `calc(${100 / CARDS_VISIBLE}% - ${((CARDS_VISIBLE - 1) * 24) / CARDS_VISIBLE}px)` }}
+                style={{ width: `calc(${100 / cardsVisible}% - ${((cardsVisible - 1) * 24) / cardsVisible}px)` }}
               >
                 <div>
                   {/* Header Row: Type Badge & Frequency */}

@@ -19,6 +19,7 @@ import {
 import Select from "@/components/admin/shared/select";
 import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
 import { formatNaira } from "@/lib/utils";
+import StudentActivities from "@/components/admin/students/student-activities";
 
 interface ParentLink {
   id: string;
@@ -513,6 +514,8 @@ export default function StudentProfilePage() {
           </div>
         </div>
       )}
+
+      <StudentActivities studentId={studentId} />
 
       <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-neutral-200">

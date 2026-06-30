@@ -60,8 +60,14 @@ export default function LeadCaptureForm() {
       }
 
       const prefill = params.get("prefill");
-      if (prefill && messageRef.current && messageRef.current.value.trim() === "") {
-        messageRef.current.value = prefill;
+      if (messageRef.current && messageRef.current.value.trim() === "") {
+        if (prefill) {
+          messageRef.current.value = prefill;
+        } else if (sourceParam === "multi_school_demo" || params.get("plan") === "multi_school") {
+          messageRef.current.value = "Hi WardBalance team, I would like to book a demo for a multi-school or multi-branch setup.";
+        } else {
+          messageRef.current.value = "Hi WardBalance team, I would like to book a demo to understand how WardBalance can help my school manage fees, invoices, payments, and parent balances.";
+        }
       }
 
       if (utmSource || utmMedium || utmCampaign) {
@@ -88,8 +94,13 @@ export default function LeadCaptureForm() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<{ message: string }>).detail;
-      if (messageRef.current && detail?.message && messageRef.current.value.trim() === "") {
-        messageRef.current.value = detail.message;
+      const currentValue = messageRef.current?.value.trim() ?? "";
+      const defaultMsg = "Hi WardBalance team, I would like to book a demo to understand how WardBalance can help my school manage fees, invoices, payments, and parent balances.";
+      
+      if (messageRef.current && detail?.message) {
+        if (currentValue === "" || currentValue === defaultMsg) {
+          messageRef.current.value = detail.message;
+        }
       }
     };
     window.addEventListener("wb:prefill-demo", handler);
@@ -238,10 +249,10 @@ export default function LeadCaptureForm() {
     <section
       id="demo"
       aria-labelledby="demo-heading"
-      className="py-24 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] gradient-grid-mesh border-t border-neutral-200/60"
+      className="py-16 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] gradient-grid-mesh border-t border-neutral-200/60"
     >
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-10">
+        <div className="text-center mb-8 md:mb-10">
           <p className="text-label-large mb-3 font-bold" style={{ color: "var(--color-primary-500)" }}>
             BOOK A DEMO
           </p>
@@ -253,7 +264,7 @@ export default function LeadCaptureForm() {
           </p>
         </div>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="card-elevated p-6 md:p-8 space-y-6 bg-[var(--color-surface-container-lowest)]">
+        <form ref={formRef} onSubmit={handleSubmit} className="card-elevated p-5 md:p-8 space-y-5 md:space-y-6 bg-[var(--color-surface-container-lowest)]">
           {status === "error" && apiError && (
             <div className="p-4 rounded-lg flex items-start gap-3" style={{ background: "var(--color-error-container)", color: "var(--color-on-error-container)" }}>
               <AlertCircle size={20} className="shrink-0 mt-0.5" />
@@ -344,45 +355,6 @@ export default function LeadCaptureForm() {
               {errors.phone && <p className="text-label-small" style={{ color: "var(--color-error)" }}>{errors.phone}</p>}
             </div>
 
-            <div className="space-y-1.5">
-              <label htmlFor="numberOfStudents" className="text-label-medium block" style={{ color: "var(--color-on-surface)" }}>
-                Number of Students
-              </label>
-              <input
-                id="numberOfStudents"
-                name="numberOfStudents"
-                type="text"
-                placeholder="e.g. 250"
-                disabled={isLoading}
-                className="w-full px-4 py-2.5 rounded-lg border border-neutral-300 transition-colors focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 font-sans"
-                style={{
-                  background: "var(--color-surface-container-lowest)",
-                  borderColor: errors.numberOfStudents ? "var(--color-error)" : "var(--color-outline-variant)",
-                  color: "var(--color-on-surface)",
-                }}
-              />
-              {errors.numberOfStudents && <p className="text-label-small" style={{ color: "var(--color-error)" }}>{errors.numberOfStudents}</p>}
-            </div>
-
-            <div className="space-y-1.5">
-              <label htmlFor="numberOfBranches" className="text-label-medium block" style={{ color: "var(--color-on-surface)" }}>
-                Number of Branches
-              </label>
-              <input
-                id="numberOfBranches"
-                name="numberOfBranches"
-                type="text"
-                placeholder="e.g. 1"
-                disabled={isLoading}
-                className="w-full px-4 py-2.5 rounded-lg border border-neutral-300 transition-colors focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 font-sans"
-                style={{
-                  background: "var(--color-surface-container-lowest)",
-                  borderColor: errors.numberOfBranches ? "var(--color-error)" : "var(--color-outline-variant)",
-                  color: "var(--color-on-surface)",
-                }}
-              />
-              {errors.numberOfBranches && <p className="text-label-small" style={{ color: "var(--color-error)" }}>{errors.numberOfBranches}</p>}
-            </div>
           </div>
 
           <div className="space-y-1.5">

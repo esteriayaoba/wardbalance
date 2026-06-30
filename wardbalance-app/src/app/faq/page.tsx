@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import MarketingHeader from "@/components/marketing/marketing-header";
 import FAQSection from "@/components/marketing/faq-section";
+import HelpfulDemoPrompt from "@/components/marketing/helpful-demo-prompt";
 import BookDemoSection from "@/components/marketing/book-demo-section";
 import FinalCtaBanner from "@/components/marketing/final-cta-banner";
 import MarketingFooter from "@/components/marketing/marketing-footer";
@@ -33,6 +34,9 @@ export default function FAQPage() {
 
         {/* Full FAQ Section */}
         <FAQSection />
+
+        {/* Helpful Demo Prompt */}
+        <HelpfulDemoPrompt />
 
         {/* Book a Demo */}
         <BookDemoSection />
