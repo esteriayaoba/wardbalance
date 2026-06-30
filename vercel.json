@@ -1,5 +1,4 @@
 {
-  "rootDirectory": "wardbalance-app",
   "crons": [
     {
       "path": "/api/cron/overdue",
