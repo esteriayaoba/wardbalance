@@ -1,3 +1,4 @@
+// Trigger redeployment after Vercel reconnect
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
