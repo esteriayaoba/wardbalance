@@ -7,7 +7,6 @@ import FeaturesSection from "@/components/marketing/features-section";
 import SampleFeesCarousel from "@/components/marketing/sample-fees-carousel";
 import HowItWorksSection from "@/components/marketing/how-it-works-section";
 import TestimonialsSection from "@/components/marketing/testimonials-section";
-import TrustSection from "@/components/marketing/trust-section";
 import PricingTeaser from "@/components/marketing/pricing-teaser";
 import BookDemoSection from "@/components/marketing/book-demo-section";
 import FinalCtaBanner from "@/components/marketing/final-cta-banner";
@@ -35,7 +34,6 @@ export default function Home() {
         <SampleFeesCarousel />
         <HowItWorksSection />
         <TestimonialsSection />
-        <TrustSection />
         <PricingTeaser />
         <BookDemoSection />
         <FinalCtaBanner />
