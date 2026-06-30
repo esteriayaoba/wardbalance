@@ -1,0 +1,13 @@
+{
+  "rootDirectory": "wardbalance-app",
+  "crons": [
+    {
+      "path": "/api/cron/overdue",
+      "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/admin/notifications/process",
+      "schedule": "*/5 * * * *"
+    }
+  ]
+}
