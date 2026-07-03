@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { SchoolSignupSchema } from "@/modules/signup/signup.schema";
-import { encryptPassword, signJWT } from "@/lib/auth/auth";
+import { encryptPassword } from "@/lib/auth/auth";
 import { upstashIncr } from "@/lib/redis";
 import { sendEmail } from "@/lib/email/resend";
 import { headers } from "next/headers";
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const ipAddress = headersList.get("x-forwarded-for") ?? headersList.get("x-real-ip") ?? "unknown";
     const rateLimitKey = `rate_limit:signup:${ipAddress}`;
     
-    const requestCount = await upstashIncr(rateLimitKey, 3600); // 1 hour window
+    const requestCount = await upstashIncr(rateLimitKey, 3600);
     if (requestCount !== null && requestCount > 5) {
       return NextResponse.json(
         {
@@ -77,11 +77,10 @@ export async function POST(request: NextRequest) {
     // Generate secure 6-digit OTP
     const rawOtp = crypto.randomInt(100000, 1000000).toString();
     const codeHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins expiry
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
 
     // 6. Execute database transaction
     const { school, user } = await prisma.$transaction(async (tx) => {
-      // a. Create School Workspace
       const createdSchool = await tx.school.create({
         data: {
           name: data.schoolName,
@@ -101,7 +100,6 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // b. Create Owner Account
       const createdUser = await tx.user.create({
         data: {
           schoolId: createdSchool.id,
@@ -117,7 +115,6 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // c. Write Immutable Audit Log Entry
       await tx.auditLog.create({
         data: {
           schoolId: createdSchool.id,
@@ -138,18 +135,7 @@ export async function POST(request: NextRequest) {
       return { school: createdSchool, user: createdUser };
     });
 
-    // 7. Sign Session JWT for Auto-Login
-    const sessionPayload = {
-      userId: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-      schoolId: school.id,
-      schoolName: school.name,
-    };
-    const token = await signJWT(sessionPayload);
-
-    // 8. Send Emails (Non-blocking)
+    // 7. Send Emails (Non-blocking)
     const welcomeHtml = `
       <h1>Welcome to WardBalance, ${user.fullName}!</h1>
       <p>Your school workspace <strong>${school.name}</strong> has been created successfully.</p>
@@ -185,7 +171,7 @@ export async function POST(request: NextRequest) {
       }).catch((err) => console.warn("[signup] Admin notification email failed:", err));
     }
 
-    // 9. Build response with auto-login session cookie
+    // 8. Build response (no manual session cookie — NextAuth handles this)
     const response = NextResponse.json({
       data: {
         school: {
@@ -202,14 +188,7 @@ export async function POST(request: NextRequest) {
         },
       },
       message: "School workspace and admin account created successfully.",
-    });
-
-    response.cookies.set("session", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24, // 24 hours
+      redirectTo: "/admin/verify-email",
     });
 
     if (process.env.NODE_ENV !== "production") {
@@ -218,7 +197,7 @@ export async function POST(request: NextRequest) {
         secure: false,
         sameSite: "lax",
         path: "/",
-        maxAge: 60 * 15, // 15 minutes
+        maxAge: 60 * 15,
       });
     }
 

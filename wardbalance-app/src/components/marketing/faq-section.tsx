@@ -100,11 +100,10 @@ export default function FAQSection() {
       {/* Subtle blurred background gradient blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
         <div
-          className="absolute -top-32 -left-48 w-[600px] h-[600px] rounded-full opacity-40 blur-[140px] bg-primary-200"
+          className="absolute -top-32 -left-48 w-[600px] h-[600px] rounded-full opacity-40 pointer-events-none select-none bg-[radial-gradient(circle,var(--color-primary-200)_0%,transparent_70%)]"
         />
         <div
-          className="absolute -bottom-32 -right-48 w-[550px] h-[550px] rounded-full opacity-35 blur-[130px]"
-          style={{ background: "hsl(176, 50%, 80%)" }}
+          className="absolute -bottom-32 -right-48 w-[550px] h-[550px] rounded-full opacity-35 pointer-events-none select-none bg-[radial-gradient(circle,hsl(176,50%,80%)_0%,transparent_70%)]"
         />
       </div>
 

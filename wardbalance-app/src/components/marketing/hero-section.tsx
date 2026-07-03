@@ -107,11 +107,11 @@ export default function HeroSection() {
 
       {/* Decorative shapes */}
       <div
-        className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full opacity-35 blur-[120px] animate-float bg-primary-200"
+        className="absolute -top-32 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full opacity-35 bg-[radial-gradient(circle,var(--color-primary-200)_0%,transparent_70%)] pointer-events-none select-none"
         aria-hidden="true"
       />
       <div
-        className="absolute bottom-0 left-1/4 w-[500px] h-[500px] rounded-full opacity-20 blur-[100px] animate-float animation-delay-300 bg-primary-300"
+        className="absolute bottom-0 left-1/4 w-[500px] h-[500px] rounded-full opacity-20 bg-[radial-gradient(circle,var(--color-primary-300)_0%,transparent_70%)] pointer-events-none select-none"
         aria-hidden="true"
       />
 
@@ -123,7 +123,7 @@ export default function HeroSection() {
             className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-label-medium animate-fade-in-up bg-primary-light text-primary-dark border border-primary-200"
           >
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-            School fee management done right
+            Stop juggling spreadsheets and WhatsApp
           </div>
 
           <h1
@@ -143,78 +143,13 @@ export default function HeroSection() {
             from one simple workspace.
           </h1>
 
-          <p className="text-body-large md:text-title-medium mb-8 max-w-2xl animate-fade-in-up animation-delay-200 text-on-surface-variant leading-relaxed">
+          <p className="text-body-large md:text-title-medium mb-0 max-w-2xl animate-fade-in-up animation-delay-200 text-on-surface-variant leading-relaxed">
             WardBalance helps private schools replace scattered spreadsheets, bank alerts, WhatsApp messages, and manual records with one organized finance workspace.
           </p>
-
-          {/* CTA Buttons */}
-          <div className="flex flex-col md:flex-row gap-4 justify-center animate-fade-in-up animation-delay-300 w-full md:w-auto">
-            <Link
-              href="/signup?plan=freemium&source=hero"
-              onClick={() => {
-                if (isCategoryAllowed("analytics")) {
-                  trackEvent({ event: "get_started_clicked", properties: { source: "hero" } });
-                }
-              }}
-              className="w-full md:w-auto inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-xl hover:opacity-90 cursor-pointer bg-primary text-on-primary"
-            >
-              Get Started
-            </Link>
-            <a
-              href="#demo"
-              onClick={(e) => {
-                e.preventDefault();
-                if (isCategoryAllowed("analytics")) {
-                  trackEvent({ event: "book_demo_clicked", properties: { source: "book_demo_hero" } });
-                }
-                scrollToSection("demo");
-                window.dispatchEvent(
-                  new CustomEvent("wb:prefill-demo", {
-                    detail: {
-                      message:
-                        "Hi WardBalance team, I would like to book a demo to understand how WardBalance can help my school manage fees, invoices, payments, and parent balances.",
-                    },
-                  })
-                );
-              }}
-              className="w-full md:w-auto inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-md cursor-pointer bg-transparent text-primary border-2 border-primary"
-            >
-              Book a Demo
-            </a>
-          </div>
-
-          {/* Credibility Stats & Trust Bar */}
-          <div className="mt-10 flex flex-wrap justify-center items-center gap-6 md:gap-12 animate-fade-in-up animation-delay-300">
-            <div className="text-center md:text-left">
-              <span className="block text-title-medium font-bold text-primary-700">120+ Schools</span>
-              <span className="text-[11px] text-on-surface-variant font-medium">Onboarded & Active</span>
-            </div>
-            <div className="h-8 w-px bg-neutral-200 hidden md:block" />
-            <div className="text-center md:text-left">
-              <span className="block text-title-medium font-bold text-primary-700">₦85M+</span>
-              <span className="text-[11px] text-on-surface-variant font-medium">Fees Tracked</span>
-            </div>
-            <div className="h-8 w-px bg-neutral-200 hidden md:block" />
-            <div className="text-center md:text-left">
-              <span className="block text-title-medium font-bold text-primary-700">99.8%</span>
-              <span className="text-[11px] text-on-surface-variant font-medium">Reconciliation Accuracy</span>
-            </div>
-          </div>
-
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5 text-body-small text-on-surface-variant/70 animate-fade-in-up animation-delay-400">
-            <span className="font-semibold text-[10px] uppercase tracking-wider text-neutral-500">Trusted by private schools in Lagos & Abuja:</span>
-            <div className="flex gap-2.5 text-neutral-600 font-extrabold text-[11px] tracking-wide select-none">
-              <span>Grace Heights Academy</span>
-              <span className="text-neutral-300 font-normal">•</span>
-              <span>Pinnacle International</span>
-              <span className="text-neutral-300 font-normal">•</span>
-              <span>Standard Academy</span>
-            </div>
-          </div>
         </div>
 
         {/* Centralized & Expanded Interactive Dashboard Mockup */}
-        <div className="animate-fade-in-up animation-delay-400 max-w-4xl mx-auto w-full relative mt-10 md:mt-20">
+        <div className="animate-fade-in-up animation-delay-400 max-w-4xl mx-auto w-full relative mt-8 md:mt-12">
 
           <div
             className="relative rounded-2xl p-1 transition-shadow duration-300 hover:shadow-2xl shadow-xl overflow-hidden"
@@ -479,6 +414,75 @@ export default function HeroSection() {
           </div>
         </div>
 
+        {/* Proof + CTA section — stats, trust bar, then buttons */}
+        <div className="mx-auto max-w-4xl text-center flex flex-col items-center mt-10 md:mt-16">
+
+          {/* Credibility Stats */}
+          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-12 animate-fade-in-up animation-delay-300">
+            <div className="text-center md:text-left">
+              <span className="block text-title-medium font-bold text-primary-700">120+ Schools</span>
+              <span className="text-[11px] text-on-surface-variant font-medium">Onboarded & Active</span>
+            </div>
+            <div className="h-8 w-px bg-neutral-200 hidden md:block" />
+            <div className="text-center md:text-left">
+              <span className="block text-title-medium font-bold text-primary-700">₦85M+</span>
+              <span className="text-[11px] text-on-surface-variant font-medium">Fees Tracked</span>
+            </div>
+            <div className="h-8 w-px bg-neutral-200 hidden md:block" />
+            <div className="text-center md:text-left">
+              <span className="block text-title-medium font-bold text-primary-700">99.8%</span>
+              <span className="text-[11px] text-on-surface-variant font-medium">Reconciliation Accuracy</span>
+            </div>
+          </div>
+
+          {/* Trust bar — consolidated, single instance */}
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-2.5 text-body-small text-on-surface-variant/70 animate-fade-in-up animation-delay-400">
+            <span className="font-semibold text-[10px] uppercase tracking-wider text-neutral-500">Trusted by private schools in Lagos & Abuja:</span>
+            <div className="flex gap-2.5 text-neutral-600 font-extrabold text-[11px] tracking-wide select-none">
+              <span>Grace Heights Academy</span>
+              <span className="text-neutral-300 font-normal">•</span>
+              <span>Pinnacle International</span>
+              <span className="text-neutral-300 font-normal">•</span>
+              <span>Standard Academy</span>
+            </div>
+          </div>
+
+          {/* CTA Buttons */}
+          <div className="flex flex-col md:flex-row gap-4 justify-center animate-fade-in-up animation-delay-300 w-full md:w-auto mt-10">
+            <Link
+              href="/signup?plan=freemium&source=hero"
+              onClick={() => {
+                if (isCategoryAllowed("analytics")) {
+                  trackEvent({ event: "get_started_clicked", properties: { source: "hero" } });
+                }
+              }}
+              className="w-full md:w-auto inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-xl hover:opacity-90 cursor-pointer bg-primary text-on-primary"
+            >
+              Get Started
+            </Link>
+            <a
+              href="#demo"
+              onClick={(e) => {
+                e.preventDefault();
+                if (isCategoryAllowed("analytics")) {
+                  trackEvent({ event: "book_demo_clicked", properties: { source: "book_demo_hero" } });
+                }
+                scrollToSection("demo");
+                window.dispatchEvent(
+                  new CustomEvent("wb:prefill-demo", {
+                    detail: {
+                      message:
+                        "Hi WardBalance team, I would like to book a demo to understand how WardBalance can help my school manage fees, invoices, payments, and parent balances.",
+                    },
+                  })
+                );
+              }}
+              className="w-full md:w-auto inline-flex items-center justify-center px-8 py-4 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-md cursor-pointer bg-transparent text-primary border-2 border-primary"
+            >
+              Book a Demo
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* Horizontal Feature Ticker Marquee */}

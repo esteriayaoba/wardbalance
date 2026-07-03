@@ -2,6 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Image from "next/image";
 import { Loader2, AlertCircle, Sparkles } from "lucide-react";
 
@@ -92,6 +93,17 @@ function InviteContent() {
       const body = await res.json();
       if (!res.ok) {
         throw new Error(body.error ?? "Failed to accept invitation");
+      }
+
+      // Sign in with NextAuth using the password the user just set
+      const signInResult = await signIn("admin-login", {
+        email: inviteData!.email,
+        password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        throw new Error("Account created but auto-login failed. Please go to the login page.");
       }
 
       // Automatically redirect to setup checklist

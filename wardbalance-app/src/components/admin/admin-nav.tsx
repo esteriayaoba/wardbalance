@@ -108,7 +108,7 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
   });
 
   return (
-    <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+    <nav className="flex-1 px-4 md:px-2 lg:px-4 py-6 space-y-1 overflow-y-auto">
       {visibleLinks.map((link) => {
         const Icon = link.icon;
         const isActive = pathname === link.href || pathname.startsWith(link.href + "/");
@@ -119,10 +119,10 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
             <div
               key={link.href}
               title={`Complete setup to access ${link.name}`}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-body-medium font-medium text-neutral-600 opacity-40 cursor-not-allowed select-none"
+              className="flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-body-medium font-medium text-neutral-600 opacity-40 cursor-not-allowed select-none"
             >
               <Icon className="w-5 h-5 shrink-0" />
-              <span>{link.name}</span>
+              <span className="lg:block hidden">{link.name}</span>
             </div>
           );
         }
@@ -131,7 +131,8 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
           <Link
             key={link.href}
             href={link.href}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-body-medium font-medium transition-colors ${
+            title={link.name}
+            className={`flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-body-medium font-medium transition-colors ${
               isActive
                 ? "bg-primary text-white"
                 : "text-neutral-400 hover:text-white hover:bg-neutral-800"
@@ -139,14 +140,14 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
             aria-current={isActive ? "page" : undefined}
           >
             <Icon className="w-5 h-5 shrink-0" />
-            <span>{link.name}</span>
+            <span className="lg:block hidden">{link.name}</span>
           </Link>
         );
       })}
 
       {/* Onboarding reminder — shown below nav when setup is incomplete */}
       {isOnboarding && (
-        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 lg:block hidden">
           <div className="flex gap-2">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div>

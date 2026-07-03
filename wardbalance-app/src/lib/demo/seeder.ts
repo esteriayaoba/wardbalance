@@ -7,27 +7,35 @@ export interface DemoSeedResult {
   userId: string;
 }
 
+export const DEMO_PASSWORD = "Demo@123456";
+
 export async function seedDemoSchool(): Promise<DemoSeedResult> {
   const DEMO_SCHOOL_NAME = "Demo International School";
   const DEMO_EMAIL = "demo@wardbalance.local";
+  const demoHash = await encryptPassword(DEMO_PASSWORD);
 
-  // Check if demo school already exists — reuse it
+  // Check if demo school already exists — reuse it, updating password
   const existingSchool = await prisma.school.findFirst({
     where: { name: DEMO_SCHOOL_NAME },
     include: { users: { where: { email: DEMO_EMAIL } } },
   });
 
   if (existingSchool && existingSchool.users.length > 0) {
-    return { schoolId: existingSchool.id, userId: existingSchool.users[0].id };
+    const existingUser = existingSchool.users[0];
+    // Ensure the demo password is always the known value
+    await prisma.user.update({
+      where: { id: existingUser.id },
+      data: { passwordHash: demoHash },
+    });
+    return { schoolId: existingSchool.id, userId: existingUser.id };
   }
 
   if (existingSchool) {
-    const hash = await encryptPassword(crypto.randomUUID());
     const user = await prisma.user.create({
       data: {
         schoolId: existingSchool.id,
         email: DEMO_EMAIL,
-        passwordHash: hash,
+        passwordHash: demoHash,
         fullName: "Demo User",
         role: "SchoolOwner",
       },
@@ -48,12 +56,11 @@ export async function seedDemoSchool(): Promise<DemoSeedResult> {
     },
   });
 
-  const hash = await encryptPassword(crypto.randomUUID());
   const user = await prisma.user.create({
     data: {
       schoolId: school.id,
       email: DEMO_EMAIL,
-      passwordHash: hash,
+      passwordHash: demoHash,
       fullName: "Demo User",
       role: "SchoolOwner",
     },

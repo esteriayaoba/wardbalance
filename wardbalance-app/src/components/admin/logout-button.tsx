@@ -1,6 +1,7 @@
 "use client";
 
 import { LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -13,9 +14,7 @@ export default function LogoutButton() {
     setLoading(true);
 
     try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-      });
+      await signOut({ redirect: false });
       router.push("/login");
       router.refresh();
     } catch (err) {

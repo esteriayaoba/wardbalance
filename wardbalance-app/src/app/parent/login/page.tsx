@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import { Loader2, AlertCircle, ArrowLeft, KeyRound, Smartphone, Star, RefreshCw } from "lucide-react";
@@ -56,10 +57,10 @@ function LoginForm() {
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/auth/parent-login", {
+      const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "request", phoneOrEmail }),
+        body: JSON.stringify({ phoneOrEmail }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to request code");
@@ -80,13 +81,18 @@ function LoginForm() {
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/auth/parent-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "verify", phoneOrEmail, otp }),
+      const result = await signIn("parent-otp", {
+        phoneOrEmail,
+        otp,
+        redirect: false,
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Verification failed");
+
+      if (result?.error) {
+        throw new Error(result.error === "CredentialsSignin"
+          ? "Incorrect verification code. Please try again."
+          : result.error
+        );
+      }
 
       router.push(redirectPath);
       router.refresh();
@@ -101,10 +107,10 @@ function LoginForm() {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/auth/parent-login", {
+      const res = await fetch("/api/auth/send-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "request", phoneOrEmail }),
+        body: JSON.stringify({ phoneOrEmail }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Failed to resend code");
@@ -128,6 +134,28 @@ function LoginForm() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Demo login failed");
+
+      const phone = body.data.parent.phone;
+
+      const otpRes = await fetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneOrEmail: phone }),
+      });
+      const otpBody = await otpRes.json();
+      if (!otpRes.ok) throw new Error(otpBody.error ?? "Failed to send OTP");
+
+      const otp = otpBody.data.devOtp;
+      if (!otp) throw new Error("Demo login requires development mode");
+
+      const result = await signIn("parent-otp", {
+        phoneOrEmail: phone,
+        otp,
+        redirect: false,
+      });
+
+      if (result?.error) throw new Error("Demo login failed");
+
       router.push(redirectPath);
       router.refresh();
     } catch (err) {

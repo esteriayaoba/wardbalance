@@ -2,6 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import { Loader2, AlertCircle, PlayCircle, Eye, EyeOff } from "lucide-react";
@@ -14,7 +15,6 @@ function LoginContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,18 +24,21 @@ function LoginContent() {
     setSubmitting(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, rememberMe }),
+      const result = await signIn("admin-login", {
+        email,
+        password,
+        redirect: false,
       });
 
-      const body = await res.json();
-      if (!res.ok) {
-        throw new Error(body.error ?? "Failed to log in");
+      if (result?.error) {
+        throw new Error(result.error === "CredentialsSignin"
+          ? "Invalid email or password. Please check and try again."
+          : result.error
+        );
       }
 
       router.push(redirectPath);
+      router.refresh();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to log in");
       setSubmitting(false);
@@ -62,7 +65,6 @@ function LoginContent() {
             </div>
           )}
 
-          {/* Email */}
           <div className="space-y-1.5">
             <label className="text-label-medium text-neutral-700 block">Email Address</label>
             <input
@@ -76,7 +78,6 @@ function LoginContent() {
             />
           </div>
 
-          {/* Password */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-label-medium text-neutral-700">Password</label>
@@ -109,21 +110,6 @@ function LoginContent() {
             </div>
           </div>
 
-          {/* Remember me */}
-          <label className="flex items-center gap-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              id="remember-me"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-              className="accent-primary-500 w-4 h-4"
-            />
-            <span className="text-body-small text-neutral-600">
-              Remember me for 30 days
-            </span>
-          </label>
-
-          {/* Submit */}
           <button
             type="submit"
             id="login-submit"
@@ -141,7 +127,6 @@ function LoginContent() {
           </button>
         </form>
 
-        {/* Divider */}
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
             <span className="w-full border-t border-neutral-200" />
@@ -151,7 +136,6 @@ function LoginContent() {
           </div>
         </div>
 
-        {/* Demo Button */}
         <button
           id="demo-login"
           onClick={async () => {
@@ -161,7 +145,17 @@ function LoginContent() {
               const res = await fetch("/api/demo/start", { method: "POST" });
               const body = await res.json();
               if (!res.ok) throw new Error(body.error ?? "Failed to start demo");
+
+              const result = await signIn("admin-login", {
+                email: body.email,
+                password: body.password,
+                redirect: false,
+              });
+
+              if (result?.error) throw new Error("Demo login failed");
+
               router.push(body.redirectTo);
+              router.refresh();
             } catch (err: unknown) {
               setError(err instanceof Error ? err.message : "Failed to start demo");
               setSubmitting(false);
@@ -187,7 +181,6 @@ function LoginContent() {
         </p>
       </div>
 
-      {/* Sign up link */}
       <p className="text-center text-body-small text-neutral-500 mt-6">
         Don&apos;t have an account?{" "}
         <Link href="/signup" className="text-primary font-bold hover:underline">

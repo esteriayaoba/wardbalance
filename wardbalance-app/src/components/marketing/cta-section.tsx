@@ -16,12 +16,10 @@ export default function CTASection() {
         <div className="gradient-cta rounded-3xl p-8 md:p-16 text-center relative overflow-hidden shadow-2xl">
           {/* Decorative glows */}
           <div
-            className="absolute top-0 left-1/4 w-[400px] h-[400px] rounded-full opacity-25 blur-[120px] pointer-events-none select-none"
-            style={{ background: "var(--color-primary-400)" }}
+            className="absolute top-0 left-1/4 w-[400px] h-[400px] rounded-full opacity-25 pointer-events-none select-none bg-[radial-gradient(circle,var(--color-primary-400)_0%,transparent_70%)]"
           />
           <div
-            className="absolute bottom-0 right-1/4 w-[300px] h-[300px] rounded-full opacity-30 blur-[100px] pointer-events-none select-none"
-            style={{ background: "var(--color-secondary-400)" }}
+            className="absolute bottom-0 right-1/4 w-[300px] h-[300px] rounded-full opacity-30 pointer-events-none select-none bg-[radial-gradient(circle,var(--color-secondary-400)_0%,transparent_70%)]"
           />
 
           <div className="relative z-10 max-w-3xl mx-auto flex flex-col items-center">

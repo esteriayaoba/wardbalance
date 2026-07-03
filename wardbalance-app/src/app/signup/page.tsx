@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
@@ -171,7 +172,18 @@ function SignupContent() {
         trackEvent({ event: "signup_succeeded", properties: { plan } });
       }
 
-      // Successful creation, redirect to setup checklist
+      // Sign in with NextAuth using the password the user just set
+      const signInResult = await signIn("admin-login", {
+        email: ownerEmail,
+        password,
+        redirect: false,
+      });
+
+      if (signInResult?.error) {
+        console.warn("Auto-login after signup failed:", signInResult.error);
+      }
+
+      // Successful creation, redirect to verify-email
       setLoading(false);
       setStep(5);
     } catch (err: any) {
@@ -696,11 +708,11 @@ function SignupContent() {
 
             <button
               onClick={() => {
-                router.push("/admin/setup");
+                router.push("/admin/verify-email");
               }}
               className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-lg text-label-large font-bold hover:bg-primary-dark transition cursor-pointer"
             >
-              Go to Setup Checklist
+              Verify Email & Start Setup
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

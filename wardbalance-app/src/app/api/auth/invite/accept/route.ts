@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { encryptPassword, signJWT } from "@/lib/auth/auth";
+import { encryptPassword } from "@/lib/auth/auth";
 import { rateLimit } from "@/lib/redis";
 import { headers } from "next/headers";
 import { z } from "zod";
@@ -36,9 +36,7 @@ export async function POST(request: NextRequest) {
 
     const { token, fullName, schoolName, password } = parsed.data;
 
-    // Run verification and user creation inside a Prisma transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Fetch and validate invitation
+    await prisma.$transaction(async (tx) => {
       const invite = await tx.invitation.findUnique({
         where: { token },
       });
@@ -55,10 +53,8 @@ export async function POST(request: NextRequest) {
         throw new Error("This invitation has expired");
       }
 
-      // 2. Hash password
       const passwordHash = await encryptPassword(password);
 
-      // 3. Create User record
       const user = await tx.user.create({
         data: {
           schoolId: invite.schoolId,
@@ -69,22 +65,19 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // 4. Mark invitation as used
       await tx.invitation.update({
         where: { id: invite.id },
         data: { usedAt: new Date() },
       });
 
-      // 5. Update School status to onboarding and set official name
       const school = await tx.school.update({
         where: { id: invite.schoolId },
         data: {
           name: schoolName,
-          status: "onboarding", // Move to onboarding checklist state
+          status: "onboarding",
         },
       });
 
-      // 6. Write to AuditLog
       await tx.auditLog.create({
         data: {
           schoolId: school.id,
@@ -100,43 +93,12 @@ export async function POST(request: NextRequest) {
           },
         },
       });
-
-      return {
-        user,
-        school,
-      };
     });
 
-    // Sign session JWT
-    const sessionPayload = {
-      userId: result.user.id,
-      email: result.user.email,
-      fullName: result.user.fullName,
-      role: result.user.role,
-      schoolId: result.school.id,
-      schoolName: result.school.name,
-    };
-
-    const tokenJWT = await signJWT(sessionPayload);
-
-    // Set HttpOnly session cookie
-    const response = NextResponse.json({
-      data: {
-        userId: result.user.id,
-        schoolId: result.school.id,
-      },
-      message: "Password setup complete. Logging in...",
+    return NextResponse.json({
+      data: { success: true },
+      message: "Password setup complete. Redirecting to your workspace...",
     });
-
-    response.cookies.set("session", tokenJWT, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24, // 24 hours
-    });
-
-    return response;
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to accept invitation";
     console.error("[invite] Acceptance error:", err);

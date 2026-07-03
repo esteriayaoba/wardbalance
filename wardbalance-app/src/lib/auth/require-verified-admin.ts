@@ -1,7 +1,6 @@
-import { getSession } from "@/lib/auth/session";
+import { getSession, UserSessionPayload } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
-import { UserSessionPayload } from "./auth";
 
 export type RequireVerifiedAdminResult =
   | { authorized: false; response: NextResponse; session?: undefined; user?: undefined }

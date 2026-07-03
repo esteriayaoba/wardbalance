@@ -1,5 +1,5 @@
 import React from "react";
-import { getSession } from "@/lib/auth/session";
+import { auth } from "@/lib/nextauth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
@@ -9,22 +9,25 @@ import LogoutButton from "./logout-button";
 import AdminNav from "./admin-nav";
 import AdminPageTitle from "./admin-page-title";
 import { RouteGuard } from "./route-guard";
+import AdminMobileNav from "./AdminMobileNav";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
 export default async function AdminLayout({ children }: AdminLayoutProps) {
-  const session = await getSession();
+  const session = await auth();
 
-  if (!session) {
+  if (!session?.user) {
     redirect("/login");
   }
+
+  const { user } = session;
 
   // Fetch active term info
   const activeTerm = await prisma.academicTerm.findFirst({
     where: {
-      schoolId: session.schoolId,
+      schoolId: user.schoolId,
       isActive: true,
     },
     include: {
@@ -34,17 +37,17 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
   // Fetch school details
   const school = await prisma.school.findUnique({
-    where: { id: session.schoolId },
+    where: { id: user.schoolId },
     select: { name: true, status: true },
   });
 
   // Fetch user details for email verification check
   const dbUser = await prisma.user.findUnique({
-    where: { id: session.userId },
+    where: { id: user.id },
     select: { emailVerified: true },
   });
 
-  const isDemo = session.isDemo === true;
+  const isDemo = user.isDemo === true;
   const schoolStatus = school?.status ?? "onboarding";
   const emailVerified = isDemo ? true : (dbUser?.emailVerified ?? false);
 
@@ -73,38 +76,39 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
       <div className="flex flex-1 min-h-0">
         {/* Sidebar Navigation */}
-        <aside className="w-60 bg-neutral-900 border-r border-neutral-800 flex flex-col shrink-0">
+        <aside className="hidden md:flex md:w-16 lg:w-60 bg-neutral-900 border-r border-neutral-800 flex flex-col shrink-0 transition-all duration-300">
           {/* Brand Header */}
           <Link
             href="/admin/dashboard"
-            className="h-16 px-6 border-b border-neutral-800 flex items-center gap-2.5 hover:bg-neutral-800/50 transition-colors"
+            className="h-16 px-4 lg:px-6 border-b border-neutral-800 flex items-center justify-center lg:justify-start gap-2.5 hover:bg-neutral-800/50 transition-colors"
             aria-label="WardBalance — go to dashboard"
           >
             <Image
               src="/logo-v5.png"
               alt="WardBalance logo"
-              width={36}
-              height={36}
+              width={32}
+              height={32}
+              className="shrink-0"
             />
-            <span className="text-title-medium text-white font-bold tracking-tight">
+            <span className="text-title-medium text-white font-bold tracking-tight lg:block hidden">
               WardBalance
             </span>
           </Link>
 
           {/* Client-side Navigation (active state + onboarding lock) */}
           <AdminNav
-            userRole={session.role}
+            userRole={user.role}
             schoolStatus={schoolStatus}
           />
 
           {/* User Footer Profile */}
-          <div className="p-4 border-t border-neutral-800 flex items-center justify-between gap-2.5">
-            <div className="min-w-0">
+          <div className="p-2 lg:p-4 border-t border-neutral-800 flex flex-col lg:flex-row items-center justify-between gap-2.5">
+            <div className="min-w-0 lg:block hidden">
               <p className="text-body-small text-white font-bold truncate">
-                {session.fullName}
+                {user.name}
               </p>
               <p className="text-[10px] text-neutral-500 font-medium truncate uppercase tracking-wider">
-                {session.role.replace("SchoolOwner", "Owner")}
+                {user.role.replace("SchoolOwner", "Owner")}
               </p>
             </div>
             <LogoutButton />
@@ -114,9 +118,15 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
         {/* Main Workspace Panels */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Top Header Navigation */}
-          <header className="h-16 bg-white border-b border-neutral-200 px-8 flex items-center justify-between shrink-0">
-            {/* Client component reads pathname to show current page title */}
-            <AdminPageTitle />
+          <header className="h-16 bg-white border-b border-neutral-200 px-4 md:px-8 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-4">
+              <AdminMobileNav
+                userRole={user.role}
+                schoolStatus={schoolStatus}
+                fullName={user.name}
+              />
+              <AdminPageTitle />
+            </div>
 
             {/* Active Session & Term Tracker */}
             <div className="flex items-center gap-3">
@@ -136,7 +146,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
           {/* Email Verification Banner */}
           {!emailVerified && (
-            <div className="bg-amber-50 border-b border-amber-200 px-8 py-3 flex items-center justify-between gap-4 shrink-0 shadow-xs">
+            <div className="bg-amber-50 border-b border-amber-200 px-4 md:px-8 py-3 flex items-center justify-between gap-4 shrink-0 shadow-xs">
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse"></span>
                 <p className="text-body-small text-amber-900 leading-normal">
@@ -154,7 +164,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
           {/* Scrollable Main View Area */}
           <main className="flex-1 overflow-y-auto">
-            <div className="max-w-7xl mx-auto px-8 py-8">
+            <div className="max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-8">
               {children}
             </div>
           </main>

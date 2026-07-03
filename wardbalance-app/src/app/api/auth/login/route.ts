@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { comparePassword, signJWT } from "@/lib/auth/auth";
+import { comparePassword } from "@/lib/auth/auth";
 import { rateLimit } from "@/lib/redis";
 import { headers } from "next/headers";
 import { z } from "zod";
+
+// DEPRECATED: Login is now handled by NextAuth via /api/auth/[...nextauth].
+// This route is kept for backward compatibility only.
 
 const LoginSchema = z.object({
   email: z.string().email("Please enter a valid email address").transform((v) => v.toLowerCase().trim()),
@@ -33,9 +36,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { email, password, rememberMe } = parsed.data;
+    const { email, password } = parsed.data;
 
-    // Find user by email and fetch school details
     const user = await prisma.user.findUnique({
       where: { email },
       include: {
@@ -52,7 +54,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Compare password hash
     const passwordMatch = await comparePassword(password, user.passwordHash);
     if (!passwordMatch) {
       return NextResponse.json(
@@ -61,22 +62,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Session duration: 30 days if rememberMe, else 24 hours
-    const sessionDuration = rememberMe ? "30d" : "24h";
-    const cookieMaxAge = rememberMe ? 60 * 60 * 24 * 30 : 60 * 60 * 24;
-
-    const sessionPayload = {
-      userId: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      role: user.role,
-      schoolId: user.schoolId,
-      schoolName: user.school.name,
-    };
-
-    const token = await signJWT(sessionPayload, sessionDuration);
-
-    const response = NextResponse.json({
+    return NextResponse.json({
       data: {
         user: {
           id: user.id,
@@ -88,18 +74,8 @@ export async function POST(request: NextRequest) {
           schoolStatus: user.school.status,
         },
       },
-      message: "Successfully logged in.",
+      message: "Login is now handled by NextAuth. Please use /api/auth/signin instead.",
     });
-
-    response.cookies.set("session", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: cookieMaxAge,
-    });
-
-    return response;
   } catch (err) {
     console.error("[auth] Login error:", err);
     return NextResponse.json(
