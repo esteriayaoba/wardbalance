@@ -219,14 +219,14 @@ export default function ParentReceiptsPage() {
                 <Printer className="w-4 h-4" />
                 Print Receipt
               </button>
-              <button
-                disabled
-                title="PDF download will be available in a future update"
-                className="flex-1 py-2.5 bg-neutral-300 text-neutral-500 rounded-lg font-bold text-body-small flex items-center justify-center gap-1.5 cursor-not-allowed"
+              <a
+                href={`/api/receipts/${selectedReceipt.id}/download`}
+                download
+                className="flex-1 py-2.5 bg-primary text-white hover:bg-primary-dark rounded-lg font-bold text-body-small flex items-center justify-center gap-1.5 transition text-center cursor-pointer inline-flex"
               >
                 <Download className="w-4 h-4" />
                 Download PDF
-              </button>
+              </a>
             </div>
           </div>
         </div>

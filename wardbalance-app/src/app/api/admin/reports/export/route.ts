@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { createObjectCsvStringifier } from "csv-writer";
 import { logError } from "@/lib/logger";
 
-const ALLOWED_ROLES = ["SchoolOwner", "Principal", "Bursar"];
-
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session?.schoolId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
-    if (!ALLOWED_ROLES.includes(session.role)) {
-      return NextResponse.json({ error: "Forbidden: Insufficient role permissions.", code: "FORBIDDEN" }, { status: 403 });
-    }
-
-    const schoolId = session.schoolId;
+    const schoolId = guard.session.schoolId;
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
     const termId = searchParams.get("termId");

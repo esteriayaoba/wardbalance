@@ -14,6 +14,7 @@ import {
   History,
   AlertCircle,
   ClipboardList,
+  Receipt,
 } from "lucide-react";
 
 interface AdminNavProps {
@@ -73,6 +74,13 @@ const NAV_LINKS = [
     requiresActive: true,
   },
   {
+    name: "Receipts",
+    href: "/admin/receipts",
+    icon: Receipt,
+    roles: ["SchoolOwner", "Principal", "Bursar", "Admin"],
+    requiresActive: true,
+  },
+  {
     name: "Reports",
     href: "/admin/reports",
     icon: TrendingUp,
@@ -83,7 +91,7 @@ const NAV_LINKS = [
     name: "Audit Logs",
     href: "/admin/audit",
     icon: History,
-    roles: ["SchoolOwner"],
+    roles: ["SchoolOwner", "Principal", "Bursar"],
     requiresActive: true,
   },
   {

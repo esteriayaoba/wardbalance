@@ -20,6 +20,7 @@ import Select from "@/components/admin/shared/select";
 import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
 import { formatNaira } from "@/lib/utils";
 import StudentActivities from "@/components/admin/students/student-activities";
+import { StudentStatusBadge, InvoiceStatusBadge } from "@/components/admin/shared/status-badge";
 
 interface ParentLink {
   id: string;
@@ -93,14 +94,12 @@ export default function StudentProfilePage() {
   const loadData = () => {
     setLoading(true);
     Promise.all([
-      fetch("/api/admin/students").then((r) => r.json()),
+      fetch(`/api/admin/students/${studentId}`).then((r) => r.json()),
       fetch(`/api/admin/invoices?studentId=${studentId}`).then((r) => r.json()),
       fetch("/api/admin/parents").then((r) => r.json()),
     ])
-      .then(([studentData, invoiceData, parentData]) => {
-        const students: Student[] = studentData.data || [];
-        const found = students.find((s) => s.id === studentId);
-        setStudent(found || null);
+      .then(([studentRes, invoiceData, parentData]) => {
+        setStudent(studentRes.data || null);
         setInvoices(invoiceData.data || []);
         setParents(parentData.data || []);
         setLoading(false);
@@ -174,36 +173,7 @@ export default function StudentProfilePage() {
     }
   };
 
-  const statusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      active: "bg-green-50 text-green-700 border-green-200",
-      inactive: "bg-neutral-50 text-neutral-500 border-neutral-200",
-    };
-    return (
-      <span
-        className={`inline-flex px-2.5 py-1 rounded text-body-small font-bold border ${colors[status] || colors.inactive}`}
-      >
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </span>
-    );
-  };
-
-  const invoiceStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      draft: "bg-neutral-50 text-neutral-500 border-neutral-200",
-      issued: "bg-blue-50 text-blue-700 border-blue-200",
-      partial: "bg-amber-50 text-amber-700 border-amber-200",
-      paid: "bg-green-50 text-green-700 border-green-200",
-      overdue: "bg-red-50 text-red-700 border-red-200",
-    };
-    return (
-      <span
-        className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold border uppercase ${colors[status] || colors.draft}`}
-      >
-        {status}
-      </span>
-    );
-  };
+  // Using shared StudentStatusBadge and InvoiceStatusBadge from @/components/admin/shared/status-badge
 
   if (loading) {
     return (
@@ -270,7 +240,7 @@ export default function StudentProfilePage() {
                 {student.admissionNumber}
               </p>
             </div>
-            {statusBadge(student.status)}
+            <StudentStatusBadge status={student.status} />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -545,7 +515,7 @@ export default function StudentProfilePage() {
                   <td className="px-6 py-4 font-bold">{formatNaira(inv.finalAmount)}</td>
                   <td className="px-6 py-4">{formatNaira(inv.amountPaid)}</td>
                   <td className="px-6 py-4 font-bold">{formatNaira(inv.balanceDue)}</td>
-                  <td className="px-6 py-4">{invoiceStatusBadge(inv.status)}</td>
+                  <td className="px-6 py-4"><InvoiceStatusBadge status={inv.status} /></td>
                 </tr>
               ))}
             </tbody>

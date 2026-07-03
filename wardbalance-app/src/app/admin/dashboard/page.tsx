@@ -273,10 +273,10 @@ export default function DashboardPage() {
               <strong>{stats.overdue.overdueCount} overdue invoice{stats.overdue.overdueCount !== 1 ? "s" : ""}</strong> totalling <strong>{formatNaira(stats.overdue.overdueTotal)}</strong>. {stats.overdue.pendingReminders > 0 && ` ${stats.overdue.pendingReminders} reminder${stats.overdue.pendingReminders !== 1 ? "s" : ""} pending delivery.`}
             </span>
           </div>
-          <button className="text-body-small text-red-700 hover:underline font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer">
+          <span className="text-body-small text-red-700 font-bold inline-flex items-center gap-1 shrink-0">
             View Debtors
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </span>
         </div>
       )}
 

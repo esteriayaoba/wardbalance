@@ -45,6 +45,7 @@ interface GenerateWizardProps {
   previews: GenerationPreview[];
   selectedStudentIds: string[];
   previewWarning: string | null;
+  onBack: () => void;
   onClassLevelChange: (value: string) => void;
   onTermChange: (value: string) => void;
   onDueDateChange: (value: string) => void;
@@ -67,6 +68,7 @@ export default function GenerateWizard({
   previews,
   selectedStudentIds,
   previewWarning,
+  onBack,
   onClassLevelChange,
   onTermChange,
   onDueDateChange,
@@ -243,7 +245,7 @@ export default function GenerateWizard({
           {wizardStep === 2 ? (
             <>
               <button
-                onClick={() => {}}
+                onClick={onBack}
                 className="px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
                 type="button"
               >

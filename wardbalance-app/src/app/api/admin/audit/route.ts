@@ -1,43 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
-
-    if (session.role !== "SchoolOwner") {
-      return NextResponse.json(
-        { error: "Forbidden: Only the School Owner can view audit logs.", code: "FORBIDDEN" },
-        { status: 403 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 1000);
     const entityType = searchParams.get("entityType");
     const action = searchParams.get("action");
+    const actorName = searchParams.get("actor");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
 
-    const where: Record<string, unknown> = { schoolId: session.schoolId };
+    const where: Record<string, unknown> = { schoolId: guard.session.schoolId };
     if (entityType) where.entityType = entityType;
     if (action) where.action = action;
+    if (actorName) where.actorName = { contains: actorName, mode: "insensitive" };
 
-    const auditLogs = await prisma.auditLog.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    });
+    if (startDate || endDate) {
+      const createdAt: Record<string, Date> = {};
+      if (startDate) createdAt.gte = new Date(startDate);
+      if (endDate) createdAt.lte = new Date(endDate);
+      where.createdAt = createdAt;
+    }
+
+    const [auditLogs, total] = await Promise.all([
+      prisma.auditLog.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.auditLog.count({ where }),
+    ]);
 
     return NextResponse.json({
       data: auditLogs,
-      meta: { count: auditLogs.length, limit },
+      meta: { count: auditLogs.length, total, limit, offset },
     });
   } catch (err) {
     logError("audit", err);

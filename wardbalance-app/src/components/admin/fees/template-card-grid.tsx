@@ -44,7 +44,7 @@ export default function TemplateCardGrid({
       {templates.map((temp) => {
         const total = temp.items.reduce((acc, curr) => {
           const amount = curr.amountOverride !== null ? curr.amountOverride : curr.feeItem.amount;
-          return acc + parseFloat(amount);
+          return acc + Number(amount);
         }, 0);
 
         return (

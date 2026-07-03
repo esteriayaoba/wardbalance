@@ -1,21 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, InvoiceStatus } from "@/generated/prisma/client";
 import { logError } from "@/lib/logger";
 import { getOverdueStats } from "@/lib/invoices/overdue";
 
 export async function GET(_request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
-    const schoolId = session.schoolId;
+    const schoolId = guard.session.schoolId;
 
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
@@ -34,15 +29,15 @@ export async function GET(_request: NextRequest) {
       include: { session: { select: { name: true } } },
     });
 
-    const termFilter = activeTerm ? { termId: activeTerm.id } : {};
+    const nonDraftStatuses: InvoiceStatus[] = ["issued", "partial", "paid", "overdue"];
 
     const [totalInvoices, expectedAgg, collectedAgg, studentsWithoutParentsCount, recentActivity] =
       await Promise.all([
         prisma.invoice.count({
-          where: { schoolId, ...termFilter },
+          where: { schoolId, status: { in: nonDraftStatuses }, ...(activeTerm ? { termId: activeTerm.id } : {}) },
         }),
         prisma.invoice.aggregate({
-          where: { schoolId, ...termFilter },
+          where: { schoolId, status: { in: nonDraftStatuses }, ...(activeTerm ? { termId: activeTerm.id } : {}) },
           _sum: { finalAmount: true },
         }),
         (async () => {
@@ -54,7 +49,7 @@ export async function GET(_request: NextRequest) {
           }
           const invoiceIds = (
             await prisma.invoice.findMany({
-              where: { schoolId, termId: activeTerm.id },
+              where: { schoolId, termId: activeTerm.id, status: { in: nonDraftStatuses } },
               select: { id: true },
             })
           ).map((i) => i.id);

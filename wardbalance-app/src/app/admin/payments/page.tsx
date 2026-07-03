@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Plus, AlertCircle, CheckCircle, Search, Coins, XCircle, FileText, Calendar, User, Receipt, ShieldAlert } from "lucide-react";
+import { Loader2, Plus, AlertCircle, CheckCircle, Search, Coins, XCircle, FileText, Calendar, User, Receipt, ShieldAlert, Download } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import Input from "@/components/admin/shared/input";
 import Select from "@/components/admin/shared/select";
@@ -16,6 +16,7 @@ interface Student {
 }
 
 interface PaymentReceipt {
+  id: string;
   receiptNumber: string;
 }
 
@@ -613,14 +614,26 @@ export default function PaymentsPage() {
 
                 {/* Receipt & Recorder Info */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-4 rounded-xl border border-neutral-200 space-y-2">
-                    <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
-                      <Receipt className="w-3 h-3" />
-                      Receipt
-                    </span>
-                    <p className="font-mono font-bold text-neutral-800 text-body-medium break-all">
-                      {selectedPayment.receipts[0]?.receiptNumber || "N/A"}
-                    </p>
+                  <div className="p-4 rounded-xl border border-neutral-200 space-y-2 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                        <Receipt className="w-3 h-3" />
+                        Receipt
+                      </span>
+                      <p className="font-mono font-bold text-neutral-800 text-body-medium break-all mt-1">
+                        {selectedPayment.receipts[0]?.receiptNumber || "N/A"}
+                      </p>
+                    </div>
+                    {selectedPayment.receipts[0]?.id && (
+                      <a
+                        href={`/api/receipts/${selectedPayment.receipts[0].id}/download`}
+                        download
+                        className="mt-2 text-[11px] text-primary hover:underline font-bold flex items-center gap-1"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download PDF
+                      </a>
+                    )}
                   </div>
                   <div className="p-4 rounded-xl border border-neutral-200 space-y-2">
                     <span className="text-[10px] text-neutral-500 font-semibold uppercase tracking-wider flex items-center gap-1">

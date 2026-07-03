@@ -1,282 +1,225 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
+import { rateLimit } from "@/lib/redis";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
-import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
+import { FeeItemSchema, UpdateFeeItemSchema } from "@/schemas/fee.schema";
 
-const FeeItemSchema = z.object({
-  name: z.string().min(1, "Name is required").max(100),
-  description: z.string().optional().or(z.literal("")),
-  type: z.enum(["mandatory", "optional"]).default("mandatory"),
-  billingFrequency: z.enum(["per_term", "per_session", "one_off"]).default("per_term"),
-  amount: z.union([z.number(), z.string()]).transform((val) => new Prisma.Decimal(val)),
-});
-
-const UpdateFeeItemSchema = FeeItemSchema.partial().extend({
-  id: z.string().min(1, "ID is required"),
-});
+async function getClientIp(request: NextRequest): Promise<string> {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  const realIp = request.headers.get("x-real-ip");
+  return realIp ?? "unknown";
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
-
-    const feeItems = await prisma.feeItem.findMany({
-      where: { schoolId: session.schoolId },
+    const items = await prisma.feeItem.findMany({
+      where: { schoolId: guard.session.schoolId },
       orderBy: { name: "asc" },
     });
 
-    return NextResponse.json({ data: feeItems });
-  } catch (err) {
-    console.error("[fees/library] GET error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ data: items });
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to fetch fee items" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
+
+    const ip = await getClientIp(request);
+    const rl = await rateLimit(ip, { prefix: "rate_limit:fee_create", maxRequests: 30, windowSeconds: 60 });
+    if (!rl.allowed) {
+      return NextResponse.json({ error: "Too many requests. Please slow down.", code: "TOO_MANY_REQUESTS" }, { status: 429 });
     }
-    const session = guard.session;
 
     const body = await request.json();
     const parsed = FeeItemSchema.safeParse(body);
-
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input", code: "VALIDATION_ERROR" }, { status: 400 });
     }
 
     const data = parsed.data;
 
-    // Check unique name inside school
     const existing = await prisma.feeItem.findFirst({
-      where: {
-        schoolId: session.schoolId,
-        name: data.name.trim(),
-      },
+      where: { schoolId: guard.session.schoolId, name: data.name },
     });
-
     if (existing) {
-      return NextResponse.json(
-        { error: "A fee item with this name already exists.", code: "CONFLICT" },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "A fee item with this name already exists.", code: "DUPLICATE" }, { status: 409 });
     }
 
-    const newFeeItem = await prisma.$transaction(async (tx) => {
-      const created = await tx.feeItem.create({
+    const [item] = await prisma.$transaction(async (tx) => {
+      const item = await tx.feeItem.create({
         data: {
-          schoolId: session.schoolId,
-          name: data.name.trim(),
-          description: data.description || null,
+          schoolId: guard.session.schoolId,
+          name: data.name,
+          description: data.description ?? null,
           type: data.type,
           billingFrequency: data.billingFrequency,
           amount: data.amount,
         },
       });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName ?? "Admin",
           action: "FEE_ITEM_CREATED",
           entityType: "FeeItem",
-          entityId: created.id,
-          newValue: JSON.parse(JSON.stringify(created)),
+          entityId: item.id,
+          newValue: JSON.parse(JSON.stringify(item)),
         },
       });
 
-      return created;
+      return [item];
     });
 
-    return NextResponse.json({
-      data: newFeeItem,
-      message: "Fee item created successfully.",
-    });
-  } catch (err: any) {
-    console.error("[fees/library] POST error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ data: item }, { status: 201 });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return NextResponse.json({ error: "A fee item with this name already exists.", code: "DUPLICATE" }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Failed to create fee item", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    if (!id) {
+      return NextResponse.json({ error: "Fee item ID is required", code: "VALIDATION_ERROR" }, { status: 400 });
     }
-    const session = guard.session;
+
+    const existing = await prisma.feeItem.findFirst({
+      where: { id, schoolId: guard.session.schoolId },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Fee item not found", code: "NOT_FOUND" }, { status: 404 });
+    }
 
     const body = await request.json();
     const parsed = UpdateFeeItemSchema.safeParse(body);
-
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input", code: "VALIDATION_ERROR" }, { status: 400 });
     }
 
-    const { id, ...updateData } = parsed.data;
+    const data = parsed.data;
 
-    const existingItem = await prisma.feeItem.findFirst({
-      where: { id, schoolId: session.schoolId },
-    });
-
-    if (!existingItem) {
-      return NextResponse.json(
-        { error: "Fee item not found", code: "NOT_FOUND" },
-        { status: 404 }
-      );
-    }
-
-    if (updateData.name) {
-      const duplicate = await prisma.feeItem.findFirst({
-        where: {
-          schoolId: session.schoolId,
-          name: updateData.name.trim(),
-          id: { not: id },
-        },
+    if (data.name && data.name !== existing.name) {
+      const nameExists = await prisma.feeItem.findFirst({
+        where: { schoolId: guard.session.schoolId, name: data.name, id: { not: id } },
       });
-      if (duplicate) {
-        return NextResponse.json(
-          { error: "A fee item with this name already exists.", code: "CONFLICT" },
-          { status: 409 }
-        );
+      if (nameExists) {
+        return NextResponse.json({ error: "A fee item with this name already exists.", code: "DUPLICATE" }, { status: 409 });
       }
     }
 
-    const updatedFeeItem = await prisma.$transaction(async (tx) => {
+    const [updated] = await prisma.$transaction(async (tx) => {
       const updated = await tx.feeItem.update({
         where: { id },
         data: {
-          name: updateData.name ? updateData.name.trim() : undefined,
-          description: updateData.description !== undefined ? (updateData.description || null) : undefined,
-          type: updateData.type,
-          billingFrequency: updateData.billingFrequency,
-          amount: updateData.amount,
+          ...(data.name !== undefined && { name: data.name }),
+          ...(data.description !== undefined && { description: data.description ?? null }),
+          ...(data.type !== undefined && { type: data.type }),
+          ...(data.billingFrequency !== undefined && { billingFrequency: data.billingFrequency }),
+          ...(data.amount !== undefined && { amount: data.amount }),
         },
       });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName ?? "Admin",
           action: "FEE_ITEM_UPDATED",
           entityType: "FeeItem",
-          entityId: updated.id,
-          previousValue: JSON.parse(JSON.stringify(existingItem)),
+          entityId: id,
+          previousValue: JSON.parse(JSON.stringify(existing)),
           newValue: JSON.parse(JSON.stringify(updated)),
         },
       });
 
-      return updated;
+      return [updated];
     });
 
-    return NextResponse.json({
-      data: updatedFeeItem,
-      message: "Fee item updated successfully.",
-    });
-  } catch (err: any) {
-    console.error("[fees/library] PUT error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ data: updated });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return NextResponse.json({ error: "A fee item with this name already exists.", code: "DUPLICATE" }, { status: 409 });
+    }
+    return NextResponse.json({ error: "Failed to update fee item", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
-    }
-    const session = guard.session;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-
     if (!id) {
-      return NextResponse.json(
-        { error: "ID is required", code: "VALIDATION_ERROR" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Fee item ID is required", code: "VALIDATION_ERROR" }, { status: 400 });
     }
 
-    const existingItem = await prisma.feeItem.findFirst({
-      where: { id, schoolId: session.schoolId },
+    const existing = await prisma.feeItem.findFirst({
+      where: { id, schoolId: guard.session.schoolId },
     });
-
-    if (!existingItem) {
-      return NextResponse.json(
-        { error: "Fee item not found", code: "NOT_FOUND" },
-        { status: 404 }
-      );
+    if (!existing) {
+      return NextResponse.json({ error: "Fee item not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
-    // Check if it's referenced in any class fee templates
-    const templateItemCount = await prisma.classFeeTemplateItem.count({
+    const templateUsage = await prisma.classFeeTemplateItem.findFirst({
       where: { feeItemId: id },
     });
-
-    if (templateItemCount > 0) {
+    if (templateUsage) {
       return NextResponse.json(
-        {
-          error: "This fee item cannot be deleted because it is used in one or more class fee templates.",
-          code: "REFERENCE_CONSTRAINT",
-        },
-        { status: 400 }
+        { error: `Cannot delete "${existing.name}" — it is used in fee templates. Deactivate it instead.`, code: "IN_USE" },
+        { status: 409 }
       );
     }
 
-    await prisma.$transaction(async (tx) => {
-      await tx.feeItem.delete({ where: { id } });
+    const invoiceUsage = await prisma.invoiceLineItem.findFirst({
+      where: { feeItemId: id },
+    });
+    if (invoiceUsage) {
+      return NextResponse.json(
+        { error: `Cannot delete "${existing.name}" — it appears on existing invoices. Deactivate it instead.`, code: "IN_USE" },
+        { status: 409 }
+      );
+    }
 
-      // Audit Log
+    const [deleted] = await prisma.$transaction(async (tx) => {
+      const deleted = await tx.feeItem.delete({ where: { id } });
+
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName ?? "Admin",
           action: "FEE_ITEM_DELETED",
           entityType: "FeeItem",
           entityId: id,
-          previousValue: JSON.parse(JSON.stringify(existingItem)),
+          previousValue: JSON.parse(JSON.stringify(existing)),
         },
       });
+
+      return [deleted];
     });
 
-    return NextResponse.json({
-      message: "Fee item deleted successfully.",
-    });
-  } catch (err: any) {
-    console.error("[fees/library] DELETE error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ data: deleted });
+  } catch (err) {
+    return NextResponse.json({ error: "Failed to delete fee item", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

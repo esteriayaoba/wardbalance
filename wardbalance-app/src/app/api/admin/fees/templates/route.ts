@@ -1,47 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
+import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-import { Prisma } from "@/generated/prisma/client";
-import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
-
-const TemplateItemInputSchema = z.object({
-  feeItemId: z.string().min(1, "Fee item ID is required"),
-  amountOverride: z.union([z.number(), z.string(), z.null(), z.undefined()]).transform((val) => {
-    if (val === null || val === undefined || val === "") return null;
-    return new Prisma.Decimal(val);
-  }),
-});
-
-const ClassFeeTemplateSchema = z.object({
-  classLevelId: z.string().min(1, "Class level is required"),
-  termId: z.string().min(1, "Term is required"),
-  status: z.enum(["draft", "published"]).default("draft"),
-  items: z.array(TemplateItemInputSchema).min(1, "At least one fee item is required"),
-});
-
-const UpdateClassFeeTemplateSchema = z.object({
-  id: z.string().min(1, "Template ID is required"),
-  status: z.enum(["draft", "published"]).optional(),
-  items: z.array(TemplateItemInputSchema).optional(),
-});
+import { ClassFeeTemplateSchema, UpdateClassFeeTemplateSchema } from "@/schemas/fee.schema";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const termId = searchParams.get("termId");
     const classLevelId = searchParams.get("classLevelId");
 
-    const where: any = { schoolId: session.schoolId };
+    const where: any = { schoolId: guard.session.schoolId };
     if (termId) where.termId = termId;
     if (classLevelId) where.classLevelId = classLevelId;
 
@@ -65,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: templates });
   } catch (err) {
-    console.error("[fees/templates] GET error:", err);
+    logError("fees/templates GET", err);
     return NextResponse.json(
       { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
@@ -75,11 +47,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
-    }
-    const session = guard.session;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
     const body = await request.json();
     const parsed = ClassFeeTemplateSchema.safeParse(body);
@@ -95,7 +64,7 @@ export async function POST(request: NextRequest) {
 
     // Check if the term exists and is not locked
     const term = await prisma.academicTerm.findFirst({
-      where: { id: termId, schoolId: session.schoolId },
+      where: { id: termId, schoolId: guard.session.schoolId },
     });
 
     if (!term) {
@@ -114,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     // Check if class level exists
     const level = await prisma.classLevel.findFirst({
-      where: { id: classLevelId, schoolId: session.schoolId },
+      where: { id: classLevelId, schoolId: guard.session.schoolId },
     });
 
     if (!level) {
@@ -142,7 +111,7 @@ export async function POST(request: NextRequest) {
       // Create template
       const created = await tx.classFeeTemplate.create({
         data: {
-          schoolId: session.schoolId,
+          schoolId: guard.session.schoolId,
           classLevelId,
           termId,
           status,
@@ -174,9 +143,9 @@ export async function POST(request: NextRequest) {
       // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
           action: "FEE_TEMPLATE_CREATED",
           entityType: "ClassFeeTemplate",
           entityId: created.id,
@@ -191,10 +160,10 @@ export async function POST(request: NextRequest) {
       data: template,
       message: "Class fee template created successfully.",
     });
-  } catch (err: any) {
-    console.error("[fees/templates] POST error:", err);
+  } catch (err: unknown) {
+    logError("fees/templates POST", err);
     return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: (err as Error).message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }
@@ -202,11 +171,8 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
-    }
-    const session = guard.session;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
     const body = await request.json();
     const parsed = UpdateClassFeeTemplateSchema.safeParse(body);
@@ -222,7 +188,7 @@ export async function PUT(request: NextRequest) {
 
     // Check template
     const existing = await prisma.classFeeTemplate.findFirst({
-      where: { id, schoolId: session.schoolId },
+      where: { id, schoolId: guard.session.schoolId },
       include: {
         term: true,
         items: true,
@@ -285,9 +251,9 @@ export async function PUT(request: NextRequest) {
       // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
           action: "FEE_TEMPLATE_UPDATED",
           entityType: "ClassFeeTemplate",
           entityId: id,
@@ -303,10 +269,10 @@ export async function PUT(request: NextRequest) {
       data: updatedTemplate,
       message: "Class fee template updated successfully.",
     });
-  } catch (err: any) {
-    console.error("[fees/templates] PUT error:", err);
+  } catch (err: unknown) {
+    logError("fees/templates PUT", err);
     return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: (err as Error).message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }
@@ -314,11 +280,8 @@ export async function PUT(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
-    }
-    const session = guard.session;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -331,7 +294,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const existing = await prisma.classFeeTemplate.findFirst({
-      where: { id, schoolId: session.schoolId },
+      where: { id, schoolId: guard.session.schoolId },
       include: {
         term: true,
         items: true,
@@ -374,9 +337,9 @@ export async function DELETE(request: NextRequest) {
       // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
           action: "FEE_TEMPLATE_DELETED",
           entityType: "ClassFeeTemplate",
           entityId: id,
@@ -388,10 +351,10 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({
       message: "Class fee template deleted successfully.",
     });
-  } catch (err: any) {
-    console.error("[fees/templates] DELETE error:", err);
+  } catch (err: unknown) {
+    logError("fees/templates DELETE", err);
     return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: (err as Error).message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

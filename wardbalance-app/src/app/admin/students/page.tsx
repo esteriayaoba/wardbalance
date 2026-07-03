@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Upload, Link2, AlertTriangle, Check, AlertCircle, Search, UserCheck } from "lucide-react";
 import ImportWizard from "@/components/admin/shared/import-wizard";
+import PaginationBar from "@/components/admin/shared/pagination-bar";
 import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
 import Input from "@/components/admin/shared/input";
 import Select from "@/components/admin/shared/select";
@@ -96,15 +97,28 @@ export default function StudentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const pageSize = 20;
+
+  useEffect(() => { setPage(1); }, [filterLevelId, filterArmId, searchQuery]);
+
   const loadData = () => {
     setLoading(true);
+    const offset = (page - 1) * pageSize;
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+    if (searchQuery) params.set("search", searchQuery);
+    if (filterLevelId) params.set("classLevelId", filterLevelId);
+    if (filterArmId) params.set("classArmId", filterArmId);
+    const studentUrl = `/api/admin/students?${params.toString()}`;
     Promise.all([
-      fetch("/api/admin/students").then((r) => r.json()),
+      fetch(studentUrl).then((r) => r.json()),
       fetch("/api/admin/academic/classes").then((r) => r.json()),
       fetch("/api/admin/parents").then((r) => r.json()),
     ])
       .then(([studentData, classData, parentData]) => {
         setStudents(studentData.data || []);
+        setTotalRecords(studentData.meta?.total ?? 0);
         setDivisions(classData.data || []);
         setParents(parentData.data || []);
         setLoading(false);
@@ -117,7 +131,7 @@ export default function StudentsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page, filterLevelId, filterArmId, searchQuery]);
 
   const handleManualAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -699,6 +713,14 @@ export default function StudentsPage() {
           </tbody>
         </table>
       </div>
+
+      <PaginationBar
+        currentPage={page}
+        pageSize={pageSize}
+        total={totalRecords}
+        loading={loading}
+        onPageChange={setPage}
+      />
 
       {/* Confirmation Dialog for breaking links */}
       <ConfirmationDialog

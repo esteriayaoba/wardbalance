@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
+import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { Prisma } from "@/generated/prisma/client";
-import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
+
+const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
+  draft: ["issued"],
+  issued: [],
+  partial: [],
+  paid: [],
+  overdue: [],
+};
 
 const UpdateInvoiceSchema = z.object({
   status: z.enum(["draft", "issued", "partial", "paid", "overdue"]).optional(),
@@ -12,40 +20,39 @@ const UpdateInvoiceSchema = z.object({
   discountValue: z.number().nonnegative().optional(),
 });
 
+function validateStatusTransition(current: string, next: string | undefined): string | null {
+  if (!next) return null;
+  if (current === next) return null;
+  const allowed = ALLOWED_STATUS_TRANSITIONS[current];
+  if (!allowed) return `Cannot transition from ${current}`;
+  if (!allowed.includes(next)) return `Cannot transition invoice from "${current}" to "${next}". Allowed transitions from "${current}": ${allowed.join(", ") || "none"}.`;
+  return null;
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const { id } = await params;
 
     const invoice = await prisma.invoice.findFirst({
-      where: { id, schoolId: session.schoolId },
+      where: { id, schoolId: guard.session.schoolId },
       include: {
         student: {
           include: {
             classLevel: true,
             classArm: true,
             parents: {
-              include: {
-                parent: true,
-              },
+              include: { parent: true },
             },
           },
         },
         term: {
-          include: {
-            session: true,
-          },
+          include: { session: true },
         },
         lineItems: true,
         payments: {
@@ -56,19 +63,13 @@ export async function GET(
     });
 
     if (!invoice) {
-      return NextResponse.json(
-        { error: "Invoice not found", code: "NOT_FOUND" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Invoice not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
     return NextResponse.json({ data: invoice });
   } catch (err) {
-    console.error("[invoices/[id]] GET error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    logError("invoices/[id] GET", err);
+    return NextResponse.json({ error: "An unexpected error occurred", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
@@ -77,11 +78,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
-    }
-    const session = guard.session;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
     const { id } = await params;
     const body = await request.json();
@@ -95,29 +93,28 @@ export async function PUT(
     }
 
     const existingInvoice = await prisma.invoice.findFirst({
-      where: { id, schoolId: session.schoolId },
-      include: {
-        lineItems: true,
-      },
+      where: { id, schoolId: guard.session.schoolId },
+      include: { lineItems: true },
     });
 
     if (!existingInvoice) {
-      return NextResponse.json(
-        { error: "Invoice not found", code: "NOT_FOUND" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Invoice not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
     const { status, dueDate, discountType, discountValue } = parsed.data;
+
+    // Validate status transition
+    const transitionError = validateStatusTransition(existingInvoice.status, status);
+    if (transitionError) {
+      return NextResponse.json({ error: transitionError, code: "INVALID_TRANSITION" }, { status: 400 });
+    }
 
     const result = await prisma.$transaction(async (tx) => {
       let finalDiscountAmount = new Prisma.Decimal(existingInvoice.discountAmount);
       let isDiscountUpdated = false;
 
-      // Apply/re-calculate discount
       if (discountType !== undefined) {
         isDiscountUpdated = true;
-        // Clean up previous discount line items
         await tx.invoiceLineItem.deleteMany({
           where: { invoiceId: id, lineType: "discount" },
         });
@@ -125,11 +122,9 @@ export async function PUT(
         if (discountType === "none" || !discountValue || discountValue === 0) {
           finalDiscountAmount = new Prisma.Decimal(0);
         } else {
-          // Calculate discount value
           if (discountType === "fixed") {
             finalDiscountAmount = new Prisma.Decimal(discountValue);
           } else if (discountType === "percentage") {
-            // Percentage of the total baseline amount (sum of all items excluding discount itself)
             const baseAmount = existingInvoice.lineItems
               .filter((item) => item.lineType !== "discount")
               .reduce((acc, item) => acc.plus(item.amount), new Prisma.Decimal(0));
@@ -137,7 +132,6 @@ export async function PUT(
             finalDiscountAmount = baseAmount.times(discountValue).dividedBy(100);
           }
 
-          // Insert discount line item
           await tx.invoiceLineItem.create({
             data: {
               invoiceId: id,
@@ -149,11 +143,7 @@ export async function PUT(
         }
       }
 
-      // Recompute invoice amounts
-      // Calculate total original amount (sum of all non-discount line items)
-      const freshLineItems = await tx.invoiceLineItem.findMany({
-        where: { invoiceId: id },
-      });
+      const freshLineItems = await tx.invoiceLineItem.findMany({ where: { invoiceId: id } });
 
       const totalAmount = freshLineItems
         .filter((item) => item.lineType !== "discount")
@@ -162,17 +152,21 @@ export async function PUT(
       const finalAmount = totalAmount.minus(finalDiscountAmount);
       const balanceDue = finalAmount.minus(existingInvoice.amountPaid);
 
-      // Determine updated status if balance changes
+      // Recalculate status based on discount changes only if a discount updated or no explicit status provided
       let updatedStatus = status ?? existingInvoice.status;
       if (isDiscountUpdated || status === undefined) {
         if (balanceDue.equals(0) && existingInvoice.amountPaid.greaterThan(0)) {
           updatedStatus = "paid";
         } else if (existingInvoice.amountPaid.greaterThan(0) && balanceDue.greaterThan(0)) {
           updatedStatus = "partial";
-        } else if (existingInvoice.amountPaid.equals(0) && balanceDue.greaterThan(0) && existingInvoice.status === "paid") {
-          updatedStatus = "issued";
+        } else if (existingInvoice.amountPaid.equals(0) && balanceDue.greaterThan(0)) {
+          updatedStatus = existingInvoice.status === "paid" ? "issued" : existingInvoice.status;
         }
       }
+
+      // Ensure no negative final amount
+      const safeFinalAmount = Prisma.Decimal.max(0, finalAmount);
+      const safeBalanceDue = Prisma.Decimal.max(0, balanceDue);
 
       const updatedInvoice = await tx.invoice.update({
         where: { id },
@@ -181,20 +175,17 @@ export async function PUT(
           dueDate: dueDate ? new Date(dueDate) : undefined,
           totalAmount,
           discountAmount: finalDiscountAmount,
-          finalAmount,
-          balanceDue,
+          finalAmount: safeFinalAmount,
+          balanceDue: safeBalanceDue,
         },
-        include: {
-          lineItems: true,
-        },
+        include: { lineItems: true },
       });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
           action: "INVOICE_UPDATED",
           entityType: "Invoice",
           entityId: id,
@@ -206,14 +197,11 @@ export async function PUT(
       return updatedInvoice;
     });
 
-    return NextResponse.json({
-      data: result,
-      message: "Invoice updated successfully.",
-    });
-  } catch (err: any) {
-    console.error("[invoices/[id]] PUT error:", err);
+    return NextResponse.json({ data: result, message: "Invoice updated successfully." });
+  } catch (err: unknown) {
+    logError("invoices/[id] PUT", err);
     return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: (err as Error).message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }
@@ -224,34 +212,25 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
-    }
-    const session = guard.session;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
     const { id } = await params;
 
     const existingInvoice = await prisma.invoice.findFirst({
-      where: { id, schoolId: session.schoolId },
+      where: { id, schoolId: guard.session.schoolId },
       include: {
-        payments: {
-          where: { status: "recorded" },
-        },
+        payments: { where: { status: "recorded" } },
       },
     });
 
     if (!existingInvoice) {
-      return NextResponse.json(
-        { error: "Invoice not found", code: "NOT_FOUND" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Invoice not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
-    // Only allow deletion of draft invoices or issued invoices with no recorded payments
     if (existingInvoice.status !== "draft" && existingInvoice.status !== "issued") {
       return NextResponse.json(
-        { error: "Invoices that have been partially or fully paid cannot be deleted.", code: "BAD_REQUEST" },
+        { error: "Only draft or issued invoices with no payments can be deleted.", code: "BAD_REQUEST" },
         { status: 400 }
       );
     }
@@ -264,16 +243,14 @@ export async function DELETE(
     }
 
     await prisma.$transaction(async (tx) => {
-      // Cascade delete line items
       await tx.invoiceLineItem.deleteMany({ where: { invoiceId: id } });
       await tx.invoice.delete({ where: { id } });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
           action: "INVOICE_DELETED",
           entityType: "Invoice",
           entityId: id,
@@ -282,13 +259,11 @@ export async function DELETE(
       });
     });
 
-    return NextResponse.json({
-      message: "Invoice deleted successfully.",
-    });
-  } catch (err: any) {
-    console.error("[invoices/[id]] DELETE error:", err);
+    return NextResponse.json({ message: "Invoice deleted successfully." });
+  } catch (err: unknown) {
+    logError("invoices/[id] DELETE", err);
     return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: (err as Error).message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }

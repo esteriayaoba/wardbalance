@@ -258,6 +258,11 @@ model ClassArm {
 enum StudentStatus {
   active
   inactive
+  graduated
+  transferred
+  suspended
+  withdrawn
+  archived
 }
 
 model Student {

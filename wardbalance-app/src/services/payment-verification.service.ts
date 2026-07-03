@@ -68,9 +68,13 @@ export async function approvePaymentSubmission(options: ApprovePaymentOptions) {
       throw new Error(`Submission already reviewed. Status: ${submission.status}`);
     }
 
-    const invoice = await tx.invoice.findUnique({ where: { id: submission.invoiceId } });
+    const invoice = await tx.invoice.findUnique({
+      where: { id: submission.invoiceId },
+      include: { term: { select: { status: true } } },
+    });
     if (!invoice) throw new Error("Associated invoice not found.");
     if (invoice.status === "paid") throw new Error("Invoice already fully paid.");
+    if (invoice.term.status === "locked") throw new Error("Cannot approve payment for a locked term.");
     if (submission.amount.greaterThan(invoice.balanceDue)) {
       throw new Error(`Amount exceeds outstanding balance due (₦${Number(invoice.balanceDue).toLocaleString("en-NG", { minimumFractionDigits: 0 })}).`);
     }

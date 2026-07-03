@@ -1,180 +1,107 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-
-interface StudentImportRow {
-  firstName?: string;
-  lastName?: string;
-  admissionNumber?: string;
-  classLevelName?: string;
-  classArmName?: string;
-  gender?: string;
-  dateOfBirth?: string;
-}
+import { StudentImportSchema } from "@/schemas/student.schema";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
-    if (!session) {
+    const body = await request.json();
+    const parsed = StudentImportSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
-
-    const { students } = await request.json();
-
-    if (!Array.isArray(students)) {
-      return NextResponse.json(
-        { error: "Students array is required", code: "VALIDATION_ERROR" },
+        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
         { status: 400 }
       );
     }
 
-    const schoolId = session.schoolId;
+    const students = parsed.data;
+    const errors: { row: number; reason: string }[] = [];
+    const validStudents: typeof students = [];
 
-    // Fetch existing students, levels, and arms for quick validation mapping
-    const [existingStudents, classArms] = await Promise.all([
-      prisma.student.findMany({
-        where: { schoolId },
-        select: { admissionNumber: true },
-      }),
-      prisma.classArm.findMany({
-        where: { schoolId },
-        include: {
-          classLevel: true,
-        },
-      }),
-    ]);
-
-    const existingAdmissionNumbers = new Set(existingStudents.map((s) => s.admissionNumber.toLowerCase()));
-    
-    // Helper to find arm and level ID
-    const findClassArm = (levelName: string, armName: string) => {
-      return classArms.find(
-        (a) =>
-          a.classLevel.name.toLowerCase().trim() === levelName.toLowerCase().trim() &&
-          a.name.toLowerCase().trim() === armName.toLowerCase().trim()
-      );
-    };
-
-    const importedStudents: any[] = [];
-    const skippedRecords: { row: number; reason: string }[] = [];
-
-    // Temporary set to check duplicates within the CSV itself
-    const csvAdmissionNumbers = new Set<string>();
+    // CSV self-duplicate detection
+    const seenAdmissionNumbers = new Set<string>();
 
     for (let i = 0; i < students.length; i++) {
+      const s = students[i];
       const rowNum = i + 1;
-      const row = students[i] as StudentImportRow;
 
-      const firstName = row.firstName?.trim();
-      const lastName = row.lastName?.trim();
-      const admissionNumber = row.admissionNumber?.trim();
-      const classLevelName = row.classLevelName?.trim();
-      const classArmName = row.classArmName?.trim();
-
-      if (!firstName || !lastName || !admissionNumber || !classLevelName || !classArmName) {
-        skippedRecords.push({
-          row: rowNum,
-          reason: "Missing required fields (First Name, Last Name, Admission Number, Class Level, or Class Arm).",
-        });
+      if (seenAdmissionNumbers.has(s.admissionNumber)) {
+        errors.push({ row: rowNum, reason: `Duplicate admission number "${s.admissionNumber}" in import data.` });
         continue;
       }
+      seenAdmissionNumbers.add(s.admissionNumber);
 
-      const lowerAdm = admissionNumber.toLowerCase();
-
-      // Check CSV self-duplicates
-      if (csvAdmissionNumbers.has(lowerAdm)) {
-        skippedRecords.push({
-          row: rowNum,
-          reason: `Duplicate admission number "${admissionNumber}" found within the CSV file.`,
-        });
-        continue;
-      }
-      csvAdmissionNumbers.add(lowerAdm);
-
-      // Check DB duplicates
-      if (existingAdmissionNumbers.has(lowerAdm)) {
-        skippedRecords.push({
-          row: rowNum,
-          reason: `Admission number "${admissionNumber}" is already registered in the school database.`,
-        });
-        continue;
-      }
-
-      // Check if Class Level & Arm exists
-      const arm = findClassArm(classLevelName, classArmName);
-      if (!arm) {
-        skippedRecords.push({
-          row: rowNum,
-          reason: `Class Level/Arm combination "${classLevelName} - ${classArmName}" does not exist. Please create it first.`,
-        });
-        continue;
-      }
-
-      // Parse date of birth if valid
-      let dob: Date | null = null;
-      if (row.dateOfBirth) {
-        const parsedDate = Date.parse(row.dateOfBirth);
-        if (!isNaN(parsedDate)) {
-          dob = new Date(parsedDate);
-        }
-      }
-
-      importedStudents.push({
-        schoolId,
-        firstName,
-        lastName,
-        admissionNumber,
-        classLevelId: arm.classLevelId,
-        classArmId: arm.id,
-        gender: row.gender?.trim() || null,
-        dateOfBirth: dob,
-        status: "active",
+      const classLevel = await prisma.classLevel.findFirst({
+        where: { schoolId: guard.session.schoolId, name: s.classLevelName },
       });
+      if (!classLevel) {
+        errors.push({ row: rowNum, reason: `Class level "${s.classLevelName}" not found.` });
+        continue;
+      }
+
+      const classArm = await prisma.classArm.findFirst({
+        where: { schoolId: guard.session.schoolId, classLevelId: classLevel.id, name: s.classArmName },
+      });
+      if (!classArm) {
+        errors.push({ row: rowNum, reason: `Class arm "${s.classArmName}" not found under "${s.classLevelName}".` });
+        continue;
+      }
+
+      const dbDup = await prisma.student.findFirst({
+        where: { schoolId: guard.session.schoolId, admissionNumber: s.admissionNumber },
+      });
+      if (dbDup) {
+        errors.push({ row: rowNum, reason: `Duplicate admission number "${s.admissionNumber}" already exists.` });
+        continue;
+      }
+
+      validStudents.push({ ...s, classLevelName: classLevel.id, classArmName: classArm.id });
     }
 
-    // Execute batch writes in a transaction
-    if (importedStudents.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        // Create in chunks or batch create
-        await tx.student.createMany({
-          data: importedStudents,
+    let imported = 0;
+    if (validStudents.length > 0) {
+      const [result] = await prisma.$transaction(async (tx) => {
+        const created = await tx.student.createMany({
+          data: validStudents.map((s) => ({
+            schoolId: guard.session.schoolId,
+            firstName: s.firstName,
+            lastName: s.lastName,
+            admissionNumber: s.admissionNumber,
+            classLevelId: s.classLevelName,
+            classArmId: s.classArmName,
+            gender: s.gender ?? null,
+            dateOfBirth: s.dateOfBirth ? new Date(s.dateOfBirth) : null,
+          })),
         });
 
-        // Write AuditLog
         await tx.auditLog.create({
           data: {
-            schoolId,
-            actorId: session.userId,
-            actorName: session.fullName,
+            schoolId: guard.session.schoolId,
+            actorId: guard.session.userId,
+            actorName: guard.session.fullName ?? "Admin",
             action: "STUDENT_BULK_IMPORTED",
             entityType: "Student",
             entityId: "bulk",
-            newValue: {
-              importedCount: importedStudents.length,
-              skippedCount: skippedRecords.length,
-            },
+            newValue: { imported: created.count, total: students.length },
           },
         });
+
+        return [created];
       });
+      imported = result.count;
     }
 
     return NextResponse.json({
-      data: {
-        imported: importedStudents.length,
-        skipped: skippedRecords.length,
-        skippedDetails: skippedRecords,
-      },
-      message: "CSV Student import completed.",
+      data: { imported, skipped: errors.length, total: students.length },
+      errors: errors.length > 0 ? errors : undefined,
+      message: errors.length > 0
+        ? `${imported} students imported. ${errors.length} records skipped.`
+        : `${imported} students imported successfully.`,
     });
   } catch (err) {
-    console.error("[students] Import error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred during CSV parsing", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to import students", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

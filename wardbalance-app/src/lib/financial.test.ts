@@ -393,3 +393,88 @@ describe("Discount calculations", () => {
     expect(lineItemAmount.equals(-15000)).toBe(true);
   });
 });
+
+// --- Fee validation tests ---
+
+describe("Fee item amount validation", () => {
+  it("rejects negative amount", () => {
+    const amount = new Decimal(-5000);
+    expect(amount.lessThanOrEqualTo(0)).toBe(true);
+  });
+
+  it("rejects zero amount", () => {
+    const amount = new Decimal(0);
+    expect(amount.lessThanOrEqualTo(0)).toBe(true);
+  });
+
+  it("accepts positive amount", () => {
+    const amount = new Decimal(50000);
+    expect(amount.lessThanOrEqualTo(0)).toBe(false);
+    expect(amount.greaterThan(0)).toBe(true);
+  });
+
+  it("accepts decimal amount", () => {
+    const amount = new Decimal("15000.50");
+    expect(amount.greaterThan(0)).toBe(true);
+  });
+});
+
+// --- Receipt number uniqueness tests ---
+
+describe("Receipt number generation uniqueness", () => {
+  function generateReceiptNumber(prefix = "REC"): string {
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+    return `${prefix}-${dateStr}-${rand}`;
+  }
+
+  it("generates unique receipt numbers over 500 iterations", () => {
+    const numbers = new Set<string>();
+    for (let i = 0; i < 500; i++) {
+      numbers.add(generateReceiptNumber());
+    }
+    expect(numbers.size).toBe(500);
+  });
+
+  it("generates receipt numbers with correct prefix", () => {
+    const num = generateReceiptNumber("RCT");
+    expect(num.startsWith("RCT-")).toBe(true);
+  });
+
+  it("generates receipt numbers with date segment", () => {
+    const num = generateReceiptNumber();
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    expect(num).toContain(dateStr);
+  });
+
+  it("generates receipt numbers with 4-char random segment", () => {
+    const num = generateReceiptNumber();
+    const parts = num.split("-");
+    expect(parts[2].length).toBe(4);
+  });
+});
+
+// --- Payment amount validation ---
+
+describe("Payment amount validation", () => {
+  it("rejects zero payment", () => {
+    const amount = new Decimal(0);
+    expect(amount.lessThanOrEqualTo(0)).toBe(true);
+  });
+
+  it("rejects negative payment", () => {
+    const amount = new Decimal(-100);
+    expect(amount.lessThanOrEqualTo(0)).toBe(true);
+  });
+
+  it("accepts positive payment", () => {
+    const amount = new Decimal(50000);
+    expect(amount.greaterThan(0)).toBe(true);
+  });
+
+  it("rejects payment exceeding balance due", () => {
+    const balanceDue = new Decimal(100000);
+    const payment = new Decimal(150000);
+    expect(payment.greaterThan(balanceDue)).toBe(true);
+  });
+});

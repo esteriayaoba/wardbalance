@@ -2,6 +2,7 @@ import type { NextAuthConfig } from "next-auth";
 
 export const authConfig = {
   providers: [], // Providers are populated in the main nextauth.ts configuration to avoid Edge runtime database/bcrypt imports
+  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
   callbacks: {
     jwt({ token, user }) {
       if (user) {
@@ -51,11 +52,14 @@ export const authConfig = {
 
       const user = session?.user as Record<string, unknown> | undefined;
       const role = user?.role as string | undefined;
+      const schoolStatus = user?.schoolStatus as string | undefined;
 
       // Admin routes require admin role
       if (pathname.startsWith("/admin") || pathname.startsWith("/api/admin")) {
         if (!role) return false;
         if (role === "Parent") return false;
+        if (!["SchoolOwner", "Principal", "Bursar", "Admin"].includes(role)) return false;
+        if (schoolStatus === "paused" || schoolStatus === "archived") return false;
         return true;
       }
 
@@ -75,5 +79,6 @@ export const authConfig = {
   session: {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
   },
 } satisfies NextAuthConfig;

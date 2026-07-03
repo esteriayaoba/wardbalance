@@ -1,128 +1,108 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-import { requireVerifiedAdminUser } from "@/lib/auth/require-verified-admin";
+import { z } from "zod";
+
+const VoidPaymentSchema = z.object({
+  action: z.literal("void"),
+});
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await requireVerifiedAdminUser();
-    if (!guard.authorized) {
-      return guard.response;
-    }
-    const session = guard.session;
+    const guard = await requireRole(["SchoolOwner", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
     const { id } = await params;
     const body = await request.json();
-
-    if (body.action !== "void") {
+    const parsed = VoidPaymentSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
         { error: "Unsupported payment action. Only 'void' is allowed.", code: "BAD_REQUEST" },
         { status: 400 }
       );
     }
 
-    // Fetch the payment
     const payment = await prisma.payment.findFirst({
-      where: { id, schoolId: session.schoolId },
+      where: { id, schoolId: guard.session.schoolId },
       include: {
         invoice: {
-          include: {
-            term: true,
-          },
+          include: { term: { select: { status: true } } },
         },
       },
     });
 
     if (!payment) {
-      return NextResponse.json(
-        { error: "Payment not found", code: "NOT_FOUND" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "Payment not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
     if (payment.status === "void") {
-      return NextResponse.json(
-        { error: "Payment is already voided.", code: "CONFLICT" },
-        { status: 409 }
-      );
+      return NextResponse.json({ error: "Payment is already void.", code: "ALREADY_VOID" }, { status: 409 });
     }
 
     if (payment.invoice.term.status === "locked") {
-      return NextResponse.json(
-        { error: "Cannot void a payment in a locked term.", code: "TERM_LOCKED" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Cannot void a payment in a locked term.", code: "TERM_LOCKED" }, { status: 409 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Mark payment as void
+    const invoice = payment.invoice;
+
+    await prisma.$transaction(async (tx) => {
       const updatedPayment = await tx.payment.update({
         where: { id },
         data: { status: "void" },
       });
 
-      // Recalculate invoice totals
-      const newAmountPaid = payment.invoice.amountPaid.minus(payment.amount);
-      const newBalanceDue = payment.invoice.balanceDue.plus(payment.amount);
+      const newAmountPaid = invoice.amountPaid.minus(payment.amount);
+      const newBalanceDue = invoice.balanceDue.plus(payment.amount);
 
-      let newStatus: any = payment.invoice.status;
-      if (newAmountPaid.equals(0)) {
-        // If due date has passed, it should go to overdue, otherwise issued
+      let newStatus: "draft" | "issued" | "partial" | "paid" | "overdue" = invoice.status;
+      if (newAmountPaid.equals(0) && newBalanceDue.greaterThan(0)) {
+        // Check if the invoice is overdue
         const now = new Date();
-        const dueDate = new Date(payment.invoice.dueDate);
-        newStatus = now > dueDate ? "overdue" : "issued";
-      } else {
+        if (invoice.dueDate && now > invoice.dueDate) {
+          newStatus = "overdue";
+        } else {
+          newStatus = "issued";
+        }
+      } else if (newAmountPaid.greaterThan(0) && newBalanceDue.greaterThan(0)) {
         newStatus = "partial";
+      } else if (newBalanceDue.equals(0)) {
+        newStatus = "paid";
       }
 
-      const updatedInvoice = await tx.invoice.update({
-        where: { id: payment.invoiceId },
-        data: {
-          amountPaid: newAmountPaid,
-          balanceDue: newBalanceDue,
-          status: newStatus,
-        },
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: { amountPaid: newAmountPaid, balanceDue: newBalanceDue, status: newStatus },
       });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
           action: "PAYMENT_VOIDED",
           entityType: "Payment",
           entityId: id,
-          previousValue: JSON.parse(JSON.stringify(payment)),
-          newValue: JSON.parse(
-            JSON.stringify({
-              payment: updatedPayment,
-              invoiceState: {
-                previousAmountPaid: payment.invoice.amountPaid,
-                previousBalanceDue: payment.invoice.balanceDue,
-                newAmountPaid,
-                newBalanceDue,
-                newStatus,
-              },
-            })
-          ),
+          previousValue: JSON.parse(JSON.stringify({
+            payment: { status: payment.status, amount: payment.amount, method: payment.method },
+            invoiceState: {
+              amountPaid: invoice.amountPaid,
+              balanceDue: invoice.balanceDue,
+              status: invoice.status,
+            },
+          })),
+          newValue: JSON.parse(JSON.stringify({
+            payment: { status: "void", amount: payment.amount, method: payment.method },
+            invoiceState: { amountPaid: newAmountPaid, balanceDue: newBalanceDue, status: newStatus },
+          })),
         },
       });
-
-      return { payment: updatedPayment, invoice: updatedInvoice };
     });
 
-    return NextResponse.json({
-      data: result,
-      message: "Payment successfully voided.",
-    });
-  } catch (err: any) {
-    console.error("[payments/[id]] PUT error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Payment voided successfully." });
+  } catch (err) {
+    return NextResponse.json({ error: "Failed to void payment", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

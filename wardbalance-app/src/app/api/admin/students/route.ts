@@ -1,138 +1,114 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-const CreateStudentSchema = z.object({
-  firstName: z.string().min(1, "First name is required").max(50),
-  lastName: z.string().min(1, "Last name is required").max(50),
-  admissionNumber: z.string().min(1, "Admission number is required").max(50),
-  classLevelId: z.string().min(1, "Class level is required"),
-  classArmId: z.string().min(1, "Class arm is required"),
-  gender: z.string().optional().or(z.literal("")),
-  dateOfBirth: z.string().optional().or(z.literal("")),
-  status: z.enum(["active", "inactive"]).default("active"),
-});
+import { CreateStudentSchema } from "@/schemas/student.schema";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const { searchParams } = new URL(request.url);
+    const classLevelId = searchParams.get("classLevelId");
+    const classArmId = searchParams.get("classArmId");
+    const search = searchParams.get("search");
+
+    const where: Record<string, unknown> = { schoolId: guard.session.schoolId };
+
+    if (classLevelId) where.classLevelId = classLevelId;
+    if (classArmId) where.classArmId = classArmId;
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: "insensitive" } },
+        { lastName: { contains: search, mode: "insensitive" } },
+        { admissionNumber: { contains: search, mode: "insensitive" } },
+      ];
     }
 
-    const students = await prisma.student.findMany({
-      where: { schoolId: session.schoolId },
-      include: {
-        classLevel: { select: { name: true } },
-        classArm: { select: { name: true } },
-        parents: {
-          include: {
-            parent: {
-              select: {
-                firstName: true,
-                lastName: true,
-                phone: true,
-              },
-            },
+    const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 500);
+    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
+
+    const [students, total] = await Promise.all([
+      prisma.student.findMany({
+        where,
+        include: {
+          classLevel: true,
+          classArm: true,
+          parents: {
+            include: { parent: true },
           },
         },
-      },
-      orderBy: [{ classLevel: { name: "asc" } }, { lastName: "asc" }],
-    });
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+        take: limit,
+        skip: offset,
+      }),
+      prisma.student.count({ where }),
+    ]);
 
-    return NextResponse.json({ data: students });
+    return NextResponse.json({ data: students, meta: { total, limit, offset } });
   } catch (err) {
-    console.error("[students] GET error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch students", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const body = await request.json();
     const parsed = CreateStudentSchema.safeParse(body);
-
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
+        { error: parsed.error.issues[0]?.message ?? "Invalid input", code: "VALIDATION_ERROR" },
         { status: 400 }
       );
     }
 
     const data = parsed.data;
 
-    // Check unique admissionNumber inside the school
     const existing = await prisma.student.findFirst({
-      where: {
-        schoolId: session.schoolId,
-        admissionNumber: data.admissionNumber.trim(),
-      },
+      where: { schoolId: guard.session.schoolId, admissionNumber: data.admissionNumber },
     });
-
     if (existing) {
       return NextResponse.json(
-        { error: "Duplicate admission number found in this school.", code: "CONFLICT" },
+        { error: "A student with this admission number already exists.", code: "DUPLICATE" },
         { status: 409 }
       );
     }
 
-    const newStudent = await prisma.$transaction(async (tx) => {
-      const created = await tx.student.create({
+    const [student] = await prisma.$transaction(async (tx) => {
+      const student = await tx.student.create({
         data: {
-          schoolId: session.schoolId,
-          firstName: data.firstName.trim(),
-          lastName: data.lastName.trim(),
-          admissionNumber: data.admissionNumber.trim(),
+          schoolId: guard.session.schoolId,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          admissionNumber: data.admissionNumber,
           classLevelId: data.classLevelId,
           classArmId: data.classArmId,
-          gender: data.gender || null,
+          gender: data.gender ?? null,
           dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
           status: data.status,
         },
       });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName ?? "Admin",
           action: "STUDENT_REGISTERED",
           entityType: "Student",
-          entityId: created.id,
-          newValue: JSON.parse(JSON.stringify(created)),
+          entityId: student.id,
+          newValue: JSON.parse(JSON.stringify(student)),
         },
       });
 
-      return created;
+      return [student];
     });
 
-    return NextResponse.json({
-      data: newStudent,
-      message: "Student registered successfully.",
-    });
+    return NextResponse.json({ data: student }, { status: 201 });
   } catch (err) {
-    console.error("[students] POST error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create student", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

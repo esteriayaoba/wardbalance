@@ -104,12 +104,21 @@ export default function CookieConsentBanner() {
           }}
         >
           <p
-            className="text-body-medium mb-4"
+            className="text-body-medium mb-4 leading-relaxed"
             style={{ color: "var(--color-on-surface-variant)" }}
           >
-            We use necessary cookies to make WardBalance work. With your
-            permission, we also use analytics cookies to understand how schools
-            interact with our website and improve the product.
+            We use essential cookies to keep your account session secure. With your
+            permission, we also use analytics cookies to help us understand how schools use
+            WardBalance so we can continuously improve the platform. You can change your 
+            preferences at any time. Learn more in our{" "}
+            <a
+              href="/privacy"
+              className="underline font-semibold hover:text-primary-600 transition-colors"
+              style={{ color: "var(--color-primary-600)" }}
+            >
+              Privacy Policy
+            </a>
+            .
           </p>
 
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">

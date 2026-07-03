@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: NextRequest) {
   try {
-    const session = await getSession();
+    const guard = await requireRole(["SchoolOwner"]);
+    if (!guard.authorized) return guard.response;
 
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
-
-    const schoolId = session.schoolId;
+    const schoolId = guard.session.schoolId;
 
     const school = await prisma.school.findUnique({
       where: { id: schoolId },

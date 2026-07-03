@@ -131,6 +131,7 @@ describe("approvePaymentSubmission", () => {
       amountPaid: new Decimal("0"),
       balanceDue: new Decimal("100000"),
       finalAmount: new Decimal("100000"),
+      term: { status: "active" },
     };
 
     const mockUpdatedSubmission = { ...mockSubmission, status: "Approved" };
@@ -192,6 +193,7 @@ describe("approvePaymentSubmission", () => {
       amountPaid: new Decimal("0"),
       balanceDue: new Decimal("100000"),
       finalAmount: new Decimal("100000"),
+      term: { status: "active" },
     };
 
     const tx: any = {

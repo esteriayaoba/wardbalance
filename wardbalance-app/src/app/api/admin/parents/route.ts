@@ -1,130 +1,113 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-const CreateParentSchema = z.object({
-  firstName: z.string().min(1, "First name is required").max(50),
-  lastName: z.string().min(1, "Last name is required").max(50),
-  phone: z.string().min(1, "Phone number is required").max(30),
-  email: z.string().email("Please enter a valid email address").optional().or(z.literal("")),
-  address: z.string().optional().or(z.literal("")),
-});
+import { CreateParentSchema } from "@/schemas/parent.schema";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get("search");
+
+    const where: Record<string, unknown> = { schoolId: guard.session.schoolId };
+
+    if (search) {
+      where.OR = [
+        { firstName: { contains: search, mode: "insensitive" } },
+        { lastName: { contains: search, mode: "insensitive" } },
+        { phone: { contains: search } },
+        { email: { contains: search, mode: "insensitive" } },
+      ];
     }
 
-    const parents = await prisma.parent.findMany({
-      where: { schoolId: session.schoolId },
-      include: {
-        wards: {
-          include: {
-            student: {
-              select: {
-                firstName: true,
-                lastName: true,
-                admissionNumber: true,
+    const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 500);
+    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
+
+    const [parents, total] = await Promise.all([
+      prisma.parent.findMany({
+        where,
+        include: {
+          wards: {
+            include: {
+              student: {
+                include: {
+                  classLevel: true,
+                  classArm: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { lastName: "asc" },
-    });
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+        take: limit,
+        skip: offset,
+      }),
+      prisma.parent.count({ where }),
+    ]);
 
-    return NextResponse.json({ data: parents });
+    return NextResponse.json({ data: parents, meta: { total, limit, offset } });
   } catch (err) {
-    console.error("[parents] GET error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch parents", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const body = await request.json();
     const parsed = CreateParentSchema.safeParse(body);
-
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
+        { error: parsed.error.issues[0]?.message ?? "Invalid input", code: "VALIDATION_ERROR" },
         { status: 400 }
       );
     }
 
     const data = parsed.data;
 
-    // Check unique phone number in this school
     const existing = await prisma.parent.findFirst({
-      where: {
-        schoolId: session.schoolId,
-        phone: data.phone.trim(),
-      },
+      where: { schoolId: guard.session.schoolId, phone: data.phone },
     });
-
     if (existing) {
       return NextResponse.json(
-        { error: "A parent with this phone number is already registered.", code: "CONFLICT" },
+        { error: "A parent with this phone number already exists.", code: "DUPLICATE" },
         { status: 409 }
       );
     }
 
-    const newParent = await prisma.$transaction(async (tx) => {
-      const created = await tx.parent.create({
+    const [parent] = await prisma.$transaction(async (tx) => {
+      const parent = await tx.parent.create({
         data: {
-          schoolId: session.schoolId,
-          firstName: data.firstName.trim(),
-          lastName: data.lastName.trim(),
-          phone: data.phone.trim(),
+          schoolId: guard.session.schoolId,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
           email: data.email || null,
           address: data.address || null,
         },
       });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName ?? "Admin",
           action: "PARENT_REGISTERED",
           entityType: "Parent",
-          entityId: created.id,
-          newValue: JSON.parse(JSON.stringify(created)),
+          entityId: parent.id,
+          newValue: JSON.parse(JSON.stringify(parent)),
         },
       });
 
-      return created;
+      return [parent];
     });
 
-    return NextResponse.json({
-      data: newParent,
-      message: "Parent profile created successfully.",
-    });
+    return NextResponse.json({ data: parent }, { status: 201 });
   } catch (err) {
-    console.error("[parents] POST error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create parent", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

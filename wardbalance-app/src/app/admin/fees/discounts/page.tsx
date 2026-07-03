@@ -42,7 +42,7 @@ export default function DiscountRulesPage() {
   const filteredRules = rules.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="max-w-screen-2xl mx-auto px-6 py-4">
+    <div className="space-y-6">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-headline-small text-neutral-900 mb-1">Discount Rules</h1>
@@ -50,7 +50,7 @@ export default function DiscountRulesPage() {
         </div>
         <Link 
           href="/admin/fees/discounts/new"
-          className="bg-primary-600 text-white px-4 py-2 rounded-lg font-bold text-label-large hover:bg-primary-700 flex items-center gap-2"
+          className="bg-primary text-white px-4 py-2 rounded-lg font-bold text-label-large hover:bg-primary-dark flex items-center gap-2"
         >
           <Plus className="w-4 h-4" />
           Create Rule
@@ -66,7 +66,7 @@ export default function DiscountRulesPage() {
               placeholder="Search rules..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border border-neutral-200 rounded-lg text-body-medium focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full pl-9 pr-4 py-2 border border-neutral-200 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline"
             />
           </div>
         </div>
@@ -92,7 +92,7 @@ export default function DiscountRulesPage() {
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="text-neutral-500 mb-2">No discount rules found.</div>
-                    <Link href="/admin/fees/discounts/new" className="text-primary-600 hover:underline font-bold text-body-small">Create your first rule</Link>
+                    <Link href="/admin/fees/discounts/new" className="text-primary hover:underline font-bold text-body-small">Create your first rule</Link>
                   </td>
                 </tr>
               ) : (
@@ -100,7 +100,7 @@ export default function DiscountRulesPage() {
                   <tr key={rule.id} className="hover:bg-neutral-50">
                     <td className="px-6 py-4 text-body-medium font-bold text-neutral-900">{rule.name}</td>
                     <td className="px-6 py-4 text-body-small tabular-nums font-bold">
-                      <span className="bg-primary-50 text-primary-700 px-2 py-1 rounded-md">{formatType(rule.type, rule.value)}</span>
+                      <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded-md">{formatType(rule.type, rule.value)}</span>
                     </td>
                     <td className="px-6 py-4 text-body-small text-neutral-700 capitalize">{rule.condition.replace("_", " ")}</td>
                     <td className="px-6 py-4 text-body-small text-neutral-700 capitalize">{rule.scope.replace("_", " ")}</td>
@@ -116,7 +116,7 @@ export default function DiscountRulesPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-neutral-400 hover:text-primary-600 rounded-lg hover:bg-primary-50 transition-colors">
+                      <button className="p-2 text-neutral-400 hover:text-primary rounded-lg hover:bg-primary-50 transition-colors">
                         <Edit className="w-4 h-4" />
                       </button>
                     </td>

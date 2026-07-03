@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
+import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const CreateClassSchema = z.object({
   type: z.enum(["division", "level", "arm"]),
   name: z.string().min(1, "Name is required").max(100),
-  divisionId: z.string().optional(), // required for level
-  classLevelId: z.string().optional(), // required for arm
+  divisionId: z.string().optional(),
+  classLevelId: z.string().optional(),
 });
 
 const DeleteClassSchema = z.object({
@@ -17,194 +18,178 @@ const DeleteClassSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const divisions = await prisma.division.findMany({
-      where: { schoolId: session.schoolId },
+      where: { schoolId: guard.session.schoolId },
       include: {
         classLevels: {
-          include: {
-            classArms: true,
-          },
+          include: { classArms: true },
           orderBy: { name: "asc" },
         },
       },
       orderBy: { name: "asc" },
     });
 
-    return NextResponse.json({ data: divisions });
+    return NextResponse.json({ data: { divisions } });
   } catch (err) {
     console.error("[academic] Classes GET error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch classes", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const body = await request.json();
     const parsed = CreateClassSchema.safeParse(body);
-
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input", code: "VALIDATION_ERROR" }, { status: 400 });
     }
 
     const { type, name, divisionId, classLevelId } = parsed.data;
 
-    const result = await prisma.$transaction(async (tx) => {
-      let createdEntity: any;
+    let entityName = "";
+    let entityId = "";
 
+    const [result] = await prisma.$transaction(async (tx) => {
       if (type === "division") {
-        createdEntity = await tx.division.create({
+        const created = await tx.division.create({ data: { schoolId: guard.session.schoolId, name } });
+        entityName = "Division";
+        entityId = created.id;
+        await tx.auditLog.create({
           data: {
-            schoolId: session.schoolId,
-            name,
+            schoolId: guard.session.schoolId, actorId: guard.session.userId, actorName: guard.session.fullName,
+            action: "DIVISION_CREATED", entityType: "Division", entityId: created.id,
+            newValue: JSON.parse(JSON.stringify(created)),
           },
         });
+        return [created];
       } else if (type === "level") {
-        if (!divisionId) throw new Error("Division ID is required for Class Level");
-        createdEntity = await tx.classLevel.create({
+        if (!divisionId) return [NextResponse.json({ error: "Division ID is required for class level", code: "VALIDATION_ERROR" }, { status: 400 })];
+        const created = await tx.classLevel.create({ data: { schoolId: guard.session.schoolId, divisionId, name } });
+        entityName = "ClassLevel";
+        entityId = created.id;
+        await tx.auditLog.create({
           data: {
-            schoolId: session.schoolId,
-            divisionId,
-            name,
+            schoolId: guard.session.schoolId, actorId: guard.session.userId, actorName: guard.session.fullName,
+            action: "CLASS_LEVEL_CREATED", entityType: "ClassLevel", entityId: created.id,
+            newValue: JSON.parse(JSON.stringify(created)),
           },
         });
+        return [created];
       } else if (type === "arm") {
-        if (!classLevelId) throw new Error("Class Level ID is required for Class Arm");
-        createdEntity = await tx.classArm.create({
+        if (!classLevelId) return [NextResponse.json({ error: "Class level ID is required for class arm", code: "VALIDATION_ERROR" }, { status: 400 })];
+        const created = await tx.classArm.create({ data: { schoolId: guard.session.schoolId, classLevelId, name } });
+        entityName = "ClassArm";
+        entityId = created.id;
+        await tx.auditLog.create({
           data: {
-            schoolId: session.schoolId,
-            classLevelId,
-            name,
+            schoolId: guard.session.schoolId, actorId: guard.session.userId, actorName: guard.session.fullName,
+            action: "CLASS_ARM_CREATED", entityType: "ClassArm", entityId: created.id,
+            newValue: JSON.parse(JSON.stringify(created)),
           },
         });
+        return [created];
       }
-
-      // Audit Log
-      await tx.auditLog.create({
-        data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
-          action: `ACADEMIC_${type.toUpperCase()}_CREATED`,
-          entityType: type === "division" ? "Division" : type === "level" ? "ClassLevel" : "ClassArm",
-          entityId: createdEntity.id,
-          newValue: JSON.parse(JSON.stringify(createdEntity)),
-        },
-      });
-
-      return createdEntity;
+      return [NextResponse.json({ error: "Invalid type", code: "VALIDATION_ERROR" }, { status: 400 })];
     });
 
-    return NextResponse.json({
-      data: result,
-      message: `${type.charAt(0).toUpperCase() + type.slice(1)} created successfully.`,
-    });
-  } catch (err: any) {
-    console.error("[academic] Classes POST error:", err);
-    if (err.code === "P2002") {
-      return NextResponse.json(
-        { error: "This item already exists.", code: "CONFLICT" },
-        { status: 409 }
-      );
+    if (result instanceof NextResponse) return result;
+    return NextResponse.json({ data: result, message: `${entityName} created successfully.` }, { status: 201 });
+  } catch (err: unknown) {
+    logError("academic/classes POST", err);
+    if ((err as Record<string, unknown>)?.code === "P2002") {
+      return NextResponse.json({ error: "This record already exists.", code: "CONFLICT" }, { status: 409 });
     }
-    return NextResponse.json(
-      { error: err.message ?? "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to create class structure", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getSession();
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const rawType = searchParams.get("type") ?? "";
-    const rawId = searchParams.get("id") ?? "";
-
-    const parsed = DeleteClassSchema.safeParse({ type: rawType, id: rawId });
-
+    const body = await request.json();
+    const parsed = DeleteClassSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid input", code: "VALIDATION_ERROR" }, { status: 400 });
     }
 
     const { type, id } = parsed.data;
 
-    const result = await prisma.$transaction(async (tx) => {
-      let deletedEntity: any;
-
+    const [deleted] = await prisma.$transaction(async (tx) => {
       if (type === "division") {
-        deletedEntity = await tx.division.findFirst({ where: { id, schoolId: session.schoolId } });
-        if (!deletedEntity) throw new Error("Division not found");
+        // Check for dependent class levels
+        const levels = await tx.classLevel.count({ where: { divisionId: id } });
+        if (levels > 0) {
+          throw new Error(`Cannot delete division: ${levels} class level(s) depend on it. Remove them first.`);
+        }
+        const existing = await tx.division.findFirst({ where: { id, schoolId: guard.session.schoolId } });
+        if (!existing) throw new Error("Division not found.");
         await tx.division.delete({ where: { id } });
+        await tx.auditLog.create({
+          data: {
+            schoolId: guard.session.schoolId, actorId: guard.session.userId, actorName: guard.session.fullName,
+            action: "DIVISION_DELETED", entityType: "Division", entityId: id,
+            previousValue: JSON.parse(JSON.stringify(existing)),
+          },
+        });
+        return [existing];
       } else if (type === "level") {
-        deletedEntity = await tx.classLevel.findFirst({ where: { id, schoolId: session.schoolId } });
-        if (!deletedEntity) throw new Error("Class Level not found");
+        const arms = await tx.classArm.count({ where: { classLevelId: id } });
+        if (arms > 0) {
+          throw new Error(`Cannot delete class level: ${arms} class arm(s) depend on it. Remove them first.`);
+        }
+        const students = await tx.student.count({ where: { classLevelId: id } });
+        if (students > 0) {
+          throw new Error(`Cannot delete class level: ${students} student(s) are assigned to it. Reassign them first.`);
+        }
+        const existing = await tx.classLevel.findFirst({ where: { id, schoolId: guard.session.schoolId } });
+        if (!existing) throw new Error("Class level not found.");
         await tx.classLevel.delete({ where: { id } });
+        await tx.auditLog.create({
+          data: {
+            schoolId: guard.session.schoolId, actorId: guard.session.userId, actorName: guard.session.fullName,
+            action: "CLASS_LEVEL_DELETED", entityType: "ClassLevel", entityId: id,
+            previousValue: JSON.parse(JSON.stringify(existing)),
+          },
+        });
+        return [existing];
       } else if (type === "arm") {
-        deletedEntity = await tx.classArm.findFirst({ where: { id, schoolId: session.schoolId } });
-        if (!deletedEntity) throw new Error("Class Arm not found");
+        const students = await tx.student.count({ where: { classArmId: id } });
+        if (students > 0) {
+          throw new Error(`Cannot delete class arm: ${students} student(s) are assigned to it. Reassign them first.`);
+        }
+        const existing = await tx.classArm.findFirst({ where: { id, schoolId: guard.session.schoolId } });
+        if (!existing) throw new Error("Class arm not found.");
         await tx.classArm.delete({ where: { id } });
+        await tx.auditLog.create({
+          data: {
+            schoolId: guard.session.schoolId, actorId: guard.session.userId, actorName: guard.session.fullName,
+            action: "CLASS_ARM_DELETED", entityType: "ClassArm", entityId: id,
+            previousValue: JSON.parse(JSON.stringify(existing)),
+          },
+        });
+        return [existing];
       }
-
-      // Audit Log
-      await tx.auditLog.create({
-        data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
-          action: `ACADEMIC_${type.toUpperCase()}_DELETED`,
-          entityType: type === "division" ? "Division" : type === "level" ? "ClassLevel" : "ClassArm",
-          entityId: id,
-          previousValue: JSON.parse(JSON.stringify(deletedEntity)),
-        },
-      });
-
-      return deletedEntity;
+      throw new Error("Invalid type");
     });
 
-    return NextResponse.json({
-      data: result,
-      message: `${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`,
-    });
-  } catch (err: any) {
-    console.error("[academic] Classes DELETE error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "Failed to delete academic element", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ data: deleted, message: "Deleted successfully." });
+  } catch (err: unknown) {
+    logError("academic/classes DELETE", err);
+    const e = err as Error;
+    if (e.message?.startsWith("Cannot delete")) {
+      return NextResponse.json({ error: e.message, code: "DEPENDENCY_ERROR" }, { status: 409 });
+    }
+    if (e.message?.includes("not found")) {
+      return NextResponse.json({ error: e.message, code: "NOT_FOUND" }, { status: 404 });
+    }
+    return NextResponse.json({ error: "Failed to delete class structure", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

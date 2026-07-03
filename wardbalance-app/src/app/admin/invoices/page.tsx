@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Plus, AlertCircle, CheckCircle } from "lucide-react";
 import InvoiceFilters from "@/components/admin/invoices/invoice-filters";
 import InvoiceTable from "@/components/admin/invoices/invoice-table";
+import PaginationBar from "@/components/admin/shared/pagination-bar";
 import InvoiceDetailDrawer from "@/components/admin/invoices/invoice-detail-drawer";
 import GenerateWizard from "@/components/admin/invoices/generate-wizard";
 import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
@@ -74,16 +75,29 @@ export default function InvoicesPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const pageSize = 20;
+
+  useEffect(() => { setPage(1); }, [filterClassLevelId, filterTermId, filterStatus, searchQuery]);
+
   const loadData = () => {
     setLoading(true);
+    const offset = (page - 1) * pageSize;
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+    if (filterTermId) params.set("termId", filterTermId);
+    if (filterClassLevelId) params.set("classLevelId", filterClassLevelId);
+    if (filterStatus) params.set("status", filterStatus);
+    const invoiceUrl = `/api/admin/invoices?${params.toString()}`;
     Promise.all([
-      fetch("/api/admin/invoices").then((r) => r.json()),
+      fetch(invoiceUrl).then((r) => r.json()),
       fetch("/api/admin/academic/classes").then((r) => r.json()),
       fetch("/api/admin/academic/terms").then((r) => r.json()),
       fetch("/api/admin/verify-email").then((r) => r.json()).catch(() => ({ emailVerified: true })),
     ])
       .then(([invoiceRes, classRes, termRes, verifyRes]) => {
         setInvoices(invoiceRes.data || []);
+        setTotalRecords(invoiceRes.meta?.total ?? 0);
         setEmailVerified(verifyRes.emailVerified ?? true);
         const divisions = classRes.data || [];
         setClassLevels(divisions.flatMap((d: any) =>
@@ -97,6 +111,10 @@ export default function InvoicesPage() {
       })
       .catch(() => setLoading(false));
   };
+
+  useEffect(() => {
+    loadData();
+  }, [page, filterClassLevelId, filterTermId, filterStatus, searchQuery]);
 
   useEffect(() => { loadData(); }, []);
 
@@ -297,6 +315,14 @@ export default function InvoicesPage() {
 
       <InvoiceTable invoices={filteredInvoices} onInvoiceClick={(inv) => handleInvoiceClick(inv as Invoice)} />
 
+      <PaginationBar
+        currentPage={page}
+        pageSize={pageSize}
+        total={totalRecords}
+        loading={loading}
+        onPageChange={setPage}
+      />
+
       <InvoiceDetailDrawer
         invoice={selectedInvoice}
         details={invoiceDetails}
@@ -319,6 +345,7 @@ export default function InvoicesPage() {
         onSubmitPreview={handleFetchWizardPreview}
         onSubmitGenerate={handleGenerateInvoices}
         wizardStep={wizardStep}
+        onBack={() => setWizardStep(1)}
         wizClassLevelId={wizClassLevelId}
         wizTermId={wizTermId}
         wizDueDate={wizDueDate}

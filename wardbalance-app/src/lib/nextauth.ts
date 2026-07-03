@@ -2,8 +2,26 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { comparePassword } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
-import { upstashGet, upstashDel } from "@/lib/redis";
+import { upstashGet, upstashDel, upstashIncr, rateLimit } from "@/lib/redis";
 import { authConfig } from "@/lib/auth/auth.config";
+
+const LOCKOUT_THRESHOLD = 5;
+const LOCKOUT_WINDOW_SECONDS = 900; // 15 min
+
+async function isAccountLocked(email: string): Promise<boolean> {
+  const key = `lockout:${email.toLowerCase().trim()}`;
+  const attempts = await upstashGet(key);
+  return attempts !== null && parseInt(attempts, 10) >= LOCKOUT_THRESHOLD;
+}
+
+async function recordFailedAttempt(email: string): Promise<void> {
+  const key = `lockout:${email.toLowerCase().trim()}`;
+  await upstashIncr(key, LOCKOUT_WINDOW_SECONDS);
+}
+
+async function clearLockout(email: string): Promise<void> {
+  await upstashDel(`lockout:${email.toLowerCase().trim()}`);
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -15,21 +33,44 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         const { email, password } = credentials as {
           email: string;
           password: string;
         };
         if (!email || !password) return null;
 
+        // Rate limit by IP
+        const ip =
+          (request?.headers?.get("x-forwarded-for") ?? request?.headers?.get("x-real-ip") ?? "unknown")
+            .split(",")[0]
+            .trim();
+        const rl = await rateLimit(ip, {
+          prefix: "rate_limit:login",
+          maxRequests: 10,
+          windowSeconds: 300,
+        });
+        if (!rl.allowed) return null;
+
+        // Check account lockout
+        if (await isAccountLocked(email)) return null;
+
         const user = await prisma.user.findUnique({
           where: { email: email.toLowerCase().trim() },
           include: { school: { select: { name: true, status: true } } },
         });
-        if (!user) return null;
+        if (!user) {
+          await recordFailedAttempt(email);
+          return null;
+        }
 
         const valid = await comparePassword(password, user.passwordHash);
-        if (!valid) return null;
+        if (!valid) {
+          await recordFailedAttempt(email);
+          return null;
+        }
+
+        await clearLockout(email);
 
         return {
           id: user.id,

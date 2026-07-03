@@ -6,6 +6,7 @@ import FeeLibraryTable from "@/components/admin/fees/fee-library-table";
 import TemplateCardGrid from "@/components/admin/fees/template-card-grid";
 import FeeItemDrawer from "@/components/admin/fees/fee-item-drawer";
 import TemplateDrawer from "@/components/admin/fees/template-drawer";
+import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
 
 interface FeeItem {
   id: string; name: string; description: string | null;
@@ -37,6 +38,10 @@ export default function FeeStructurePage() {
   const [templates, setTemplates] = useState<ClassFeeTemplate[]>([]);
   const [classLevels, setClassLevels] = useState<ClassLevel[]>([]);
   const [terms, setTerms] = useState<AcademicTerm[]>([]);
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean; title: string; description: string;
+    variant?: "default" | "destructive"; onConfirm: () => void;
+  }>({ isOpen: false, title: "", description: "", onConfirm: () => {} });
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTermId, setSelectedTermId] = useState("");
@@ -110,15 +115,22 @@ export default function FeeStructurePage() {
   };
 
   const handleDeleteLibraryItem = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this fee item?")) return;
-    setActionLoading(true); setError(null); setSuccess(null);
-    try {
-      const res = await fetch(`/api/admin/fees/library?id=${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to delete");
-      setSuccess("Fee item deleted."); loadData();
-    } catch (err: any) { setError(err.message); }
-    finally { setActionLoading(false); }
+    setConfirmState({
+      isOpen: true, title: "Delete Fee Item?",
+      description: "Are you sure you want to delete this fee item? This action cannot be undone.",
+      variant: "destructive",
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        setActionLoading(true); setError(null); setSuccess(null);
+        try {
+          const res = await fetch(`/api/admin/fees/library?id=${id}`, { method: "DELETE" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error ?? "Failed to delete");
+          setSuccess("Fee item deleted."); loadData();
+        } catch (err: any) { setError(err.message); }
+        finally { setActionLoading(false); }
+      },
+    });
   };
 
   const handleOpenTemplateDrawer = (template: any = null) => {
@@ -167,15 +179,22 @@ export default function FeeStructurePage() {
   };
 
   const handleDeleteTemplate = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this template?")) return;
-    setActionLoading(true); setError(null); setSuccess(null);
-    try {
-      const res = await fetch(`/api/admin/fees/templates?id=${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed to delete");
-      setSuccess("Template deleted."); loadData();
-    } catch (err: any) { setError(err.message); }
-    finally { setActionLoading(false); }
+    setConfirmState({
+      isOpen: true, title: "Delete Template?",
+      description: "Are you sure you want to delete this fee template? This action cannot be undone.",
+      variant: "destructive",
+      onConfirm: async () => {
+        setConfirmState((prev) => ({ ...prev, isOpen: false }));
+        setActionLoading(true); setError(null); setSuccess(null);
+        try {
+          const res = await fetch(`/api/admin/fees/templates?id=${id}`, { method: "DELETE" });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error ?? "Failed to delete");
+          setSuccess("Template deleted."); loadData();
+        } catch (err: any) { setError(err.message); }
+        finally { setActionLoading(false); }
+      },
+    });
   };
 
   const filteredTemplates = templates.filter((t) => {
@@ -292,6 +311,17 @@ export default function FeeStructurePage() {
         onAmountOverrideChange={handleAmountOverrideChange}
         classLevels={classLevels} terms={terms}
         actionLoading={actionLoading} onSubmit={handleTemplateSubmit} />
+
+      <ConfirmationDialog
+        isOpen={confirmState.isOpen}
+        onClose={() => setConfirmState((prev) => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmState.onConfirm}
+        title={confirmState.title}
+        description={confirmState.description}
+        variant={confirmState.variant || "default"}
+        confirmText="Delete"
+        isLoading={actionLoading}
+      />
     </div>
   );
 }

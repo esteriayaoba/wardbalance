@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
+import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -10,23 +11,17 @@ const SessionSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const sessions = await prisma.academicSession.findMany({
-      where: { schoolId: session.schoolId },
+      where: { schoolId: guard.session.schoolId },
       orderBy: { name: "desc" },
     });
 
     return NextResponse.json({ data: sessions });
   } catch (err) {
-    console.error("[academic] Sessions GET error:", err);
+    logError("[academic] Sessions GET error:", err);
     return NextResponse.json(
       { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
       { status: 500 }
@@ -36,14 +31,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const body = await request.json();
     const parsed = SessionSchema.safeParse(body);
@@ -58,28 +47,26 @@ export async function POST(request: NextRequest) {
     const { name, isActive } = parsed.data;
 
     const newSession = await prisma.$transaction(async (tx) => {
-      // If setting as active, mark other sessions inactive
       if (isActive) {
         await tx.academicSession.updateMany({
-          where: { schoolId: session.schoolId, isActive: true },
+          where: { schoolId: guard.session.schoolId, isActive: true },
           data: { isActive: false },
         });
       }
 
       const created = await tx.academicSession.create({
         data: {
-          schoolId: session.schoolId,
+          schoolId: guard.session.schoolId,
           name,
           isActive,
         },
       });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
           action: "ACADEMIC_SESSION_CREATED",
           entityType: "AcademicSession",
           entityId: created.id,
@@ -95,8 +82,7 @@ export async function POST(request: NextRequest) {
       message: "Academic session created successfully.",
     });
   } catch (err: any) {
-    console.error("[academic] Sessions POST error:", err);
-    // Handle unique constraint e.g. same session name
+    logError("[academic] Sessions POST error:", err);
     if (err.code === "P2002") {
       return NextResponse.json(
         { error: "This academic session already exists.", code: "CONFLICT" },

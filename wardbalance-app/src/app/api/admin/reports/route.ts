@@ -1,17 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { logError } from "@/lib/logger";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar"]);
+    if (!guard.authorized) return guard.response;
 
-    const schoolId = session.schoolId;
+    const schoolId = guard.session.schoolId;
     const { searchParams } = new URL(request.url);
     const reportType = searchParams.get("type") || "revenue_summary";
     const termId = searchParams.get("termId") || undefined;
@@ -52,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (reportType === "debtors") {
-      const where: Record<string, unknown> = { schoolId, balanceDue: { gt: 0 } };
+      const where: Record<string, unknown> = { schoolId, balanceDue: { gt: 0 }, status: { in: ["issued", "partial", "overdue"] } };
       if (termId) where.termId = termId;
       if (classLevelId) where.student = { classLevelId };
 

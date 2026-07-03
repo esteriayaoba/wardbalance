@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Plus, Upload, Check, AlertCircle, Search, Users, MapPin, Phone, Mail } from "lucide-react";
 import ImportWizard from "@/components/admin/shared/import-wizard";
+import PaginationBar from "@/components/admin/shared/pagination-bar";
 
 interface WardLink {
   id: string;
@@ -46,12 +47,22 @@ export default function ParentsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [page, setPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const pageSize = 20;
+
+  useEffect(() => { setPage(1); }, [searchQuery]);
+
   const loadData = () => {
     setLoading(true);
-    fetch("/api/admin/parents")
+    const offset = (page - 1) * pageSize;
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+    if (searchQuery) params.set("search", searchQuery);
+    fetch(`/api/admin/parents?${params.toString()}`)
       .then((r) => r.json())
       .then((body) => {
         setParents(body.data || []);
+        setTotalRecords(body.meta?.total ?? 0);
         setLoading(false);
       })
       .catch((err) => {
@@ -62,7 +73,7 @@ export default function ParentsPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page, searchQuery]);
 
   const handleManualAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,14 +120,8 @@ export default function ParentsPage() {
     );
   }
 
-  // Filter parents
-  const filteredParents = parents.filter((p) => {
-    return (
-      `${p.firstName} ${p.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.phone.includes(searchQuery) ||
-      (p.email && p.email.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
-  });
+  // API handles search filtering; parents array is already filtered and paginated
+  const filteredParents = parents;
 
   const importFields = [
     { targetField: "firstName", label: "First Name", required: true },
@@ -355,6 +360,14 @@ export default function ParentsPage() {
           </tbody>
         </table>
       </div>
+
+      <PaginationBar
+        currentPage={page}
+        pageSize={pageSize}
+        total={totalRecords}
+        loading={loading}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

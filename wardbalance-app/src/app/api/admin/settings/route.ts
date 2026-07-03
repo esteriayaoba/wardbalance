@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
@@ -16,17 +16,11 @@ const SettingsSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const school = await prisma.school.findUnique({
-      where: { id: session.schoolId },
+      where: { id: guard.session.schoolId },
     });
 
     return NextResponse.json({ data: school });
@@ -41,14 +35,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner"]);
+    if (!guard.authorized) return guard.response;
 
     const body = await request.json();
     const parsed = SettingsSchema.safeParse(body);
@@ -62,37 +50,39 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data;
 
-    // Fetch previous value for audit log
-    const prevSchool = await prisma.school.findUnique({
-      where: { id: session.schoolId },
-    });
+    const [updatedSchool] = await prisma.$transaction(async (tx) => {
+      const prevSchool = await tx.school.findUnique({
+        where: { id: guard.session.schoolId },
+      });
 
-    const updatedSchool = await prisma.school.update({
-      where: { id: session.schoolId },
-      data: {
-        name: data.name,
-        address: data.address,
-        phone: data.phone,
-        email: data.email || null,
-        estimatedStudents: data.estimatedStudents || null,
-        bankName: data.bankName || null,
-        bankAccountNumber: data.bankAccountNumber || null,
-        bankAccountName: data.bankAccountName || null,
-      },
-    });
+      const updated = await tx.school.update({
+        where: { id: guard.session.schoolId },
+        data: {
+          name: data.name,
+          address: data.address,
+          phone: data.phone,
+          email: data.email || null,
+          estimatedStudents: data.estimatedStudents || null,
+          bankName: data.bankName || null,
+          bankAccountNumber: data.bankAccountNumber || null,
+          bankAccountName: data.bankAccountName || null,
+        },
+      });
 
-    // Write audit log
-    await prisma.auditLog.create({
-      data: {
-        schoolId: session.schoolId,
-        actorId: session.userId,
-        actorName: session.fullName,
-        action: "SCHOOL_PROFILE_UPDATED",
-        entityType: "School",
-        entityId: session.schoolId,
-        previousValue: prevSchool ? JSON.parse(JSON.stringify(prevSchool)) : null,
-        newValue: JSON.parse(JSON.stringify(updatedSchool)),
-      },
+      await tx.auditLog.create({
+        data: {
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
+          action: "SCHOOL_PROFILE_UPDATED",
+          entityType: "School",
+          entityId: guard.session.schoolId,
+          previousValue: prevSchool ? JSON.parse(JSON.stringify(prevSchool)) : null,
+          newValue: JSON.parse(JSON.stringify(updated)),
+        },
+      });
+
+      return [updated];
     });
 
     return NextResponse.json({

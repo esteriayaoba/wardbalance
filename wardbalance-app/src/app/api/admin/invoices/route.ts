@@ -1,17 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
     const termId = searchParams.get("termId");
@@ -19,7 +13,7 @@ export async function GET(request: NextRequest) {
     const studentId = searchParams.get("studentId");
     const status = searchParams.get("status");
 
-    const where: any = { schoolId: session.schoolId };
+    const where: Record<string, unknown> = { schoolId: guard.session.schoolId };
     if (termId) where.termId = termId;
     if (classLevelId) {
       where.student = { classLevelId };
@@ -27,30 +21,34 @@ export async function GET(request: NextRequest) {
     if (studentId) where.studentId = studentId;
     if (status) where.status = status;
 
-    const invoices = await prisma.invoice.findMany({
-      where,
-      include: {
-        student: {
-          include: {
-            classLevel: true,
-            classArm: true,
-          },
-        },
-        term: {
-          include: {
-            session: true,
-          },
-        },
-      },
-      orderBy: { createdAt: "desc" },
-    });
+    const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 500);
+    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
 
-    return NextResponse.json({ data: invoices });
+    const [invoices, total] = await Promise.all([
+      prisma.invoice.findMany({
+        where,
+        include: {
+          student: {
+            include: {
+              classLevel: { select: { name: true } },
+              classArm: { select: { name: true } },
+            },
+          },
+          term: { select: { name: true, session: { select: { name: true } } } },
+          payments: {
+            where: { status: "recorded" },
+            select: { amount: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+        skip: offset,
+      }),
+      prisma.invoice.count({ where }),
+    ]);
+
+    return NextResponse.json({ data: invoices, meta: { total, limit, offset } });
   } catch (err) {
-    console.error("[invoices] GET error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to fetch invoices", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

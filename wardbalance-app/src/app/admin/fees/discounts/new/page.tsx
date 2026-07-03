@@ -28,15 +28,10 @@ export default function NewDiscountRulePage() {
       const res = await fetch("/api/admin/fees/discounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...formData,
-          value: Number(formData.value)
-        }),
+        body: JSON.stringify({ ...formData, value: Number(formData.value) }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create rule");
-
       router.push("/admin/fees/discounts");
       router.refresh();
     } catch (err) {
@@ -47,23 +42,21 @@ export default function NewDiscountRulePage() {
 
   const renderPreview = () => {
     const mockTotal = 150000;
-    const discountAmount = formData.type === "percentage" 
-      ? mockTotal * (Number(formData.value || 0) / 100) 
+    const discountAmount = formData.type === "percentage"
+      ? mockTotal * (Number(formData.value || 0) / 100)
       : Number(formData.value || 0);
-    
     const finalAmount = Math.max(0, mockTotal - discountAmount);
 
     return (
-      <div className="bg-primary-50 border border-primary-100 rounded-xl p-6 h-full flex flex-col">
-        <h3 className="text-label-large text-primary-900 mb-4 flex items-center gap-2">
-          <Info className="w-5 h-5 text-primary-600" />
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-6 h-full flex flex-col">
+        <h3 className="text-label-large text-neutral-900 mb-4 flex items-center gap-2">
+          <Info className="w-5 h-5 text-blue-500" />
           Rule Preview
         </h3>
-        <p className="text-body-small text-primary-700 mb-6">
+        <p className="text-body-small text-neutral-600 mb-6">
           This is how the discount will affect a standard invoice of ₦150,000 for students matching the criteria.
         </p>
-
-        <div className="bg-white rounded-lg p-4 border border-primary-100 shadow-sm space-y-3 mb-6">
+        <div className="bg-white rounded-lg p-4 border border-blue-100 shadow-sm space-y-3 mb-6">
           <div className="flex justify-between items-center text-body-medium text-neutral-600">
             <span>Original Invoice Total</span>
             <span className="tabular-nums font-bold">₦150,000</span>
@@ -77,7 +70,6 @@ export default function NewDiscountRulePage() {
             <span className="tabular-nums text-lg">₦{finalAmount.toLocaleString()}</span>
           </div>
         </div>
-
         <div className="mt-auto bg-amber-50 border border-amber-200 text-amber-800 text-body-small p-4 rounded-lg flex items-start gap-3">
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
@@ -90,7 +82,7 @@ export default function NewDiscountRulePage() {
   };
 
   return (
-    <div className="max-w-screen-2xl mx-auto px-6 py-4">
+    <div className="space-y-6">
       <div className="mb-6">
         <Link href="/admin/fees/discounts" className="inline-flex items-center gap-2 text-body-small font-bold text-neutral-500 hover:text-neutral-900 mb-4">
           <ArrowLeft className="w-4 h-4" /> Back to Discounts
@@ -102,7 +94,6 @@ export default function NewDiscountRulePage() {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2">
           <form onSubmit={handleSubmit} className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm">
-            
             {error && (
               <div className="mb-6 bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-3 text-body-small font-bold">
                 <AlertCircle className="w-5 h-5" /> {error}
@@ -111,52 +102,35 @@ export default function NewDiscountRulePage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div className="md:col-span-2">
-                <label className="block text-label-small text-neutral-700 mb-2">Rule Name</label>
-                <input 
-                  required
-                  type="text"
-                  value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
+                <label className="block text-label-medium text-neutral-700 mb-1.5">Rule Name</label>
+                <input required type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
                   placeholder="e.g. 2nd Child Sibling Discount"
-                  className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:ring-2 focus:ring-primary-500 outline-none"
-                />
+                  className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline" />
               </div>
 
               <div>
-                <label className="block text-label-small text-neutral-700 mb-2">Discount Type</label>
-                <select 
-                  value={formData.type}
-                  onChange={e => setFormData({...formData, type: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:ring-2 focus:ring-primary-500 outline-none bg-white"
-                >
+                <label className="block text-label-medium text-neutral-700 mb-1.5">Discount Type</label>
+                <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}
+                  className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline bg-white">
                   <option value="percentage">Percentage (%)</option>
                   <option value="fixed">Fixed Amount (₦)</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-label-small text-neutral-700 mb-2">
+                <label className="block text-label-medium text-neutral-700 mb-1.5">
                   Discount Value {formData.type === "percentage" ? "(%)" : "(₦)"}
                 </label>
-                <input 
-                  required
-                  type="number"
-                  min="0"
-                  step={formData.type === "percentage" ? "1" : "100"}
-                  value={formData.value}
-                  onChange={e => setFormData({...formData, value: e.target.value})}
+                <input required type="number" min="0" step={formData.type === "percentage" ? "1" : "100"}
+                  value={formData.value} onChange={e => setFormData({...formData, value: e.target.value})}
                   placeholder={formData.type === "percentage" ? "10" : "5000"}
-                  className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:ring-2 focus:ring-primary-500 outline-none"
-                />
+                  className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline" />
               </div>
 
               <div>
-                <label className="block text-label-small text-neutral-700 mb-2">Condition (Trigger)</label>
-                <select 
-                  value={formData.condition}
-                  onChange={e => setFormData({...formData, condition: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:ring-2 focus:ring-primary-500 outline-none bg-white"
-                >
+                <label className="block text-label-medium text-neutral-700 mb-1.5">Condition (Trigger)</label>
+                <select value={formData.condition} onChange={e => setFormData({...formData, condition: e.target.value})}
+                  className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline bg-white">
                   <option value="sibling_count">Sibling Enrolment</option>
                   <option value="early_payment">Early Payment</option>
                   <option value="manual">Manual Application</option>
@@ -165,12 +139,9 @@ export default function NewDiscountRulePage() {
 
               {formData.condition === "sibling_count" && (
                 <div>
-                  <label className="block text-label-small text-neutral-700 mb-2">Apply to which child?</label>
-                  <select 
-                    value={formData.conditionValue}
-                    onChange={e => setFormData({...formData, conditionValue: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:ring-2 focus:ring-primary-500 outline-none bg-white"
-                  >
+                  <label className="block text-label-medium text-neutral-700 mb-1.5">Apply to which child?</label>
+                  <select value={formData.conditionValue} onChange={e => setFormData({...formData, conditionValue: e.target.value})}
+                    className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline bg-white">
                     <option value="2">2nd Child Onward</option>
                     <option value="3">3rd Child Onward</option>
                   </select>
@@ -179,23 +150,16 @@ export default function NewDiscountRulePage() {
 
               {formData.condition === "early_payment" && (
                 <div>
-                  <label className="block text-label-small text-neutral-700 mb-2">Cutoff Date</label>
-                  <input 
-                    type="date"
-                    value={formData.conditionValue}
-                    onChange={e => setFormData({...formData, conditionValue: e.target.value})}
-                    className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:ring-2 focus:ring-primary-500 outline-none"
-                  />
+                  <label className="block text-label-medium text-neutral-700 mb-1.5">Cutoff Date</label>
+                  <input type="date" value={formData.conditionValue} onChange={e => setFormData({...formData, conditionValue: e.target.value})}
+                    className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline" />
                 </div>
               )}
 
               <div className="md:col-span-2">
-                <label className="block text-label-small text-neutral-700 mb-2">Scope (Who does this apply to?)</label>
-                <select 
-                  value={formData.scope}
-                  onChange={e => setFormData({...formData, scope: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:ring-2 focus:ring-primary-500 outline-none bg-white"
-                >
+                <label className="block text-label-medium text-neutral-700 mb-1.5">Scope (Who does this apply to?)</label>
+                <select value={formData.scope} onChange={e => setFormData({...formData, scope: e.target.value})}
+                  className="w-full px-3.5 py-2.5 border border-neutral-300 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline bg-white">
                   <option value="all_students">All Students in School</option>
                   <option value="specific_class">Specific Class Level</option>
                   <option value="specific_class_arm">Specific Class Arm</option>
@@ -204,21 +168,15 @@ export default function NewDiscountRulePage() {
             </div>
 
             <div className="flex justify-end pt-6 border-t border-neutral-100">
-              <button 
-                type="submit" 
-                disabled={isSubmitting || !formData.value}
-                className="bg-primary-600 text-white px-6 py-2.5 rounded-lg font-bold text-label-large hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
+              <button type="submit" disabled={isSubmitting || !formData.value}
+                className="bg-primary text-white px-6 py-2.5 rounded-lg font-bold text-label-large hover:bg-primary-dark disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
                 {isSubmitting ? "Saving Rule..." : "Save Discount Rule"}
               </button>
             </div>
           </form>
         </div>
-
-        <div className="xl:col-span-1">
-          {renderPreview()}
-        </div>
+        <div className="xl:col-span-1">{renderPreview()}</div>
       </div>
     </div>
   );

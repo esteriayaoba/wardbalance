@@ -1,190 +1,138 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-const LinkWardSchema = z.object({
-  parentId: z.string().min(1, "Parent ID is required"),
-  studentId: z.string().min(1, "Student ID is required"),
-  relationshipType: z.enum(["Mother", "Father", "Guardian", "Sponsor", "Other"]).default("Guardian"),
-  isPrimaryContact: z.boolean().default(false),
-  receivesInvoiceNotifications: z.boolean().default(true),
-});
+import { LinkWardSchema } from "@/schemas/parent.schema";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const body = await request.json();
     const parsed = LinkWardSchema.safeParse(body);
-
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
+        { error: parsed.error.issues[0]?.message ?? "Invalid input", code: "VALIDATION_ERROR" },
         { status: 400 }
       );
     }
 
-    const data = parsed.data;
+    const { parentId, studentId, relationshipType, isPrimaryContact, receivesInvoiceNotifications } = parsed.data;
 
-    // Verify both belong to the school
-    const [parent, student] = await Promise.all([
-      prisma.parent.findFirst({ where: { id: data.parentId, schoolId: session.schoolId } }),
-      prisma.student.findFirst({ where: { id: data.studentId, schoolId: session.schoolId } }),
-    ]);
-
-    if (!parent || !student) {
-      return NextResponse.json(
-        { error: "Parent or student record not found in your school.", code: "NOT_FOUND" },
-        { status: 404 }
-      );
+    const parent = await prisma.parent.findFirst({
+      where: { id: parentId, schoolId: guard.session.schoolId },
+    });
+    if (!parent) {
+      return NextResponse.json({ error: "Parent not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
-    const newLink = await prisma.$transaction(async (tx) => {
-      // If setting this link as primary contact, reset others first
-      if (data.isPrimaryContact) {
+    const student = await prisma.student.findFirst({
+      where: { id: studentId, schoolId: guard.session.schoolId },
+    });
+    if (!student) {
+      return NextResponse.json({ error: "Student not found", code: "NOT_FOUND" }, { status: 404 });
+    }
+
+    const [link] = await prisma.$transaction(async (tx) => {
+      // If setting as primary, unset any existing primary for this student
+      if (isPrimaryContact) {
         await tx.parentWardLink.updateMany({
-          where: { schoolId: session.schoolId, studentId: data.studentId, isPrimaryContact: true },
+          where: { studentId, isPrimaryContact: true },
           data: { isPrimaryContact: false },
         });
-      } else {
-        // If there are no other links for this student, force this first link to be primary contact
-        const currentLinkCount = await tx.parentWardLink.count({
-          where: { schoolId: session.schoolId, studentId: data.studentId },
-        });
-        if (currentLinkCount === 0) {
-          data.isPrimaryContact = true;
-        }
       }
 
-      // Upsert the link
+      // Use upsert to prevent duplicates
       const link = await tx.parentWardLink.upsert({
         where: {
-          parentId_studentId: {
-            parentId: data.parentId,
-            studentId: data.studentId,
-          },
-        },
-        create: {
-          schoolId: session.schoolId,
-          parentId: data.parentId,
-          studentId: data.studentId,
-          relationshipType: data.relationshipType,
-          isPrimaryContact: data.isPrimaryContact,
-          receivesInvoiceNotifications: data.receivesInvoiceNotifications,
+          parentId_studentId: { parentId, studentId },
         },
         update: {
-          relationshipType: data.relationshipType,
-          isPrimaryContact: data.isPrimaryContact,
-          receivesInvoiceNotifications: data.receivesInvoiceNotifications,
+          relationshipType,
+          isPrimaryContact: isPrimaryContact,
+          receivesInvoiceNotifications,
+        },
+        create: {
+          schoolId: guard.session.schoolId,
+          parentId,
+          studentId,
+          relationshipType,
+          isPrimaryContact,
+          receivesInvoiceNotifications,
         },
       });
 
-      // Audit Log
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
-          action: "PARENT_WARD_LINK_CREATED",
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName ?? "Admin",
+          action: "PARENT_WARD_LINKED",
           entityType: "ParentWardLink",
           entityId: link.id,
           newValue: JSON.parse(JSON.stringify(link)),
         },
       });
 
-      return link;
+      return [link];
     });
 
-    return NextResponse.json({
-      data: newLink,
-      message: "Parent successfully linked to student.",
-    });
+    return NextResponse.json({ data: link, message: "Parent linked to ward successfully." }, { status: 201 });
   } catch (err) {
-    console.error("[parents] Linking error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to link parent to ward", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
 export async function DELETE(request: NextRequest) {
   try {
-    const session = await getSession();
-
-    if (!session) {
-      return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
-    const linkId = searchParams.get("id");
-
+    const linkId = searchParams.get("linkId");
     if (!linkId) {
-      return NextResponse.json(
-        { error: "Link ID is required", code: "VALIDATION_ERROR" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Link ID is required", code: "VALIDATION_ERROR" }, { status: 400 });
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      const existing = await tx.parentWardLink.findFirst({
-        where: { id: linkId, schoolId: session.schoolId },
-      });
+    const existing = await prisma.parentWardLink.findFirst({
+      where: { id: linkId, schoolId: guard.session.schoolId },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Link not found", code: "NOT_FOUND" }, { status: 404 });
+    }
 
-      if (!existing) {
-        throw new Error("Link not found or unauthorized");
-      }
-
+    await prisma.$transaction(async (tx) => {
       await tx.parentWardLink.delete({ where: { id: linkId } });
 
-      // Audit Log
+      // Defensive: if the deleted link was primary, ensure another link exists as primary
+      if (existing.isPrimaryContact) {
+        const remaining = await tx.parentWardLink.findFirst({
+          where: { studentId: existing.studentId },
+          orderBy: { createdAt: "asc" },
+        });
+        if (remaining) {
+          await tx.parentWardLink.update({
+            where: { id: remaining.id },
+            data: { isPrimaryContact: true },
+          });
+        }
+      }
+
       await tx.auditLog.create({
         data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName,
-          action: "PARENT_WARD_LINK_DELETED",
+          schoolId: guard.session.schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName ?? "Admin",
+          action: "PARENT_WARD_UNLINKED",
           entityType: "ParentWardLink",
           entityId: linkId,
           previousValue: JSON.parse(JSON.stringify(existing)),
         },
       });
-
-      // Defensively check if student now has no primary contact, and set one if links exist
-      const remainingLinks = await tx.parentWardLink.findMany({
-        where: { studentId: existing.studentId },
-      });
-
-      if (remainingLinks.length > 0 && !remainingLinks.some((l) => l.isPrimaryContact)) {
-        await tx.parentWardLink.update({
-          where: { id: remainingLinks[0]!.id },
-          data: { isPrimaryContact: true },
-        });
-      }
-
-      return existing;
     });
 
-    return NextResponse.json({
-      data: result,
-      message: "Parent link removed successfully.",
-    });
-  } catch (err: any) {
-    console.error("[parents] Unlink error:", err);
-    return NextResponse.json(
-      { error: err.message ?? "Failed to break parent link", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Parent unlinked from ward." });
+  } catch (err) {
+    return NextResponse.json({ error: "Failed to unlink parent", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

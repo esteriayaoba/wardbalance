@@ -1,144 +1,94 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSession } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-
-interface ParentImportRow {
-  firstName?: string;
-  lastName?: string;
-  phone?: string;
-  email?: string;
-  address?: string;
-}
+import { ParentImportSchema } from "@/schemas/parent.schema";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getSession();
+    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    if (!guard.authorized) return guard.response;
 
-    if (!session) {
+    const body = await request.json();
+    const parsed = ParentImportSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Unauthorized", code: "UNAUTHORIZED" },
-        { status: 401 }
-      );
-    }
-
-    const { parents } = await request.json();
-
-    if (!Array.isArray(parents)) {
-      return NextResponse.json(
-        { error: "Parents array is required", code: "VALIDATION_ERROR" },
+        { error: parsed.error.issues[0]?.message ?? "Invalid data", code: "VALIDATION_ERROR" },
         { status: 400 }
       );
     }
 
-    const schoolId = session.schoolId;
+    const parents = parsed.data;
+    const errors: { row: number; reason: string }[] = [];
+    const validParents: typeof parents = [];
 
-    // Fetch existing phone numbers to prevent duplicate errors
-    const existingParents = await prisma.parent.findMany({
-      where: { schoolId },
-      select: { phone: true },
-    });
-
-    const existingPhones = new Set(existingParents.map((p) => p.phone.toLowerCase().replace(/[^0-9]/g, "")));
-
-    const importedParents: any[] = [];
-    const skippedRecords: { row: number; reason: string }[] = [];
-
-    // Temporary set to check duplicates within the CSV itself
-    const csvPhones = new Set<string>();
+    const seenPhones = new Set<string>();
 
     for (let i = 0; i < parents.length; i++) {
+      const p = parents[i];
       const rowNum = i + 1;
-      const row = parents[i] as ParentImportRow;
 
-      const firstName = row.firstName?.trim();
-      const lastName = row.lastName?.trim();
-      const phone = row.phone?.trim();
-
-      if (!firstName || !lastName || !phone) {
-        skippedRecords.push({
-          row: rowNum,
-          reason: "Missing required fields (First Name, Last Name, or Phone).",
-        });
-        continue;
-      }
-
-      // Basic Nigerian mobile validation check
-      const cleanPhone = phone.replace(/[^0-9]/g, "");
+      const cleanPhone = p.phone.replace(/\D/g, "");
       if (cleanPhone.length < 10) {
-        skippedRecords.push({
-          row: rowNum,
-          reason: `Invalid phone number "${phone}". Must be a valid contact number.`,
-        });
+        errors.push({ row: rowNum, reason: `Phone number "${p.phone}" is invalid (min 10 digits).` });
         continue;
       }
 
-      // Check CSV self-duplicates
-      if (csvPhones.has(cleanPhone)) {
-        skippedRecords.push({
-          row: rowNum,
-          reason: `Duplicate phone number "${phone}" found within the CSV file.`,
-        });
+      if (seenPhones.has(cleanPhone)) {
+        errors.push({ row: rowNum, reason: `Duplicate phone number "${p.phone}" in import data.` });
         continue;
       }
-      csvPhones.add(cleanPhone);
+      seenPhones.add(cleanPhone);
 
-      // Check DB duplicates
-      if (existingPhones.has(cleanPhone)) {
-        skippedRecords.push({
-          row: rowNum,
-          reason: `Phone number "${phone}" is already registered in the database.`,
-        });
-        continue;
-      }
-
-      importedParents.push({
-        schoolId,
-        firstName,
-        lastName,
-        phone,
-        email: row.email?.trim() || null,
-        address: row.address?.trim() || null,
+      const dbDup = await prisma.parent.findFirst({
+        where: { schoolId: guard.session.schoolId, phone: { contains: cleanPhone } },
       });
+      if (dbDup) {
+        errors.push({ row: rowNum, reason: `Phone number "${p.phone}" already exists.` });
+        continue;
+      }
+
+      validParents.push(p);
     }
 
-    // Execute transaction writes
-    if (importedParents.length > 0) {
-      await prisma.$transaction(async (tx) => {
-        await tx.parent.createMany({
-          data: importedParents,
+    let imported = 0;
+    if (validParents.length > 0) {
+      const [result] = await prisma.$transaction(async (tx) => {
+        const created = await tx.parent.createMany({
+          data: validParents.map((p) => ({
+            schoolId: guard.session.schoolId,
+            firstName: p.firstName,
+            lastName: p.lastName,
+            phone: p.phone,
+            email: p.email || null,
+            address: p.address || null,
+          })),
         });
 
-        // Write AuditLog
         await tx.auditLog.create({
           data: {
-            schoolId,
-            actorId: session.userId,
-            actorName: session.fullName,
+            schoolId: guard.session.schoolId,
+            actorId: guard.session.userId,
+            actorName: guard.session.fullName ?? "Admin",
             action: "PARENT_BULK_IMPORTED",
             entityType: "Parent",
             entityId: "bulk",
-            newValue: {
-              importedCount: importedParents.length,
-              skippedCount: skippedRecords.length,
-            },
+            newValue: { imported: created.count, total: parents.length },
           },
         });
+
+        return [created];
       });
+      imported = result.count;
     }
 
     return NextResponse.json({
-      data: {
-        imported: importedParents.length,
-        skipped: skippedRecords.length,
-        skippedDetails: skippedRecords,
-      },
-      message: "CSV Parent import completed.",
+      data: { imported, skipped: errors.length, total: parents.length },
+      errors: errors.length > 0 ? errors : undefined,
+      message: errors.length > 0
+        ? `${imported} parents imported. ${errors.length} records skipped.`
+        : `${imported} parents imported successfully.`,
     });
   } catch (err) {
-    console.error("[parents] Import error:", err);
-    return NextResponse.json(
-      { error: "An unexpected error occurred during CSV parsing", code: "INTERNAL_ERROR" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to import parents", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

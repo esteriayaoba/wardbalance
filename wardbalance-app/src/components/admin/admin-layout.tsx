@@ -10,6 +10,8 @@ import AdminNav from "./admin-nav";
 import AdminPageTitle from "./admin-page-title";
 import { RouteGuard } from "./route-guard";
 import AdminMobileNav from "./AdminMobileNav";
+import AdminBreadcrumbs from "./admin-breadcrumbs";
+import AdminToastWrapper from "./admin-toast-wrapper";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -165,7 +167,8 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
           {/* Scrollable Main View Area */}
           <main className="flex-1 overflow-y-auto">
             <div className="max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-8">
-              {children}
+              <AdminBreadcrumbs />
+              <AdminToastWrapper>{children}</AdminToastWrapper>
             </div>
           </main>
         </div>

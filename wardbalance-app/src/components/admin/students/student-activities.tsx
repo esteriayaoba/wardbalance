@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Loader2, Plus, Minus, CheckCircle, Ticket } from "lucide-react";
+import { Loader2, Plus, Minus, CheckCircle, Ticket, AlertTriangle } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 
 interface Activity {
@@ -19,6 +19,7 @@ export default function StudentActivities({ studentId }: { studentId: string }) 
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState<string | null>(null);
 
   const loadSessions = async () => {
     try {
@@ -81,21 +82,8 @@ export default function StudentActivities({ studentId }: { studentId: string }) 
         setActionLoading(null);
       }
     } else {
-      // Removing
-      if (!confirm("Remove this activity? If an invoice was already generated for this term, removing this will not alter that historic invoice. Proceed?")) return;
-      setActionLoading(feeItemId);
-      try {
-        await fetch(`/api/admin/students/${studentId}/activities`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ feeItemId, sessionId: selectedSessionId, action: "remove" })
-        });
-        await loadActivities();
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setActionLoading(null);
-      }
+      setShowRemoveConfirm(feeItemId);
+      return;
     }
   };
 
@@ -169,6 +157,51 @@ export default function StudentActivities({ studentId }: { studentId: string }) 
           </div>
         )}
       </div>
+
+      {showRemoveConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowRemoveConfirm(null)} />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-neutral-200 z-10 space-y-4">
+            <div className="flex gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center text-red-500 shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <h3 className="text-title-small text-neutral-900 font-bold leading-none">Remove Enrolment?</h3>
+                <p className="text-body-medium text-neutral-500 leading-normal">
+                  Remove this activity? If an invoice was already generated for this term, removing this will not alter that historic invoice.
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button type="button" onClick={() => setShowRemoveConfirm(null)}
+                className="px-4 py-2 border border-neutral-300 text-neutral-700 bg-white hover:bg-neutral-50 rounded-lg text-body-small font-bold transition">
+                Cancel
+              </button>
+              <button type="button" onClick={async () => {
+                const feeItemId = showRemoveConfirm;
+                setShowRemoveConfirm(null);
+                setActionLoading(feeItemId);
+                try {
+                  await fetch(`/api/admin/students/${studentId}/activities`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ feeItemId, sessionId: selectedSessionId, action: "remove" })
+                  });
+                  await loadActivities();
+                } catch (e) {
+                  console.error(e);
+                } finally {
+                  setActionLoading(null);
+                }
+              }}
+                className="px-4 py-2 text-white font-bold rounded-lg text-body-small transition inline-flex items-center gap-1.5 shadow-sm bg-error hover:opacity-90">
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
