@@ -210,6 +210,8 @@ The "My Wards" home screen shows all children with:
 | Payment overdue (30 days past due) | Email + SMS | Daily at 8am (escalated tone) |
 | Receipt available | Email + SMS | Immediate |
 | Payment link sent | SMS | Immediate |
+| School owner inactive (3/7 days post-signup) | Email | Daily at 9am (setup follow-up) |
+
 
 ### SMS Provider
 
