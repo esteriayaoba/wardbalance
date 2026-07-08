@@ -17,6 +17,10 @@ const VerificationActionSchema = z.object({
   reason: z.string().optional(),
 });
 
+const BulkApproveSchema = z.object({
+  submissionIds: z.array(z.string().min(1)).min(1, "At least one submission ID is required"),
+});
+
 export async function GET(request: NextRequest) {
   try {
     const guard = await requireVerifiedAdminUser();
@@ -44,6 +48,47 @@ export async function POST(request: NextRequest) {
     const session = guard.session;
 
     const body = await request.json();
+
+    // Check if this is a bulk action
+    if (body.bulkAction) {
+      const parsed = BulkApproveSchema.safeParse(body);
+      if (!parsed.success) {
+        return NextResponse.json(
+          { error: parsed.error.issues[0]?.message ?? "Invalid payload", code: "VALIDATION_ERROR" },
+          { status: 400 }
+        );
+      }
+
+      const { submissionIds } = parsed.data;
+      const results: Array<{ submissionId: string; status: "success" | "error"; message?: string }> = [];
+
+      for (const submissionId of submissionIds) {
+        try {
+          const result = await approvePaymentSubmission({
+            schoolId: session.schoolId,
+            actorId: session.userId,
+            actorName: session.fullName,
+            submissionId,
+          });
+
+          notifyParent(session.schoolId, result.submission.parentId,
+            "Payment Approved — WardBalance",
+            `Your payment of ₦${Number(result.payment.amount).toLocaleString()} has been approved. Receipt: ${result.receipt.receiptNumber}`
+          ).catch(() => {});
+
+          results.push({ submissionId, status: "success" });
+        } catch (err) {
+          results.push({ submissionId, status: "error", message: err instanceof Error ? err.message : "Unknown error" });
+        }
+      }
+
+      const successCount = results.filter((r) => r.status === "success").length;
+      return NextResponse.json({
+        data: { results },
+        message: `${successCount} of ${submissionIds.length} payments approved successfully.`,
+      });
+    }
+
     const parsed = VerificationActionSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
@@ -63,22 +108,10 @@ export async function POST(request: NextRequest) {
           submissionId,
         });
 
-        try {
-          const parent = await prisma.parent.findUnique({ where: { id: result.submission.parentId } });
-          if (parent) {
-            await enqueueNotification({
-              schoolId: session.schoolId,
-              parentId: parent.id,
-              channel: "email",
-              recipient: parent.email || parent.phone,
-              subject: "Payment Approved — WardBalance",
-              content: `Your payment of ₦${Number(result.payment.amount).toLocaleString()} has been approved. Receipt: ${result.receipt.receiptNumber}`,
-              reference: `payment-${result.payment.id}`,
-            });
-          }
-        } catch {
-          // Notification failure is non-blocking
-        }
+        notifyParent(session.schoolId, result.submission.parentId,
+          "Payment Approved — WardBalance",
+          `Your payment of ₦${Number(result.payment.amount).toLocaleString()} has been approved. Receipt: ${result.receipt.receiptNumber}`
+        ).catch(() => {});
 
         return NextResponse.json({
           data: result,

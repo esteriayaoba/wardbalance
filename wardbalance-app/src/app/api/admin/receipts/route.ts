@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
+import { parsePagination, paginatedJsonResponse } from "@/lib/server/pagination";
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,9 +9,8 @@ export async function GET(request: NextRequest) {
     if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
-    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
     const paymentId = searchParams.get("paymentId");
+    const { limit, offset } = parsePagination(searchParams, { defaultLimit: 50, maxLimit: 200 });
 
     const where: Record<string, unknown> = { schoolId: guard.session.schoolId };
     if (paymentId) where.paymentId = paymentId;
@@ -33,10 +33,7 @@ export async function GET(request: NextRequest) {
       prisma.receipt.count({ where }),
     ]);
 
-    return NextResponse.json({
-      data: receipts,
-      meta: { total, limit, offset },
-    });
+    return NextResponse.json(paginatedJsonResponse(receipts, total, limit, offset));
   } catch (err) {
     return NextResponse.json({ error: "Failed to fetch receipts", code: "INTERNAL_ERROR" }, { status: 500 });
   }

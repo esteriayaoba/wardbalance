@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
+import { parsePagination, paginatedJsonResponse } from "@/lib/server/pagination";
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,13 +10,12 @@ export async function GET(request: NextRequest) {
     if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 1000);
     const entityType = searchParams.get("entityType");
     const action = searchParams.get("action");
     const actorName = searchParams.get("actor");
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
+    const { limit, offset } = parsePagination(searchParams, { maxLimit: 1000 });
 
     const where: Record<string, unknown> = { schoolId: guard.session.schoolId };
     if (entityType) where.entityType = entityType;
@@ -39,10 +39,7 @@ export async function GET(request: NextRequest) {
       prisma.auditLog.count({ where }),
     ]);
 
-    return NextResponse.json({
-      data: auditLogs,
-      meta: { count: auditLogs.length, total, limit, offset },
-    });
+    return NextResponse.json(paginatedJsonResponse(auditLogs, total, limit, offset));
   } catch (err) {
     logError("audit", err);
     return NextResponse.json(

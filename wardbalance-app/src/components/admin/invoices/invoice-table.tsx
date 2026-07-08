@@ -50,7 +50,19 @@ export default function InvoiceTable({ invoices, onInvoiceClick }: InvoiceTableP
             const isOverdue = inv.status === "overdue";
             const isPaid = inv.status === "paid";
             return (
-              <tr key={inv.id} className="text-body-medium text-neutral-800 hover:bg-neutral-50/50">
+              <tr
+                key={inv.id}
+                onClick={() => onInvoiceClick(inv)}
+                className="text-body-medium text-neutral-800 hover:bg-neutral-50/50 cursor-pointer"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onInvoiceClick(inv);
+                  }
+                }}
+              >
                 <td className="px-6 py-4 font-bold text-neutral-900">
                   {inv.student.lastName}, {inv.student.firstName}
                 </td>
@@ -73,7 +85,10 @@ export default function InvoiceTable({ invoices, onInvoiceClick }: InvoiceTableP
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button
-                    onClick={() => onInvoiceClick(inv)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onInvoiceClick(inv);
+                    }}
                     className="px-3 py-1.5 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 rounded-lg text-body-small font-bold inline-flex items-center gap-1.5 transition"
                   >
                     <FileText className="w-3.5 h-3.5" />
@@ -83,13 +98,7 @@ export default function InvoiceTable({ invoices, onInvoiceClick }: InvoiceTableP
               </tr>
             );
           })}
-          {invoices.length === 0 && (
-            <tr>
-              <td colSpan={7} className="px-6 py-12 text-center text-neutral-400">
-                No invoices found matching selected parameters.
-              </td>
-            </tr>
-          )}
+
         </tbody>
       </table>
     </div>

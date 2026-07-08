@@ -50,10 +50,13 @@ export async function GET(request: NextRequest) {
         balanceDue: true,
         finalAmount: true,
         amountPaid: true,
+        dueDate: true,
+        status: true,
       },
     });
 
-    // 3. Compute total outstanding and per-ward balances
+    // 3. Compute total outstanding and per-ward balances with status
+    const now = new Date();
     let totalOutstanding = new Prisma.Decimal(0);
     const wardBalances = wards.map((ward) => {
       const wardInvoices = invoices.filter((inv) => inv.studentId === ward.id);
@@ -64,6 +67,13 @@ export async function GET(request: NextRequest) {
       
       totalOutstanding = totalOutstanding.plus(outstanding);
 
+      const hasPartial = wardInvoices.some(
+        (inv) => inv.amountPaid.greaterThan(0) && inv.balanceDue.greaterThan(0)
+      );
+      const isOverdue = wardInvoices.some(
+        (inv) => inv.dueDate < now && inv.balanceDue.greaterThan(0)
+      );
+
       return {
         id: ward.id,
         firstName: ward.firstName,
@@ -72,6 +82,8 @@ export async function GET(request: NextRequest) {
         className: `${ward.classLevel.name} — ${ward.classArm.name}`,
         outstanding: outstanding.toString(),
         invoiceCount: wardInvoices.length,
+        hasPartial,
+        isOverdue,
       };
     });
 

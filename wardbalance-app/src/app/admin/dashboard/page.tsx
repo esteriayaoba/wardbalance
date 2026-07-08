@@ -42,6 +42,34 @@ interface SetupStatus {
   };
 }
 
+const formatActionMessage = (log: AuditLog) => {
+  const actor = <strong className="text-neutral-800">{log.actorName}</strong>;
+  const actionLower = log.action.toLowerCase();
+
+  if (actionLower.includes("created")) {
+    return <span>{actor} created new {log.entityType.toLowerCase()} entry.</span>;
+  }
+  if (actionLower.includes("updated")) {
+    return <span>{actor} modified {log.entityType.toLowerCase()} profile.</span>;
+  }
+  if (actionLower.includes("deleted")) {
+    return <span>{actor} deleted {log.entityType.toLowerCase()} record.</span>;
+  }
+  if (actionLower.includes("registered")) {
+    return <span>{actor} registered student.</span>;
+  }
+  if (actionLower.includes("generated")) {
+    return <span>{actor} generated term invoice bills.</span>;
+  }
+  if (actionLower.includes("recorded")) {
+    return <span>{actor} recorded manual payment.</span>;
+  }
+  if (actionLower.includes("voided")) {
+    return <span className="text-red-750">{actor} voided recorded payment.</span>;
+  }
+  return <span>{actor} executed action: {log.action}.</span>;
+};
+
 export default function DashboardPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -176,34 +204,6 @@ export default function DashboardPage() {
   const collectedRev = stats?.collectedRevenue ? Number(stats.collectedRevenue) : 0;
   const collectionRate = expectedRev > 0 ? Math.round((collectedRev / expectedRev) * 100) : 0;
   const activeTerm = data?.activeTerm;
-
-  const formatActionMessage = (log: AuditLog) => {
-    const actor = <strong className="text-neutral-800">{log.actorName}</strong>;
-    const actionLower = log.action.toLowerCase();
-
-    if (actionLower.includes("created")) {
-      return <span>{actor} created new {log.entityType.toLowerCase()} entry.</span>;
-    }
-    if (actionLower.includes("updated")) {
-      return <span>{actor} modified {log.entityType.toLowerCase()} profile.</span>;
-    }
-    if (actionLower.includes("deleted")) {
-      return <span>{actor} deleted {log.entityType.toLowerCase()} record.</span>;
-    }
-    if (actionLower.includes("registered")) {
-      return <span>{actor} registered student.</span>;
-    }
-    if (actionLower.includes("generated")) {
-      return <span>{actor} generated term invoice bills.</span>;
-    }
-    if (actionLower.includes("recorded")) {
-      return <span>{actor} recorded manual payment.</span>;
-    }
-    if (actionLower.includes("voided")) {
-      return <span className="text-red-750">{actor} voided recorded payment.</span>;
-    }
-    return <span>{actor} executed action: {log.action}.</span>;
-  };
 
   return (
     <div className="space-y-8">

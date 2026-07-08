@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, Plus, AlertCircle, CheckCircle, Search, Coins, XCircle, FileText, Calendar, User, Receipt, ShieldAlert, Download } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { Loader2, Plus, Search, Coins, XCircle, CheckCircle, FileText, Calendar, User, Receipt, ShieldAlert, Download } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import Input from "@/components/admin/shared/input";
 import Select from "@/components/admin/shared/select";
 import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
+import PaginationBar from "@/components/admin/shared/pagination-bar";
+import { useToast } from "@/components/admin/shared/toast-provider";
 
 interface Student {
   firstName: string;
@@ -55,11 +57,14 @@ interface UnpaidInvoice {
 }
 
 export default function PaymentsPage() {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [unpaidInvoices, setUnpaidInvoices] = useState<UnpaidInvoice[]>([]);
   const [emailVerified, setEmailVerified] = useState(true);
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,68 +80,122 @@ export default function PaymentsPage() {
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "bank_transfer" | "pos" | "cheque">("bank_transfer");
   const [paymentReference, setPaymentReference] = useState("");
 
-  // Alerts
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
   // Voiding State
   const [paymentToVoid, setPaymentToVoid] = useState<string | null>(null);
 
   // Drawer Detail State
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
 
-  const loadData = () => {
-    setLoading(true);
-    Promise.all([
-      fetch("/api/admin/payments").then((r) => r.json()),
-      fetch("/api/admin/invoices").then((r) => r.json()), // to find invoices to record payments against
-      fetch("/api/admin/verify-email").then((r) => r.json()).catch(() => ({ emailVerified: true })),
-    ])
-      .then(([paymentRes, invoiceRes, verifyRes]) => {
-        setPayments(paymentRes.data || []);
-        setEmailVerified(verifyRes.emailVerified ?? true);
-        
-        // Find invoices that have remaining balance due and are not draft
-        const allInvoices = invoiceRes.data || [];
-        const billableInvoices = allInvoices.filter(
-          (inv: any) => parseFloat(inv.balanceDue) > 0 && inv.status !== "draft"
-        );
-        setUnpaidInvoices(billableInvoices);
+  const [page, setPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const pageSize = 20;
 
+  const abortRef = useRef<AbortController | null>(null);
+
+  // Close any open drawer on Escape key
+  const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      if (showRecordDrawer) {
+        setShowRecordDrawer(false);
+        setSelectedInvoiceId("");
+        setPaymentAmount("");
+      }
+      if (selectedPayment) {
+        setSelectedPayment(null);
+      }
+    }
+  }, [showRecordDrawer, selectedPayment]);
+
+  useEffect(() => {
+    document.addEventListener("keydown", handleGlobalKeyDown);
+    return () => document.removeEventListener("keydown", handleGlobalKeyDown);
+  }, [handleGlobalKeyDown]);
+
+  useEffect(() => { setPage(1); }, [searchQuery, filterMethod, filterStatus]);
+
+  const loadData = () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const signal = controller.signal;
+    setLoading(true);
+    const offset = (page - 1) * pageSize;
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+    if (searchQuery) params.set("search", searchQuery);
+    if (filterMethod) params.set("method", filterMethod);
+    if (filterStatus) params.set("status", filterStatus);
+    const paymentUrl = `/api/admin/payments?${params.toString()}`;
+    Promise.all([
+      fetch(paymentUrl, { signal }).then((r) => r.json()),
+      fetch("/api/admin/verify-email", { signal }).then((r) => r.json()).catch(() => ({ emailVerified: true })),
+    ])
+      .then(([paymentRes, verifyRes]) => {
+        setPayments(paymentRes.data || []);
+        setTotalRecords(paymentRes.meta?.total ?? 0);
+        setEmailVerified(verifyRes.emailVerified ?? true);
         setLoading(false);
       })
       .catch((err) => {
+        if (err.name === "AbortError") return;
         console.error("Load payments page failed:", err);
         setLoading(false);
       });
   };
 
+  const fetchUnpaidInvoices = async (search = "") => {
+    setLoadingInvoices(true);
+    try {
+      const url = search
+        ? `/api/admin/invoices?limit=50&search=${encodeURIComponent(search)}`
+        : `/api/admin/invoices?limit=100`;
+      const res = await fetch(url).then((r) => r.json());
+      const allInvoices = res.data || [];
+      const billableInvoices = allInvoices.filter(
+        (inv: any) => parseFloat(inv.balanceDue) > 0 && inv.status !== "draft"
+      );
+      setUnpaidInvoices(billableInvoices);
+    } catch (err) {
+      console.error("Failed to load unpaid invoices:", err);
+    } finally {
+      setLoadingInvoices(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showRecordDrawer) {
+      const delayDebounceFn = setTimeout(() => {
+        fetchUnpaidInvoices(invoiceSearchQuery);
+      }, 400);
+
+      return () => clearTimeout(delayDebounceFn);
+    }
+  }, [invoiceSearchQuery, showRecordDrawer]);
+
   useEffect(() => {
     loadData();
-  }, []);
+    return () => abortRef.current?.abort();
+  }, [page, searchQuery, filterMethod, filterStatus]);
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setActionLoading(true);
-    setError(null);
-    setSuccess(null);
 
     const targetInvoice = unpaidInvoices.find((i) => i.id === selectedInvoiceId);
     if (!targetInvoice) {
-      setError("Please select a valid student invoice.");
+      toast("error", "Please select a valid student invoice.");
       setActionLoading(false);
       return;
     }
 
     const amountNum = parseFloat(paymentAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      setError("Amount must be a positive number.");
+      toast("error", "Amount must be a positive number.");
       setActionLoading(false);
       return;
     }
 
     if (amountNum > parseFloat(targetInvoice.balanceDue)) {
-      setError(`Amount cannot exceed the remaining balance due of ${formatNaira(targetInvoice.balanceDue)}.`);
+      toast("error", `Amount cannot exceed the remaining balance due of ${formatNaira(targetInvoice.balanceDue)}.`);
       setActionLoading(false);
       return;
     }
@@ -156,15 +215,15 @@ export default function PaymentsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to record payment");
 
-      setSuccess(`Payment of ${formatNaira(amountNum)} successfully recorded. Receipt generated.`);
+      toast("success", `Payment of ${formatNaira(amountNum)} successfully recorded. Receipt generated.`);
       setShowRecordDrawer(false);
       setSelectedInvoiceId("");
       setPaymentAmount("");
       setPaymentMethod("bank_transfer");
       setPaymentReference("");
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      toast("error", err instanceof Error ? err.message : "Failed to record payment.");
     } finally {
       setActionLoading(false);
     }
@@ -172,8 +231,6 @@ export default function PaymentsPage() {
 
   const handleVoidPayment = async (id: string) => {
     setActionLoading(true);
-    setError(null);
-    setSuccess(null);
 
     try {
       const res = await fetch(`/api/admin/payments/${id}`, {
@@ -185,10 +242,10 @@ export default function PaymentsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to void payment");
 
-      setSuccess("Payment has been voided. Invoice balance due has been adjusted.");
+      toast("success", "Payment has been voided. Invoice balance due has been adjusted.");
       loadData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      toast("error", err instanceof Error ? err.message : "Failed to void payment.");
     } finally {
       setActionLoading(false);
     }
@@ -196,18 +253,8 @@ export default function PaymentsPage() {
 
   const selectedInvoiceDetails = unpaidInvoices.find((i) => i.id === selectedInvoiceId);
 
-  // Filter payments list
-  const filteredPayments = payments.filter((p) => {
-    const matchesSearch =
-      `${p.student.firstName} ${p.student.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.student.admissionNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (p.receipts[0]?.receiptNumber && p.receipts[0].receiptNumber.toLowerCase().includes(searchQuery.toLowerCase()));
-
-    const matchesMethod = !filterMethod || p.method === filterMethod;
-    const matchesStatus = !filterStatus || p.status === filterStatus;
-
-    return matchesSearch && matchesMethod && matchesStatus;
-  });
+  // API handles search/filter; payments array is already filtered and paginated
+  const filteredPayments = payments;
 
   if (loading) {
     return (
@@ -230,7 +277,12 @@ export default function PaymentsPage() {
         </div>
 
         <button
-          onClick={() => setShowRecordDrawer(true)}
+          onClick={() => {
+            setInvoiceSearchQuery("");
+            setUnpaidInvoices([]);
+            setShowRecordDrawer(true);
+            fetchUnpaidInvoices("");
+          }}
           disabled={!emailVerified}
           title={!emailVerified ? "Verify your email to use this action." : undefined}
           className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -240,20 +292,7 @@ export default function PaymentsPage() {
         </button>
       </div>
 
-      {/* Messages */}
-      {error && (
-        <div className="flex items-start gap-2.5 p-3.5 rounded-lg bg-error-container text-on-error-container text-body-small">
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-error" />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div className="flex items-start gap-2.5 p-3.5 rounded-lg bg-green-50 text-green-700 text-body-small border border-green-200">
-          <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-green-600" />
-          <span>{success}</span>
-        </div>
-      )}
+      {/* Messages handled via toast — see useToast() calls in handlers */}
 
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm flex flex-col md:flex-row gap-4 items-center justify-between">
@@ -299,99 +338,128 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      {/* Payments Table */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-neutral-50 border-b border-neutral-200 text-label-medium text-neutral-500">
-              <th className="px-6 py-3 font-semibold">Student Name</th>
-              <th className="px-6 py-3 font-semibold">Receipt Number</th>
-              <th className="px-6 py-3 font-semibold">Method</th>
-              <th className="px-6 py-3 font-semibold">Amount Paid</th>
-              <th className="px-6 py-3 font-semibold">Reference</th>
-              <th className="px-6 py-3 font-semibold">Date Recorded</th>
-              <th className="px-6 py-3 font-semibold">Recorder</th>
-              <th className="px-6 py-3 font-semibold text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-200">
-            {filteredPayments.map((p) => {
-              const isVoid = p.status === "void";
-              return (
-                <tr
-                  key={p.id}
-                  onClick={() => setSelectedPayment(p)}
-                  className={`text-body-medium text-neutral-800 hover:bg-neutral-50/50 cursor-pointer ${isVoid ? "opacity-55 bg-neutral-50/50" : ""}`}
-                >
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-neutral-900">
-                      {p.student.lastName}, {p.student.firstName}
-                    </div>
-                    <div className="text-[10px] text-neutral-400 font-mono mt-0.5">{p.student.admissionNumber}</div>
-                  </td>
-                  <td className="px-6 py-4 font-mono text-neutral-600 font-semibold inline-flex items-center gap-1 mt-3.5">
-                    <Receipt className="w-3.5 h-3.5 text-neutral-400" />
-                    {p.receipts[0]?.receiptNumber || "N/A"}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-neutral-100 text-neutral-700">
-                      {p.method.replace("_", " ")}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 font-bold text-neutral-950 tabular-nums">
-                    {formatNaira(p.amount)}
-                  </td>
-                  <td className="px-6 py-4 font-mono text-body-small text-neutral-500 truncate max-w-[120px]">
-                    {p.reference || "—"}
-                  </td>
-                  <td className="px-6 py-4 text-neutral-600 text-body-small">
-                    {new Date(p.createdAt).toLocaleDateString("en-NG", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </td>
-                  <td className="px-6 py-4 text-neutral-600 text-body-small">
-                    {p.recordedBy?.fullName}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {!isVoid ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setPaymentToVoid(p.id); }}
-                        disabled={actionLoading || !emailVerified}
-                        title={!emailVerified ? "Verify your email to use this action." : undefined}
-                        className="px-2.5 py-1.5 border border-red-200 hover:bg-red-50 text-error rounded-lg text-body-small font-bold transition inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <XCircle className="w-3.5 h-3.5" />
-                        Void
-                      </button>
-                    ) : (
-                      <span className="inline-flex px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold uppercase">
-                        Voided
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {filteredPayments.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-6 py-12 text-center text-neutral-400">
-                  No payments found matching the selected filters.
-                </td>
+      {/* Payments Table / Empty State */}
+      {filteredPayments.length === 0 ? (
+        <div className="text-center py-16">
+          <Coins className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+          <p className="text-body-large text-neutral-500 font-medium">
+            {searchQuery || filterMethod ? "No payments match your filters." : "No payments recorded yet."}
+          </p>
+          <p className="text-body-small text-neutral-400 mt-1">
+            {searchQuery || filterMethod
+              ? "Try adjusting your search or filter criteria."
+              : "Record your first payment to get started."}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-neutral-50 border-b border-neutral-200 text-label-medium text-neutral-500">
+                <th className="px-6 py-3 font-semibold">Student Name</th>
+                <th className="px-6 py-3 font-semibold">Receipt Number</th>
+                <th className="px-6 py-3 font-semibold">Method</th>
+                <th className="px-6 py-3 font-semibold">Amount Paid</th>
+                <th className="px-6 py-3 font-semibold">Reference</th>
+                <th className="px-6 py-3 font-semibold">Date Recorded</th>
+                <th className="px-6 py-3 font-semibold">Recorder</th>
+                <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-neutral-200">
+              {filteredPayments.map((p) => {
+                const isVoid = p.status === "void";
+                return (
+                  <tr
+                    key={p.id}
+                    onClick={() => setSelectedPayment(p)}
+                    role="row"
+                    tabIndex={0}
+                    aria-label={`Payment by ${p.student.lastName} ${p.student.firstName} — ${formatNaira(p.amount)}`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setSelectedPayment(p);
+                      }
+                    }}
+                    className={`text-body-medium text-neutral-800 hover:bg-neutral-50/50 cursor-pointer focus:outline-none focus:bg-primary-50 focus:ring-2 focus:ring-inset focus:ring-primary-300 ${isVoid ? "opacity-55 bg-neutral-50/50" : ""}`}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-neutral-900">
+                        {p.student.lastName}, {p.student.firstName}
+                      </div>
+                      <div className="text-[10px] text-neutral-400 font-mono mt-0.5">{p.student.admissionNumber}</div>
+                    </td>
+                    <td className="px-6 py-4 font-mono text-neutral-600 font-semibold inline-flex items-center gap-1 mt-3.5">
+                      <Receipt className="w-3.5 h-3.5 text-neutral-400" />
+                      {p.receipts[0]?.receiptNumber || "N/A"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-neutral-100 text-neutral-700">
+                        {p.method.replace("_", " ")}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-neutral-950 tabular-nums">
+                      {formatNaira(p.amount)}
+                    </td>
+                    <td className="px-6 py-4 font-mono text-body-small text-neutral-500 truncate max-w-[120px]">
+                      {p.reference || "—"}
+                    </td>
+                    <td className="px-6 py-4 text-neutral-600 text-body-small">
+                      {new Date(p.createdAt).toLocaleDateString("en-NG", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </td>
+                    <td className="px-6 py-4 text-neutral-600 text-body-small">
+                      {p.recordedBy?.fullName}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {!isVoid ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setPaymentToVoid(p.id); }}
+                          disabled={actionLoading || !emailVerified}
+                          title={!emailVerified ? "Verify your email to use this action." : undefined}
+                          className="px-2.5 py-1.5 border border-red-200 hover:bg-red-50 text-error rounded-lg text-body-small font-bold transition inline-flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          Void
+                        </button>
+                      ) : (
+                        <span className="inline-flex px-2 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-bold uppercase">
+                          Voided
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <PaginationBar
+        currentPage={page}
+        pageSize={pageSize}
+        total={totalRecords}
+        loading={loading}
+        onPageChange={setPage}
+      />
 
       {/* Drawer: Record Payment Form */}
       {showRecordDrawer && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex justify-end"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="record-payment-drawer-title"
+        >
           <div className="bg-white w-full max-w-md h-full overflow-y-auto p-8 shadow-xl flex flex-col justify-between border-l border-neutral-200">
             <div className="space-y-6">
               <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
-                <h3 className="text-title-small text-neutral-900 font-bold">
+                <h3 id="record-payment-drawer-title" className="text-title-small text-neutral-900 font-bold">
                   Record Manual Payment
                 </h3>
                 <button
@@ -407,6 +475,27 @@ export default function PaymentsPage() {
               </div>
 
               <form onSubmit={handleRecordPayment} className="space-y-5">
+                {/* Search Invoices */}
+                <div className="space-y-1">
+                  <label className="text-label-medium text-neutral-600 block">Search Student or Admission Number</label>
+                  <div className="relative">
+                    <Input
+                      type="text"
+                      placeholder="Type student name or admission no..."
+                      value={invoiceSearchQuery}
+                      onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                      className="pr-10"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-450 pointer-events-none">
+                      {loadingInvoices ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      ) : (
+                        <Search className="w-4 h-4" />
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Select Invoice */}
                 <Select
                   label="Select Student & Invoice *"
@@ -417,9 +506,12 @@ export default function PaymentsPage() {
                     const inv = unpaidInvoices.find((i) => i.id === e.target.value);
                     setPaymentAmount(inv ? inv.balanceDue : "");
                   }}
+                  disabled={loadingInvoices}
                 >
-                  <option value="">Choose Student Invoice...</option>
-                  {unpaidInvoices.map((inv) => (
+                  <option value="">
+                    {loadingInvoices ? "Loading invoices..." : "Choose Student Invoice..."}
+                  </option>
+                  {!loadingInvoices && unpaidInvoices.map((inv) => (
                     <option key={inv.id} value={inv.id}>
                       {inv.student.lastName}, {inv.student.firstName} ({inv.student.classArm.name}) — {inv.term.name} [Bal: {formatNaira(inv.balanceDue)}]
                     </option>
@@ -519,13 +611,18 @@ export default function PaymentsPage() {
       )}
       {/* Slide-over Drawer: Payment Details */}
       {selectedPayment && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex justify-end"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="payment-detail-drawer-title"
+        >
           <div className="bg-white w-full max-w-md h-full overflow-y-auto p-8 shadow-xl flex flex-col border-l border-neutral-200">
             <div className="space-y-6">
               {/* Drawer Header */}
               <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
                 <div>
-                  <h3 className="text-title-small text-neutral-900 font-bold">
+                  <h3 id="payment-detail-drawer-title" className="text-title-small text-neutral-900 font-bold">
                     Payment Details
                   </h3>
                 </div>

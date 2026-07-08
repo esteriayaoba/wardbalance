@@ -14,6 +14,8 @@ function InviteContent() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   
   const [inviteData, setInviteData] = useState<{
     email: string;
@@ -129,12 +131,48 @@ function InviteContent() {
         <AlertCircle className="w-16 h-16 text-error mb-4" />
         <h2 className="text-title-large text-neutral-900 mb-2">Invitation Error</h2>
         <p className="text-body-medium text-neutral-600 mb-6">{error ?? "Invalid token configuration."}</p>
-        <button
-          onClick={() => router.push("/")}
-          className="px-6 py-2.5 bg-primary text-white rounded-lg font-bold text-label-large hover:bg-primary-dark transition"
-        >
-          Return to Homepage
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => router.push("/")}
+            className="px-6 py-2.5 border border-neutral-300 text-neutral-700 rounded-lg font-bold text-label-large hover:bg-neutral-50 transition"
+          >
+            Return to Homepage
+          </button>
+          {token && (
+            <button
+              disabled={resending}
+              onClick={async () => {
+                setResending(true);
+                try {
+                  const res = await fetch("/api/auth/invite/resend", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ token }),
+                  });
+                  const body = await res.json();
+                  if (!res.ok) throw new Error(body.error ?? "Failed to resend");
+                  setResendSuccess(true);
+                } catch {
+                  setError("Failed to resend invitation. Please contact support.");
+                } finally {
+                  setResending(false);
+                }
+              }}
+              className="px-6 py-2.5 bg-primary text-white rounded-lg font-bold text-label-large hover:bg-primary-dark transition disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {resending ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Resending...</>
+              ) : (
+                "Resend Invitation"
+              )}
+            </button>
+          )}
+        </div>
+        {resendSuccess && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-body-small">
+            Invitation resent successfully. Please check your email inbox.
+          </div>
+        )}
       </div>
     );
   }

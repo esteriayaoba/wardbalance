@@ -1,6 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { bypassCookieConsent } from "./helpers";
 
 test.describe("Admin Authentication Flow", () => {
+  test.beforeEach(async ({ page }) => {
+    await bypassCookieConsent(page);
+  });
+
   test("redirects unauthenticated user to login", async ({ page }) => {
     await page.goto("/admin/dashboard");
     await page.waitForURL(/\/login/);
@@ -27,15 +32,16 @@ test.describe("Admin Authentication Flow", () => {
     await page.goto("/login");
     await page.click("#demo-login");
     await page.waitForURL(/\/admin\/dashboard/, { timeout: 15000 });
-    await expect(page.locator("text=Dashboard")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   });
 
   test("logout button works", async ({ page }) => {
     await page.goto("/login");
     await page.click("#demo-login");
     await page.waitForURL(/\/admin\/dashboard/, { timeout: 15000 });
-    await page.click("text=Logout");
+    await page.click('button[title="Log out"]');
     await page.waitForURL(/\/login/, { timeout: 10000 });
     await expect(page.locator("#login-email")).toBeVisible();
   });
 });
+

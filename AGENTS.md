@@ -24,19 +24,19 @@ digital infrastructure.
 
 ## 2. Product Phase
 
-**Current phase: Phase 2A — Admin Platform Foundation**
+**Current phase: Phase 2B — Payment & Parent Experience**
 
 | Phase | Status | Scope |
 |-------|--------|-------|
 | Phase 1 — MVP | ✅ Complete | Marketing landing page, lead capture form, lead database, email notification |
-| Phase 2A — Admin Platform Foundation | 🔨 Building now | Auth-aware admin shell, school tenant setup, setup checklist, academic structure, students & parents, fee items & templates, invoice generation, manual payments, basic receipts, basic dashboard, audit log |
-| Phase 2B — Payment & Parent Experience | Planned | Parent portal, Flutterwave payment links, verification queue, parent invoice view, receipt download, automated reminders, CSV/PDF exports |
+| Phase 2A — Admin Platform Foundation | ✅ Complete | Auth-aware admin shell, school tenant setup, setup checklist, academic structure, students & parents, fee items & templates, invoice generation, manual payments, basic receipts, basic dashboard, audit log |
+| Phase 2B — Payment & Parent Experience | 🔨 Building now | Parent portal, Flutterwave payment links, verification queue, parent invoice view, receipt download, automated reminders, CSV/PDF exports |
 | Phase 3 — Expand | Future | WhatsApp integration, multi-branch support, native mobile app (conditional on PMF data) |
 | Phase 4 — Platform | Future | Attendance, results, payroll, full school OS |
 
-**Do not build Phase 2B+ features unless explicitly instructed.** If a task seems
-to require Flutterwave production settlement, flag it — Phase 2A uses manual
-payment recording only.
+**Do not build Phase 3+ features unless explicitly instructed.** If a task seems
+to require Flutterwave production settlement, flag it — Phase 2B manages automated
+payment links, but manual payment recording (Phase 2A) remains supported.
 
 ---
 
@@ -594,7 +594,10 @@ Never allow unscoped payments.
 
 ---
 
-## 10. Phase 2A Sprint Plan
+## 10. Phase 2A Sprint Plan (Historical — All Complete)
+
+> Phase 2A is complete. The sprint plan below documents what was built. Use it as
+> context for understanding existing features, not as an active task list.
 
 ### Sprint 1: Platform Shell and Onboarding
 
@@ -1036,6 +1039,7 @@ A Phase 2A feature is done when:
 
 | File | Purpose |
 |------|---------|
+| `.agents/rules/governance.md` | **Engineering Constitution** — master audit, review, and implementation governance framework (read first) |
 | `.agents/rules/architecture.md` | Module boundaries, data flow, API conventions |
 | `.agents/rules/code-style.md` | TypeScript, Prisma, Zod, transaction patterns |
 | `.agents/rules/design-system.md` | Tailwind tokens, component patterns, both surfaces |
@@ -1064,13 +1068,16 @@ A Phase 2A feature is done when:
 
 When given a task, follow these steps in order:
 
-1. **Read the relevant rule files** in `.agents/rules/` — architecture, code-style, design-system, security, permissions, payments, testing
-2. **Load the matching skill** from `skills/` for domain-specific implementation patterns
-3. **Follow the matching workflow** from `workflows/` for step-by-step process
-4. **Check phase awareness** — never build Phase 2B+ features unless explicitly instructed
-5. **Run `tsc --noEmit`** after implementation to verify zero type errors
-6. **Check Definition of Done** (§19) before marking complete
+1. **Read the relevant rule files** in `.agents/rules/` — governance, architecture, code-style, design-system, security, permissions, payments, testing
+2. **Apply the Engineering Constitution** (`.agents/rules/governance.md`) — this governs all audit, review, and implementation decisions
+3. **Load the matching skill** from `skills/` for domain-specific implementation patterns
+4. **Follow the matching workflow** from `workflows/` for step-by-step process
+5. **Check phase awareness** — never build Phase 2B+ features unless explicitly instructed
+6. **Prepare a Change Impact Assessment** (§5 of governance) before writing any code
+7. **Declare Non-Goals** (§6 of governance) to prevent scope creep
+8. **Run `tsc --noEmit`** after implementation to verify zero type errors
+9. **Check Definition of Done** (§19) and **Production Readiness Gates** (§19 of governance) before marking complete
 
 ---
 
-*Last updated: June 2026 — WardBalance Phase 2A (Admin Platform Foundation)*
+*Last updated: July 2026 — WardBalance Phase 2B (Payment & Parent Experience)*

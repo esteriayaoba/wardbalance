@@ -4,6 +4,7 @@ import { comparePassword } from "@/lib/auth/auth";
 import { prisma } from "@/lib/prisma";
 import { upstashGet, upstashDel, upstashIncr, rateLimit } from "@/lib/redis";
 import { authConfig } from "@/lib/auth/auth.config";
+import crypto from "crypto";
 
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_WINDOW_SECONDS = 900; // 15 min
@@ -98,22 +99,45 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         };
         if (!phoneOrEmail || !otp) return null;
 
-        const key = `otp:${phoneOrEmail.toLowerCase().trim()}`;
-        const stored = await upstashGet(key);
-        if (!stored || stored !== otp) return null;
+        const input = phoneOrEmail.toLowerCase().trim();
 
-        await upstashDel(key);
-
+        // Resolve the parent first to get schoolId for the scoped Redis key.
+        // This mirrors the send-otp route's lookup logic exactly.
         const parent = await prisma.parent.findFirst({
           where: {
             OR: [
-              { email: phoneOrEmail.toLowerCase().trim() },
-              { phone: phoneOrEmail.trim() },
+              { email: input },
+              { phone: input },
+              { phone: { endsWith: input.replace(/^\+?234/, "") } },
             ],
           },
           include: { school: { select: { name: true } } },
         });
         if (!parent) return null;
+
+        // Reconstruct the schoolId-scoped key used at send time.
+        const key = `otp:${parent.schoolId}:${input}`;
+        const storedHash = await upstashGet(key);
+        if (!storedHash) return null;
+
+        // Hash the incoming OTP and compare with timing-safe equality
+        // to prevent timing-based OTP enumeration attacks.
+        const incomingHash = crypto.createHash("sha256").update(otp).digest("hex");
+        let hashesMatch = false;
+        try {
+          hashesMatch = crypto.timingSafeEqual(
+            Buffer.from(storedHash, "utf8"),
+            Buffer.from(incomingHash, "utf8")
+          );
+        } catch {
+          // Buffer length mismatch — hashes differ
+          hashesMatch = false;
+        }
+
+        if (!hashesMatch) return null;
+
+        // Consume the OTP — delete from Redis immediately after successful verify.
+        await upstashDel(key);
 
         return {
           id: parent.id,

@@ -51,6 +51,7 @@ interface GenerateWizardProps {
   onDueDateChange: (value: string) => void;
   onToggleStudent: (id: string) => void;
   onToggleSelectAll: () => void;
+  generateCount?: number;
 }
 
 export default function GenerateWizard({
@@ -85,6 +86,10 @@ export default function GenerateWizard({
   const handleGenerate = () => {
     onSubmitGenerate(selectedStudentIds);
   };
+
+  const generateLabel = generateCount
+    ? `Generating ${generateCount} invoice${generateCount !== 1 ? "s" : ""}...`
+    : "Generating...";
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
@@ -260,7 +265,7 @@ export default function GenerateWizard({
                   disabled={actionLoading || selectedStudentIds.length === 0}
                   className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg shadow-sm transition"
                 >
-                  {actionLoading ? "Generating..." : "Generate Invoices"}
+                  {actionLoading ? generateLabel : "Generate Invoices"}
                 </button>
               </div>
             </>

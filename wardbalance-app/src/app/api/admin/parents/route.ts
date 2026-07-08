@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 import { CreateParentSchema } from "@/schemas/parent.schema";
+import { parsePagination, paginatedJsonResponse } from "@/lib/server/pagination";
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,8 +23,7 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 500);
-    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
+    const { limit, offset } = parsePagination(searchParams);
 
     const [parents, total] = await Promise.all([
       prisma.parent.findMany({
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       prisma.parent.count({ where }),
     ]);
 
-    return NextResponse.json({ data: parents, meta: { total, limit, offset } });
+    return NextResponse.json(paginatedJsonResponse(parents, total, limit, offset));
   } catch (err) {
     return NextResponse.json({ error: "Failed to fetch parents", code: "INTERNAL_ERROR" }, { status: 500 });
   }

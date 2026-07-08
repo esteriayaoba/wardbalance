@@ -20,29 +20,45 @@ export async function GET(request: NextRequest) {
         where: { schoolId },
         include: {
           session: { select: { name: true } },
-          invoices: { select: { finalAmount: true, amountPaid: true, balanceDue: true } },
         },
         orderBy: { startDate: "desc" },
       });
 
-      const data = terms.map((term) => {
-        let expected = new Prisma.Decimal(0);
-        let collected = new Prisma.Decimal(0);
-        let outstanding = new Prisma.Decimal(0);
+      const invoiceGroups = await prisma.invoice.groupBy({
+        by: ["termId"],
+        where: { schoolId },
+        _sum: {
+          finalAmount: true,
+          amountPaid: true,
+          balanceDue: true,
+        },
+      });
 
-        term.invoices.forEach((inv) => {
-          expected = expected.plus(inv.finalAmount);
-          collected = collected.plus(inv.amountPaid);
-          outstanding = outstanding.plus(inv.balanceDue);
-        });
+      const aggregateMap = new Map(
+        invoiceGroups.map((g) => [
+          g.termId,
+          {
+            expected: g._sum.finalAmount ?? new Prisma.Decimal(0),
+            collected: g._sum.amountPaid ?? new Prisma.Decimal(0),
+            outstanding: g._sum.balanceDue ?? new Prisma.Decimal(0),
+          },
+        ])
+      );
+
+      const data = terms.map((term) => {
+        const aggs = aggregateMap.get(term.id) ?? {
+          expected: new Prisma.Decimal(0),
+          collected: new Prisma.Decimal(0),
+          outstanding: new Prisma.Decimal(0),
+        };
 
         return {
           termId: term.id,
           termName: term.name,
           sessionName: term.session.name,
-          expected: expected.toString(),
-          collected: collected.toString(),
-          outstanding: outstanding.toString(),
+          expected: aggs.expected.toString(),
+          collected: aggs.collected.toString(),
+          outstanding: aggs.outstanding.toString(),
         };
       });
 
@@ -90,31 +106,70 @@ export async function GET(request: NextRequest) {
         where: { schoolId },
         include: {
           classLevel: { select: { name: true } },
-          students: {
-            where: { status: "active" },
-            include: { invoices: termId ? { where: { termId } } : { select: { finalAmount: true, amountPaid: true, balanceDue: true } } },
-          },
         },
         orderBy: { classLevel: { name: "asc" } },
       });
 
+      const activeStudents = await prisma.student.findMany({
+        where: { schoolId, status: "active" },
+        select: { id: true, classArmId: true },
+      });
+
+      const studentIds = activeStudents.map((s) => s.id);
+
+      const invoiceGroups = await prisma.invoice.groupBy({
+        by: ["studentId"],
+        where: {
+          schoolId,
+          studentId: { in: studentIds },
+          ...(termId ? { termId } : {}),
+        },
+        _sum: {
+          finalAmount: true,
+          amountPaid: true,
+          balanceDue: true,
+        },
+      });
+
+      const studentAggMap = new Map(
+        invoiceGroups.map((g) => [
+          g.studentId,
+          {
+            expected: g._sum.finalAmount ?? new Prisma.Decimal(0),
+            collected: g._sum.amountPaid ?? new Prisma.Decimal(0),
+            outstanding: g._sum.balanceDue ?? new Prisma.Decimal(0),
+          },
+        ])
+      );
+
+      const studentsByClassArm = new Map<string, typeof activeStudents>();
+      for (const s of activeStudents) {
+        if (s.classArmId) {
+          const list = studentsByClassArm.get(s.classArmId) ?? [];
+          list.push(s);
+          studentsByClassArm.set(s.classArmId, list);
+        }
+      }
+
       const data = classArms.map((arm) => {
+        const armStudents = studentsByClassArm.get(arm.id) ?? [];
         let expected = new Prisma.Decimal(0);
         let collected = new Prisma.Decimal(0);
         let outstanding = new Prisma.Decimal(0);
 
-        arm.students.forEach((student) => {
-          student.invoices.forEach((inv) => {
-            expected = expected.plus(inv.finalAmount);
-            collected = collected.plus(inv.amountPaid);
-            outstanding = outstanding.plus(inv.balanceDue);
-          });
-        });
+        for (const s of armStudents) {
+          const aggs = studentAggMap.get(s.id);
+          if (aggs) {
+            expected = expected.plus(aggs.expected);
+            collected = collected.plus(aggs.collected);
+            outstanding = outstanding.plus(aggs.outstanding);
+          }
+        }
 
         return {
           classArmId: arm.id,
           className: `${arm.classLevel.name} — ${arm.name}`,
-          studentCount: arm.students.length,
+          studentCount: armStudents.length,
           expected: expected.toString(),
           collected: collected.toString(),
           outstanding: outstanding.toString(),

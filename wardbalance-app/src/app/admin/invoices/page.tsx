@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, Plus, AlertCircle, CheckCircle } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Loader2, Plus, AlertCircle, CheckCircle, FileText } from "lucide-react";
 import InvoiceFilters from "@/components/admin/invoices/invoice-filters";
 import InvoiceTable from "@/components/admin/invoices/invoice-table";
 import PaginationBar from "@/components/admin/shared/pagination-bar";
@@ -37,6 +37,17 @@ interface Invoice {
 interface ClassLevel { id: string; name: string; }
 
 interface AcademicTerm { id: string; name: string; isActive: boolean; session: { name: string }; }
+
+interface ClassLevelFromAPI {
+  id: string;
+  name: string;
+}
+
+interface DivisionFromAPI {
+  id: string;
+  name: string;
+  classLevels: ClassLevelFromAPI[];
+}
 
 interface GenerationPreview {
   studentId: string; firstName: string; lastName: string;
@@ -79,34 +90,41 @@ export default function InvoicesPage() {
   const [totalRecords, setTotalRecords] = useState(0);
   const pageSize = 20;
 
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => { setPage(1); }, [filterClassLevelId, filterTermId, filterStatus, searchQuery]);
 
   const loadData = () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const signal = controller.signal;
     setLoading(true);
     const offset = (page - 1) * pageSize;
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
     if (filterTermId) params.set("termId", filterTermId);
     if (filterClassLevelId) params.set("classLevelId", filterClassLevelId);
     if (filterStatus) params.set("status", filterStatus);
+    if (searchQuery) params.set("search", searchQuery);
     const invoiceUrl = `/api/admin/invoices?${params.toString()}`;
     Promise.all([
-      fetch(invoiceUrl).then((r) => r.json()),
-      fetch("/api/admin/academic/classes").then((r) => r.json()),
-      fetch("/api/admin/academic/terms").then((r) => r.json()),
-      fetch("/api/admin/verify-email").then((r) => r.json()).catch(() => ({ emailVerified: true })),
+      fetch(invoiceUrl, { signal }).then((r) => r.json()),
+      fetch("/api/admin/academic/classes", { signal }).then((r) => r.json()),
+      fetch("/api/admin/academic/terms", { signal }).then((r) => r.json()),
+      fetch("/api/admin/verify-email", { signal }).then((r) => r.json()).catch(() => ({ emailVerified: true })),
     ])
       .then(([invoiceRes, classRes, termRes, verifyRes]) => {
         setInvoices(invoiceRes.data || []);
         setTotalRecords(invoiceRes.meta?.total ?? 0);
         setEmailVerified(verifyRes.emailVerified ?? true);
-        const divisions = classRes.data || [];
-        setClassLevels(divisions.flatMap((d: any) =>
-          d.classLevels.map((l: any) => ({ id: l.id, name: `${d.name} — ${l.name}` }))
+        const divisions: DivisionFromAPI[] = classRes.data || [];
+        setClassLevels(divisions.flatMap((d) =>
+          d.classLevels.map((l) => ({ id: l.id, name: `${d.name} — ${l.name}` }))
         ));
-        const termsList = termRes.data || [];
+        const termsList: AcademicTerm[] = termRes.data || [];
         setTerms(termsList);
-        const activeTerm = termsList.find((t: any) => t.isActive);
-        if (activeTerm) setFilterTermId(activeTerm.id);
+        const activeTerm = termsList.find((t) => t.isActive);
+        if (activeTerm && !filterTermId) setFilterTermId(activeTerm.id);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -114,9 +132,8 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     loadData();
+    return () => abortRef.current?.abort();
   }, [page, filterClassLevelId, filterTermId, filterStatus, searchQuery]);
-
-  useEffect(() => { loadData(); }, []);
 
   const loadInvoiceDetails = async (id: string) => {
     setDetailsLoading(true);
@@ -125,13 +142,13 @@ export default function InvoicesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to fetch invoice details");
       setInvoiceDetails(data.data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
     } finally { setDetailsLoading(false); }
   };
 
-  const handleInvoiceClick = (invoice: any) => {
-    setSelectedInvoice(invoice as Invoice);
+  const handleInvoiceClick = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
     loadInvoiceDetails(invoice.id);
   };
 
@@ -146,7 +163,7 @@ export default function InvoicesPage() {
       if (!res.ok) throw new Error(data.error ?? "Failed to issue invoice");
       setSuccess("Invoice issued successfully.");
       loadInvoiceDetails(id); loadData();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "An unexpected error occurred"); }
     finally { setActionLoading(false); }
   };
 
@@ -161,7 +178,7 @@ export default function InvoicesPage() {
       if (!res.ok) throw new Error(data.error ?? "Failed to update due date");
       setSuccess("Invoice due date updated.");
       loadInvoiceDetails(id); loadData();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "An unexpected error occurred"); }
     finally { setActionLoading(false); }
   };
 
@@ -176,7 +193,7 @@ export default function InvoicesPage() {
       if (!res.ok) throw new Error(data.error ?? "Failed to apply discount");
       setSuccess("Discount applied.");
       loadInvoiceDetails(id); loadData();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "An unexpected error occurred"); }
     finally { setActionLoading(false); }
   };
 
@@ -188,7 +205,7 @@ export default function InvoicesPage() {
       if (!res.ok) throw new Error(data.error ?? "Failed to delete invoice");
       setSuccess("Invoice deleted.");
       setSelectedInvoice(null); setInvoiceDetails(null); loadData();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "An unexpected error occurred"); }
     finally { setActionLoading(false); }
   };
 
@@ -208,12 +225,12 @@ export default function InvoicesPage() {
       const res = await fetch(`/api/admin/invoices/generate?classLevelId=${classLevelId}&termId=${termId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to retrieve preview");
-      const list = data.data || [];
+      const list: GenerationPreview[] = data.data || [];
       setPreviews(list);
       setPreviewWarning(data.warning || null);
-      setSelectedStudentIds(list.filter((p: any) => !p.alreadyHasInvoice).map((p: any) => p.studentId));
+      setSelectedStudentIds(list.filter((p) => !p.alreadyHasInvoice).map((p) => p.studentId));
       setWizardStep(2);
-    } catch (err: any) { setError(err.message); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "An unexpected error occurred"); }
     finally { setActionLoading(false); }
   };
 
@@ -233,7 +250,7 @@ export default function InvoicesPage() {
       if (!res.ok) throw new Error(data.error ?? "Failed to generate invoices");
       setSuccess(`Generated ${data.count} invoices.`);
       setShowWizard(false); loadData();
-    } catch (err: any) { setError(err.message); }
+    } catch (err: unknown) { setError(err instanceof Error ? err.message : "An unexpected error occurred"); }
     finally { setActionLoading(false); }
   };
 
@@ -249,15 +266,6 @@ export default function InvoicesPage() {
       prev.length === billable.length ? [] : billable.map((p) => p.studentId)
     );
   };
-
-  const filteredInvoices = invoices.filter((inv) => {
-    const name = `${inv.student.firstName} ${inv.student.lastName}`.toLowerCase();
-    const matchesSearch = name.includes(searchQuery.toLowerCase()) || inv.student.admissionNumber.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesClass = !filterClassLevelId || inv.student.classLevel.name.includes(classLevels.find((c) => c.id === filterClassLevelId)?.name.split(" — ")[1] || "");
-    const matchesTerm = !filterTermId || inv.termId === filterTermId;
-    const matchesStatus = !filterStatus || inv.status === filterStatus;
-    return matchesSearch && matchesClass && matchesTerm && matchesStatus;
-  });
 
   if (loading) {
     return (
@@ -313,7 +321,21 @@ export default function InvoicesPage() {
         classLevels={classLevels}
       />
 
-      <InvoiceTable invoices={filteredInvoices} onInvoiceClick={(inv) => handleInvoiceClick(inv as Invoice)} />
+      {invoices.length === 0 ? (
+        <div className="text-center py-16">
+          <FileText className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+          <p className="text-body-large text-neutral-500 font-medium">
+            {searchQuery || filterClassLevelId || filterTermId || filterStatus ? "No invoices match your filters." : "No invoices generated yet."}
+          </p>
+          <p className="text-body-small text-neutral-400 mt-1">
+            {searchQuery || filterClassLevelId || filterTermId || filterStatus
+              ? "Try adjusting your search or filter criteria."
+              : "Generate your first invoices to get started."}
+          </p>
+        </div>
+      ) : (
+        <InvoiceTable invoices={invoices} onInvoiceClick={(inv) => handleInvoiceClick(inv as Invoice)} />
+      )}
 
       <PaginationBar
         currentPage={page}
@@ -336,28 +358,29 @@ export default function InvoicesPage() {
         onApplyDiscount={handleDiscountSubmit}
       />
 
-      <GenerateWizard
-        open={showWizard}
-        onClose={() => setShowWizard(false)}
-        classLevels={classLevels}
-        terms={terms}
-        actionLoading={actionLoading}
-        onSubmitPreview={handleFetchWizardPreview}
-        onSubmitGenerate={handleGenerateInvoices}
-        wizardStep={wizardStep}
-        onBack={() => setWizardStep(1)}
-        wizClassLevelId={wizClassLevelId}
-        wizTermId={wizTermId}
-        wizDueDate={wizDueDate}
-        previews={previews}
-        selectedStudentIds={selectedStudentIds}
-        previewWarning={previewWarning}
-        onClassLevelChange={setWizClassLevelId}
-        onTermChange={setWizTermId}
-        onDueDateChange={setWizDueDate}
-        onToggleStudent={toggleStudentSelection}
-        onToggleSelectAll={toggleSelectAllWiz}
-      />
+        <GenerateWizard
+          open={showWizard}
+          onClose={() => setShowWizard(false)}
+          classLevels={classLevels}
+          terms={terms}
+          actionLoading={actionLoading}
+          onSubmitPreview={handleFetchWizardPreview}
+          onSubmitGenerate={handleGenerateInvoices}
+          wizardStep={wizardStep}
+          wizClassLevelId={wizClassLevelId}
+          wizTermId={wizTermId}
+          wizDueDate={wizDueDate}
+          previews={previews}
+          selectedStudentIds={selectedStudentIds}
+          previewWarning={previewWarning}
+          onBack={() => setWizardStep(wizardStep - 1)}
+          onClassLevelChange={setWizClassLevelId}
+          onTermChange={setWizTermId}
+          onDueDateChange={setWizDueDate}
+          onToggleStudent={toggleStudentSelection}
+          onToggleSelectAll={toggleSelectAllWiz}
+          generateCount={selectedStudentIds.length}
+        />
 
       <ConfirmationDialog
         isOpen={invoiceToDelete !== null}

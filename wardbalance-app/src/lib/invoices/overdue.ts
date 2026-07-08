@@ -26,26 +26,28 @@ export async function processOverdueInvoices() {
     },
   });
 
-  for (const invoice of invoicesToMark) {
-    await prisma.invoice.update({
-      where: { id: invoice.id },
-      data: { status: "overdue", overdueMarkedAt: now },
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        schoolId: invoice.schoolId,
-        actorId: "system-cron",
-        actorName: "System",
-        action: "invoice.marked_overdue",
-        entityType: "Invoice",
-        entityId: invoice.id,
-        newValue: {
-          balanceDue: invoice.balanceDue.toString(),
-          dueDate: invoice.dueDate.toISOString(),
-        },
-      },
-    });
+  if (invoicesToMark.length > 0) {
+    const invoiceIds = invoicesToMark.map((i) => i.id);
+    await prisma.$transaction([
+      prisma.invoice.updateMany({
+        where: { id: { in: invoiceIds } },
+        data: { status: "overdue", overdueMarkedAt: now },
+      }),
+      prisma.auditLog.createMany({
+        data: invoicesToMark.map((invoice) => ({
+          schoolId: invoice.schoolId,
+          actorId: "system-cron",
+          actorName: "System",
+          action: "invoice.marked_overdue",
+          entityType: "Invoice",
+          entityId: invoice.id,
+          newValue: {
+            balanceDue: invoice.balanceDue.toString(),
+            dueDate: invoice.dueDate.toISOString(),
+          },
+        })),
+      }),
+    ]);
   }
 
   const invoicesToRemind = await prisma.invoice.findMany({

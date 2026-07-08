@@ -2,19 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-const CreateClassSchema = z.object({
-  type: z.enum(["division", "level", "arm"]),
-  name: z.string().min(1, "Name is required").max(100),
-  divisionId: z.string().optional(),
-  classLevelId: z.string().optional(),
-});
-
-const DeleteClassSchema = z.object({
-  type: z.enum(["division", "level", "arm"]),
-  id: z.string().min(1, "ID is required"),
-});
+import { CreateClassSchema, DeleteClassSchema } from "@/schemas/academic.schema";
 
 export async function GET(request: NextRequest) {
   try {

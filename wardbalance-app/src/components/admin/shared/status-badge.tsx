@@ -25,9 +25,24 @@ export function StudentStatusBadge({ status }: { status: string }) {
 }
 
 export function InvoiceStatusBadge({ status }: { status: string }) {
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
   return (
-    <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold border uppercase ${INVOICE_STATUS_COLORS[status] || INVOICE_STATUS_COLORS.draft}`}>
-      {status}
+    <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold border ${INVOICE_STATUS_COLORS[status] || INVOICE_STATUS_COLORS.draft}`}>
+      {label}
+    </span>
+  );
+}
+
+const PAYMENT_STATUS_COLORS: Record<string, string> = {
+  recorded: "bg-green-50 text-green-700 border-green-200",
+  void: "bg-red-50 text-red-700 border-red-200",
+};
+
+export function PaymentStatusBadge({ status }: { status: string }) {
+  const label = status.charAt(0).toUpperCase() + status.slice(1);
+  return (
+    <span className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold border ${PAYMENT_STATUS_COLORS[status] || "bg-neutral-100 text-neutral-600 border-neutral-200"}`}>
+      {label}
     </span>
   );
 }

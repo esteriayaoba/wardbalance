@@ -13,6 +13,8 @@ interface Ward {
   className: string;
   outstanding: string;
   invoiceCount: number;
+  hasPartial: boolean;
+  isOverdue: boolean;
 }
 
 interface RecentPayment {
@@ -98,14 +100,17 @@ export default function ParentDashboard() {
   const outstandingNum = Number(data.totalOutstanding);
   const hasOutstanding = outstandingNum > 0;
 
-  const getStatusBadge = (wardOutstanding: number, invoiceCount: number) => {
+  const getStatusBadge = (wardOutstanding: number, invoiceCount: number, isOverdue: boolean, hasPartial: boolean) => {
     if (wardOutstanding <= 0) {
       return { label: "Paid", bg: "bg-green-100 text-green-700" };
     }
-    if (invoiceCount > 0) {
-      return { label: "Outstanding", bg: "bg-amber-100 text-amber-700" };
+    if (isOverdue) {
+      return { label: "Overdue", bg: "bg-red-100 text-red-700" };
     }
-    return { label: "Partial", bg: "bg-amber-100 text-amber-700" };
+    if (hasPartial) {
+      return { label: "Partial", bg: "bg-amber-100 text-amber-700" };
+    }
+    return { label: "Outstanding", bg: "bg-neutral-100 text-neutral-700" };
   };
 
   return (
@@ -156,7 +161,7 @@ export default function ParentDashboard() {
           <div className="grid grid-cols-1 gap-4">
             {data.wards.map((ward) => {
               const wardOutstanding = Number(ward.outstanding);
-              const badge = getStatusBadge(wardOutstanding, ward.invoiceCount);
+              const badge = getStatusBadge(wardOutstanding, ward.invoiceCount, ward.isOverdue, ward.hasPartial);
 
               return (
                 <div key={ward.id} onClick={() => router.push(`/parent/invoices?studentId=${ward.id}`)}

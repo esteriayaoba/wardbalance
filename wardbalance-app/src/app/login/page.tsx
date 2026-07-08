@@ -40,9 +40,22 @@ function LoginContent() {
       router.push(redirectPath);
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to log in");
+      let message = "Failed to log in";
+      if (err instanceof Error) {
+        message = err.message;
+      }
+      
+      if (
+        message.includes("CredentialsSignin") ||
+        (typeof err === "object" && err !== null && "type" in err && (err as any).type === "CredentialsSignin")
+      ) {
+        setError("Invalid email or password. Please check and try again.");
+      } else {
+        setError(message);
+      }
       setSubmitting(false);
     }
+
   };
 
   return (

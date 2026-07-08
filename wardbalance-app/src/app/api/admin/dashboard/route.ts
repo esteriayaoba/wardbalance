@@ -31,7 +31,7 @@ export async function GET(_request: NextRequest) {
 
     const nonDraftStatuses: InvoiceStatus[] = ["issued", "partial", "paid", "overdue"];
 
-    const [totalInvoices, expectedAgg, collectedAgg, studentsWithoutParentsCount, recentActivity] =
+    const [totalInvoices, expectedAgg, collectedAgg, studentsWithoutParentsCount, recentActivity, overdueStats] =
       await Promise.all([
         prisma.invoice.count({
           where: { schoolId, status: { in: nonDraftStatuses }, ...(activeTerm ? { termId: activeTerm.id } : {}) },
@@ -66,13 +66,12 @@ export async function GET(_request: NextRequest) {
           orderBy: { createdAt: "desc" },
           take: 5,
         }),
+        getOverdueStats(schoolId),
       ]);
 
     const expectedRevenue = expectedAgg._sum.finalAmount ?? new Prisma.Decimal(0);
     const collectedRevenue = collectedAgg._sum.amount ?? new Prisma.Decimal(0);
     const outstandingBalance = expectedRevenue.minus(collectedRevenue);
-
-    const overdueStats = await getOverdueStats(schoolId);
 
     return NextResponse.json({
       data: {

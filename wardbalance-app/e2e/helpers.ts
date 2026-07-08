@@ -2,7 +2,21 @@ import { Page } from "@playwright/test";
 
 const BASE_URL = "http://localhost:3000";
 
+export async function bypassCookieConsent(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "wb-consent",
+      JSON.stringify({
+        version: 1,
+        preferences: { necessary: true, analytics: true, marketing: false },
+        updatedAt: new Date().toISOString(),
+      })
+    );
+  });
+}
+
 export async function loginAs(page: Page, role: string) {
+  await bypassCookieConsent(page);
   await page.goto(`${BASE_URL}/login`);
   await page.fill("#login-email", `${role.toLowerCase()}@school.edu`);
   await page.fill("#login-password", "password123");
@@ -11,6 +25,7 @@ export async function loginAs(page: Page, role: string) {
 }
 
 export async function loginAsDemo(page: Page) {
+  await bypassCookieConsent(page);
   await page.goto(`${BASE_URL}/login`);
   await page.click("#demo-login");
   await page.waitForURL(/\/admin\/dashboard/);
@@ -25,3 +40,4 @@ export const SELECTORS = {
   successBanner: "text=/success|created|updated/i",
   loading: '[class*="animate-spin"]',
 };
+

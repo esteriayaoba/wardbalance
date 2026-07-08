@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 import { CreateStudentSchema } from "@/schemas/student.schema";
+import { parsePagination, paginatedJsonResponse } from "@/lib/server/pagination";
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,8 +26,7 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 500);
-    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
+    const { limit, offset } = parsePagination(searchParams);
 
     const [students, total] = await Promise.all([
       prisma.student.findMany({
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       prisma.student.count({ where }),
     ]);
 
-    return NextResponse.json({ data: students, meta: { total, limit, offset } });
+    return NextResponse.json(paginatedJsonResponse(students, total, limit, offset));
   } catch (err) {
     return NextResponse.json({ error: "Failed to fetch students", code: "INTERNAL_ERROR" }, { status: 500 });
   }

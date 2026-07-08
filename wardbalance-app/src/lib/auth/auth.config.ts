@@ -1,8 +1,26 @@
 import type { NextAuthConfig } from "next-auth";
 
+// AUTH_SECRET is the canonical secret. Warn at startup if legacy fallback
+// variables are still set so operators know which one is active.
+const resolveSecret = (): string | undefined => {
+  const primary = process.env.AUTH_SECRET;
+  const fallback1 = process.env.NEXTAUTH_SECRET;
+  const fallback2 = process.env.JWT_SECRET;
+
+  if (!primary && (fallback1 || fallback2)) {
+    console.warn(
+      "[WardBalance] AUTH_SECRET is not set. Falling back to legacy env vars. " +
+      "Set AUTH_SECRET explicitly in your environment to remove this ambiguity. " +
+      "Active fallback: " + (fallback1 ? "NEXTAUTH_SECRET" : "JWT_SECRET")
+    );
+  }
+
+  return primary || fallback1 || fallback2;
+};
+
 export const authConfig = {
   providers: [], // Providers are populated in the main nextauth.ts configuration to avoid Edge runtime database/bcrypt imports
-  secret: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || process.env.JWT_SECRET,
+  secret: resolveSecret(),
   callbacks: {
     jwt({ token, user }) {
       if (user) {

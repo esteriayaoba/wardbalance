@@ -1,10 +1,19 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma, PaymentMethod } from "@/generated/prisma/client";
+import { resolveParentId } from "@/lib/payments/resolve-parent";
+
+const RECEIPT_NUMBER_REGEX = /^[A-Z0-9_-]{3,10}-\d{8}-[A-Z0-9]{4}$/;
 
 function generateReceiptNumber(prefix = "REC"): string {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `${prefix}-${dateStr}-${rand}`;
+  const number = `${prefix}-${dateStr}-${rand}`;
+
+  if (!RECEIPT_NUMBER_REGEX.test(number)) {
+    throw new Error(`Generated receipt number "${number}" does not match expected format`);
+  }
+
+  return number;
 }
 
 export interface RecordPaymentInput {
@@ -73,10 +82,26 @@ export async function recordPayment(input: RecordPaymentInput): Promise<RecordPa
     if (newBalanceDue.equals(0)) newStatus = "paid";
     else if (newAmountPaid.greaterThan(0)) newStatus = "partial";
 
-    const updatedInvoice = await tx.invoice.update({
-      where: { id: invoiceId },
+    // Optimistic lock: only update if balanceDue hasn't changed since we read it.
+    // This prevents concurrent payment approvals from causing overpayment.
+    const updateResult = await tx.invoice.updateMany({
+      where: { id: invoiceId, balanceDue: invoice.balanceDue },
       data: { amountPaid: newAmountPaid, balanceDue: newBalanceDue, status: newStatus },
     });
+
+    if (updateResult.count === 0) {
+      throw new Error(
+        "Invoice balance changed since payment was initiated. " +
+        "This may be due to a concurrent payment being processed. Please refresh and try again."
+      );
+    }
+
+    // Fetch the updated invoice for the return value
+    const updatedInvoice = await tx.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { id: true, amountPaid: true, balanceDue: true, status: true },
+    });
+    if (!updatedInvoice) throw new Error("Invoice not found after update");
 
     const receiptNumber = generateReceiptNumber(receiptPrefix);
     const receipt = await tx.receipt.create({
@@ -112,18 +137,6 @@ export async function recordPayment(input: RecordPaymentInput): Promise<RecordPa
 
   const [result] = await prisma.$transaction(async (tx) => [await execute(tx)]);
   return result;
-}
-
-async function resolveParentId(schoolId: string, studentId: string): Promise<string | null> {
-  const primary = await prisma.parentWardLink.findFirst({
-    where: { studentId, schoolId, isPrimaryContact: true },
-  });
-  if (primary) return primary.parentId;
-
-  const anyLink = await prisma.parentWardLink.findFirst({
-    where: { studentId, schoolId },
-  });
-  return anyLink?.parentId || null;
 }
 
 export { generateReceiptNumber, resolveParentId };

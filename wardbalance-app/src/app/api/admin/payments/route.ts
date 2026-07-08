@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { z } from "zod";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, PaymentMethod, PaymentStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
 import { recordManualPayment } from "@/services/payment-verification.service";
 import { studentBasicSelect } from "@/lib/prisma-selects";
+import { parsePagination, paginatedJsonResponse } from "@/lib/server/pagination";
 
 const CreatePaymentSchema = z.object({
   invoiceId: z.string().min(1, "Invoice ID is required"),
@@ -25,12 +26,22 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const invoiceId = searchParams.get("invoiceId");
+    const search = searchParams.get("search");
+    const method = searchParams.get("method");
+    const status = searchParams.get("status");
 
-    const where: Record<string, unknown> = { schoolId: guard.session.schoolId };
+    const where: Prisma.PaymentWhereInput = { schoolId: guard.session.schoolId };
     if (invoiceId) where.invoiceId = invoiceId;
+    if (method) where.method = method as PaymentMethod;
+    if (status) where.status = status as PaymentStatus;
+    if (search) {
+      where.OR = [
+        { student: { firstName: { contains: search, mode: "insensitive" } } },
+        { student: { lastName: { contains: search, mode: "insensitive" } } },
+      ];
+    }
 
-    const limit = Math.min(parseInt(searchParams.get("limit") || "200", 10), 500);
-    const offset = Math.max(parseInt(searchParams.get("offset") || "0", 10), 0);
+    const { limit, offset } = parsePagination(searchParams);
 
     const [payments, total] = await Promise.all([
       prisma.payment.findMany({
@@ -48,7 +59,7 @@ export async function GET(request: NextRequest) {
       prisma.payment.count({ where }),
     ]);
 
-    return NextResponse.json({ data: payments, meta: { total, limit, offset } });
+    return NextResponse.json(paginatedJsonResponse(payments, total, limit, offset));
   } catch (err) {
     logError("payments GET", err);
     return NextResponse.json({ error: "Failed to fetch payments", code: "INTERNAL_ERROR" }, { status: 500 });

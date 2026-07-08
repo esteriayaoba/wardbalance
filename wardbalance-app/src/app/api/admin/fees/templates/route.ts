@@ -93,10 +93,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check unique template for classLevel + term
+    // Check unique template for this school + classLevel + term
     const existing = await prisma.classFeeTemplate.findUnique({
       where: {
-        classLevelId_termId: { classLevelId, termId },
+        schoolId_classLevelId_termId: { schoolId: guard.session.schoolId, classLevelId, termId },
       },
     });
 

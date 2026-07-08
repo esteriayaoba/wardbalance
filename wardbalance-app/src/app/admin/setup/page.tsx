@@ -8,7 +8,7 @@ interface Step {
   id: number;
   title: string;
   description: string;
-  status: "completed" | "not_started" | "blocked";
+  status: "completed" | "not_started" | "blocked" | "in_progress" | "needs_attention";
   blocked: boolean;
   blockedBy: string[];
   cta: string;
@@ -130,12 +130,16 @@ export default function SetupChecklistPage() {
           const isBlocked = step.status === "blocked";
           const isNext = step.id === nextStepId;
 
+          const needsAttention = step.status === "needs_attention";
+
           return (
             <div
               key={step.id}
               className={`p-6 bg-white rounded-xl border transition flex flex-col md:flex-row md:items-center justify-between gap-6 ${
-                isCompleted
+                isCompleted && !needsAttention
                   ? "border-green-200 bg-green-50/20"
+                  : needsAttention
+                  ? "border-amber-200 bg-amber-50/20 ring-1 ring-amber-200"
                   : isNext
                   ? "border-primary shadow-md ring-1 ring-primary/20"
                   : isBlocked
@@ -147,8 +151,10 @@ export default function SetupChecklistPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span
                     className={`w-6 h-6 rounded-full flex items-center justify-center text-body-small font-bold shrink-0 ${
-                      isCompleted
+                      isCompleted && !needsAttention
                         ? "bg-green-100 text-green-700"
+                        : needsAttention
+                        ? "bg-amber-100 text-amber-700"
                         : isBlocked
                         ? "bg-neutral-200 text-neutral-500"
                         : isNext
@@ -156,19 +162,25 @@ export default function SetupChecklistPage() {
                         : "bg-primary-light text-primary"
                     }`}
                   >
-                    {isCompleted ? <Check className="w-4 h-4" /> : step.id}
+                    {isCompleted && !needsAttention ? <Check className="w-4 h-4" /> : needsAttention ? <AlertCircle className="w-4 h-4" /> : step.id}
                   </span>
 
-                  <h3 className={`text-title-small font-bold ${isCompleted ? "text-green-950" : isBlocked ? "text-neutral-500" : "text-neutral-900"}`}>
+                  <h3 className={`text-title-small font-bold ${isCompleted && !needsAttention ? "text-green-950" : needsAttention ? "text-amber-900" : isBlocked ? "text-neutral-500" : "text-neutral-900"}`}>
                     {step.title}
                   </h3>
 
-                  {isCompleted && (
+                  {isCompleted && !needsAttention && (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider">
                       Done
                     </span>
                   )}
-                  {isNext && (
+                  {needsAttention && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wider">
+                      <AlertCircle className="w-3 h-3" />
+                      Needs Attention
+                    </span>
+                  )}
+                  {isNext && !needsAttention && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary text-white text-[10px] font-bold uppercase tracking-wider">
                       <Zap className="w-2.5 h-2.5" />
                       Start Here
@@ -182,9 +194,15 @@ export default function SetupChecklistPage() {
                   )}
                 </div>
 
-                <p className={`text-body-medium leading-normal ${isBlocked ? "text-neutral-500" : "text-neutral-600"}`}>
+                <p className={`text-body-medium leading-normal ${isBlocked ? "text-neutral-500" : needsAttention ? "text-amber-800" : "text-neutral-600"}`}>
                   {step.description}
                 </p>
+
+                {needsAttention && (
+                  <p className="text-body-small text-amber-700 mt-1 font-medium">
+                    This step was completed but may need review based on your current data.
+                  </p>
+                )}
 
                 {isBlocked && step.blockedBy.length > 0 && (
                   <p className="text-body-small text-neutral-500 mt-1 font-medium">
@@ -196,7 +214,7 @@ export default function SetupChecklistPage() {
 
               {/* CTAs */}
               <div className="shrink-0">
-                {isCompleted ? (
+                {isCompleted && !needsAttention ? (
                   <button
                     onClick={() => router.push(step.href)}
                     className="px-4 py-2 border border-green-200 text-green-700 rounded-lg text-body-small font-bold bg-green-50 hover:bg-green-100 transition inline-flex items-center gap-1.5 cursor-pointer"
@@ -215,12 +233,14 @@ export default function SetupChecklistPage() {
                   <button
                     onClick={() => router.push(step.href)}
                     className={`px-4 py-2 rounded-lg text-body-small font-bold transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer ${
-                      isNext
+                      needsAttention
+                        ? "bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-300"
+                        : isNext
                         ? "bg-primary text-white hover:bg-primary-dark ring-2 ring-primary/30"
                         : "bg-primary text-white hover:bg-primary-dark"
                     }`}
                   >
-                    {step.cta}
+                    {needsAttention ? "Review" : step.cta}
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 )}

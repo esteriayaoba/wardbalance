@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { enqueueNotification } from "@/lib/notifications";
 
 const termOrder = ["first", "second", "third", "fourth", "fifth"];
 const getTermWeight = (name: string) => {
@@ -149,11 +150,16 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
   }
 
   const targetTerm = await prisma.academicTerm.findUnique({
-    where: { id: termId }
+    where: { id: termId },
+    include: { session: { select: { name: true } } },
   });
 
   if (!targetTerm) {
     throw new Error("Target term not found");
+  }
+
+  if (targetTerm.status === "locked") {
+    throw new Error("Cannot generate invoices for a locked term. Unlock the term first.");
   }
 
   const previousTerm = await getPreviousTerm(schoolId, termId);
@@ -222,102 +228,112 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
     parentsByStudent.set(link.studentId, list);
   }
 
-  const results = await prisma.$transaction(async (tx) => {
-    const generatedInvoices = [];
+  // Filter to students that need invoices generated
+  const studentsToProcess = students.filter((s) => !existingSet.has(s.id));
 
-    for (const student of students) {
-      if (existingSet.has(student.id)) continue;
+  if (studentsToProcess.length === 0) {
+    return { invoices: [], count: 0, message: "All students already have invoices for this term." };
+  }
 
-      const carryoverAmount = prevInvoicesMap.get(student.id) ?? new Prisma.Decimal(0);
+  /**
+   * Build the invoice data payload for a single student (pure computation — no DB calls).
+   */
+  function buildInvoicePayload(student: typeof students[0]) {
+    const carryoverAmount = prevInvoicesMap.get(student.id) ?? new Prisma.Decimal(0);
 
-      let baselineAmount = new Prisma.Decimal(0);
-      const lineItemsData: { feeItemId?: string; name: string; amount: Prisma.Decimal; lineType: "fee_item" | "carryover" | "discount" }[] = [];
+    let baselineAmount = new Prisma.Decimal(0);
+    const lineItemsData: {
+      feeItemId?: string;
+      name: string;
+      amount: Prisma.Decimal;
+      lineType: "fee_item" | "carryover" | "discount";
+    }[] = [];
 
-      for (const item of templateItems) {
-        const amount = item.amountOverride ?? item.feeItem.amount;
-        baselineAmount = baselineAmount.plus(amount);
-        lineItemsData.push({
-          feeItemId: item.feeItemId,
-          name: item.feeItem.name,
-          amount,
-          lineType: "fee_item",
-        });
-      }
+    for (const item of templateItems) {
+      const amount = item.amountOverride ?? item.feeItem.amount;
+      baselineAmount = baselineAmount.plus(amount);
+      lineItemsData.push({ feeItemId: item.feeItemId, name: item.feeItem.name, amount, lineType: "fee_item" });
+    }
 
-      if (carryoverAmount.greaterThan(0)) {
-        baselineAmount = baselineAmount.plus(carryoverAmount);
-        lineItemsData.push({
-          name: "Previous Term Balance",
-          amount: carryoverAmount,
-          lineType: "carryover",
-        });
-      }
+    if (carryoverAmount.greaterThan(0)) {
+      baselineAmount = baselineAmount.plus(carryoverAmount);
+      lineItemsData.push({ name: "Previous Term Balance", amount: carryoverAmount, lineType: "carryover" });
+    }
 
-      // Add optional fee enrolments (from pre-fetched data)
-      const studentEnrolments = enrolmentsByStudent.get(student.id) ?? [];
-      for (const enrolment of studentEnrolments) {
-        const amount = enrolment.feeItem.amount;
-        baselineAmount = baselineAmount.plus(amount);
-        lineItemsData.push({
-          feeItemId: enrolment.feeItemId,
-          name: `${enrolment.feeItem.name} (Optional)`,
-          amount,
-          lineType: "fee_item",
-        });
-      }
+    const studentEnrolments = enrolmentsByStudent.get(student.id) ?? [];
+    for (const enrolment of studentEnrolments) {
+      const amount = enrolment.feeItem.amount;
+      baselineAmount = baselineAmount.plus(amount);
+      lineItemsData.push({
+        feeItemId: enrolment.feeItemId,
+        name: `${enrolment.feeItem.name} (Optional)`,
+        amount,
+        lineType: "fee_item",
+      });
+    }
 
-      // Apply sibling discount (from pre-fetched data)
-      let calculatedDiscount = new Prisma.Decimal(0);
-      if (siblingRules.length > 0) {
-        const studentParentIds = parentsByStudent.get(student.id) ?? [];
-        for (const parentId of studentParentIds) {
-          const allSiblings = siblingLinksByParent.get(parentId) ?? [];
-          const siblingsCount = allSiblings.length;
-          const studentIndex = allSiblings.findIndex((s) => s.studentId === student.id);
+    let calculatedDiscount = new Prisma.Decimal(0);
+    if (siblingRules.length > 0) {
+      const studentParentIds = parentsByStudent.get(student.id) ?? [];
+      for (const parentId of studentParentIds) {
+        const allSiblings = siblingLinksByParent.get(parentId) ?? [];
+        const siblingsCount = allSiblings.length;
+        const studentIndex = allSiblings.findIndex((s) => s.studentId === student.id);
 
-          for (const rule of siblingRules) {
-            const threshold = parseInt(rule.conditionValue || "2", 10);
-            if (siblingsCount >= threshold && studentIndex >= threshold - 1) {
-              let ruleDiscount = new Prisma.Decimal(0);
-              if (rule.type === "percentage") {
-                ruleDiscount = baselineAmount.times(new Prisma.Decimal(rule.value)).dividedBy(100);
-              } else {
-                ruleDiscount = new Prisma.Decimal(rule.value);
-              }
-              calculatedDiscount = calculatedDiscount.plus(ruleDiscount);
-              lineItemsData.push({
-                name: `Discount: ${rule.name}`,
-                amount: ruleDiscount,
-                lineType: "discount",
-              });
+        for (const rule of siblingRules) {
+          const threshold = parseInt(rule.conditionValue || "2", 10);
+          if (siblingsCount >= threshold && studentIndex >= threshold - 1) {
+            let ruleDiscount = new Prisma.Decimal(0);
+            if (rule.type === "percentage") {
+              ruleDiscount = baselineAmount.times(new Prisma.Decimal(rule.value)).dividedBy(100);
+            } else {
+              ruleDiscount = new Prisma.Decimal(rule.value);
             }
+            calculatedDiscount = calculatedDiscount.plus(ruleDiscount);
+            lineItemsData.push({ name: `Discount: ${rule.name}`, amount: ruleDiscount, lineType: "discount" });
           }
         }
       }
+    }
 
-      const finalAmount = Prisma.Decimal.max(0, baselineAmount.minus(calculatedDiscount));
+    const finalAmount = Prisma.Decimal.max(0, baselineAmount.minus(calculatedDiscount));
+    return { baselineAmount, calculatedDiscount, finalAmount, lineItemsData };
+  }
 
-      const invoice = await tx.invoice.create({
-        data: {
-          schoolId,
-          studentId: student.id,
-          termId,
-          templateId: targetTemplateId || null,
-          status: "draft",
-          dueDate,
-          totalAmount: baselineAmount,
-          discountAmount: calculatedDiscount,
-          finalAmount: finalAmount,
-          amountPaid: new Prisma.Decimal(0),
-          balanceDue: finalAmount,
-          lineItems: { create: lineItemsData },
-        },
-      });
+  /**
+   * Process a batch of students inside a single transaction.
+   * Within the batch, all invoice creates run in parallel via Promise.all.
+   * Audit logs are created with createMany after all invoices succeed.
+   */
+  async function processBatch(batch: typeof students) {
+    return prisma.$transaction(async (tx) => {
+      // Run all invoice creates in parallel within this transaction
+      const created = await Promise.all(
+        batch.map(async (student) => {
+          const { baselineAmount, calculatedDiscount, finalAmount, lineItemsData } = buildInvoicePayload(student);
 
-      generatedInvoices.push(invoice);
+          return tx.invoice.create({
+            data: {
+              schoolId,
+              studentId: student.id,
+              termId,
+              templateId: targetTemplateId || null,
+              status: "issued",
+              dueDate,
+              totalAmount: baselineAmount,
+              discountAmount: calculatedDiscount,
+              finalAmount,
+              amountPaid: new Prisma.Decimal(0),
+              balanceDue: finalAmount,
+              lineItems: { create: lineItemsData },
+            },
+          });
+        })
+      );
 
-      await tx.auditLog.create({
-        data: {
+      // Bulk-insert audit logs for all invoices in this batch
+      await tx.auditLog.createMany({
+        data: created.map((invoice) => ({
           schoolId,
           actorId,
           actorName,
@@ -325,16 +341,55 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
           entityType: "Invoice",
           entityId: invoice.id,
           newValue: JSON.parse(JSON.stringify(invoice)),
-        },
+        })),
       });
-    }
 
-    return generatedInvoices;
-  });
+      return created;
+    });
+  }
+
+  // Process students in batches of 20 to keep each transaction well within
+  // Postgres statement timeout limits even for large classes (120+ students).
+  const BATCH_SIZE = 20;
+  const allGeneratedInvoices: Awaited<ReturnType<typeof processBatch>> = [];
+
+  for (let i = 0; i < studentsToProcess.length; i += BATCH_SIZE) {
+    const batch = studentsToProcess.slice(i, i + BATCH_SIZE);
+    const batchResult = await processBatch(batch);
+    allGeneratedInvoices.push(...batchResult);
+  }
+
+  // Enqueue notifications for parents of students with new invoices
+  if (allGeneratedInvoices.length > 0) {
+    const studentIdsWithInvoices = allGeneratedInvoices.map((inv) => inv.studentId);
+    const parentLinks = await prisma.parentWardLink.findMany({
+      where: {
+        studentId: { in: studentIdsWithInvoices },
+        receivesInvoiceNotifications: true,
+      },
+      include: { parent: { select: { email: true, phone: true } } },
+    });
+
+    const termLabel = `${targetTerm.session?.name || ""} — ${targetTerm.name}`;
+
+    await Promise.allSettled(
+      parentLinks.map((link) =>
+        enqueueNotification({
+          schoolId,
+          parentId: link.parentId,
+          channel: "email",
+          recipient: link.parent.email || link.parent.phone,
+          subject: "New Invoice — WardBalance",
+          content: `A new invoice has been generated for ${termLabel}. Please log in to the parent portal to view the details and make payment.`,
+          reference: `invoice-generated-${termId}`,
+        }).catch(() => {})
+      )
+    );
+  }
 
   return {
-    invoices: results,
-    count: results.length,
-    message: `Successfully generated ${results.length} invoices.`,
+    invoices: allGeneratedInvoices,
+    count: allGeneratedInvoices.length,
+    message: `Successfully generated ${allGeneratedInvoices.length} invoices.`,
   };
 }

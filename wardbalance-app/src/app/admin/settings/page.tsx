@@ -11,6 +11,13 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Invite state
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("Bursar");
+  const [inviteSending, setInviteSending] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
+
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
@@ -89,6 +96,30 @@ export default function SettingsPage() {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleInviteUser = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviteSending(true);
+    setInviteError(null);
+    setInviteSuccess(false);
+
+    try {
+      const res = await fetch("/api/admin/users/invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to send invitation");
+      setInviteSuccess(true);
+      setInviteEmail("");
+      setTimeout(() => setInviteSuccess(false), 5000);
+    } catch (err: any) {
+      setInviteError(err.message);
+    } finally {
+      setInviteSending(false);
     }
   };
 
@@ -252,6 +283,71 @@ export default function SettingsPage() {
                 />
               </div>
             </div>
+          </div>
+
+          {/* Team Management Section */}
+          <div className="pt-6 border-t border-neutral-200 space-y-4">
+            <div className="space-y-1">
+              <h3 className="text-label-medium text-neutral-900 font-bold uppercase tracking-wider block">
+                Team Members
+              </h3>
+              <p className="text-[11px] text-neutral-500">
+                Invite school staff members to collaborate on WardBalance. Invitations expire after 7 days.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-label-medium text-neutral-700 block">Email Address *</label>
+                <input
+                  type="email"
+                  placeholder="colleague@school.ng"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-label-medium text-neutral-700 block">Role *</label>
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium bg-white focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
+                >
+                  <option value="Bursar">Bursar</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Principal">Principal</option>
+                  <option value="SchoolOwner">School Owner</option>
+                </select>
+              </div>
+
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  disabled={inviteSending || !inviteEmail.trim()}
+                  onClick={handleInviteUser}
+                  className="w-full px-4 py-2.5 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition disabled:opacity-50 inline-flex items-center justify-center gap-2 shadow-sm"
+                >
+                  {inviteSending ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</>
+                  ) : (
+                    "Send Invitation"
+                  )}
+                </button>
+              </div>
+
+              <div className="flex items-end">
+                {inviteSuccess && (
+                  <span className="text-body-small text-green-700 font-bold bg-green-50 px-3 py-2 rounded-lg border border-green-200 w-full text-center">
+                    Invitation sent!
+                  </span>
+                )}
+              </div>
+            </div>
+            {inviteError && (
+              <p className="text-body-small text-red-600 font-medium">{inviteError}</p>
+            )}
           </div>
 
           <div className="pt-4 flex items-center justify-between border-t border-neutral-200 gap-4">

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Search, Receipt, Loader2, AlertCircle } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import PaginationBar from "@/components/admin/shared/pagination-bar";
 
 interface ReceiptRecord {
   id: string;
@@ -23,25 +24,39 @@ export default function ReceiptsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  const loadReceipts = useCallback(async () => {
+  const [page, setPage] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const pageSize = 20;
+
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => { setPage(1); }, [search]);
+
+  useEffect(() => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
-    try {
-      const res = await fetch("/api/admin/receipts?limit=200");
-      if (!res.ok) {
+    const offset = (page - 1) * pageSize;
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+    fetch(`/api/admin/receipts?${params.toString()}`, { signal: controller.signal })
+      .then((res) => {
         if (res.status === 403) throw new Error("You do not have permission to view receipts.");
-        throw new Error("Failed to load receipts");
-      }
-      const body = await res.json();
-      setReceipts(body.data ?? []);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load receipts");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { loadReceipts(); }, [loadReceipts]);
+        if (!res.ok) throw new Error("Failed to load receipts");
+        return res.json();
+      })
+      .then((body) => {
+        setReceipts(body.data ?? []);
+        setTotalRecords(body.meta?.total ?? 0);
+      })
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name === "AbortError") return;
+        setError(err instanceof Error ? err.message : "Failed to load receipts");
+      })
+      .finally(() => setLoading(false));
+    return () => controller.abort();
+  }, [page, search]);
 
   const filtered = receipts.filter((r) =>
     !search ||
@@ -52,27 +67,30 @@ export default function ReceiptsPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-title-large font-bold text-neutral-900">Receipts</h1>
-        <p className="text-body-medium text-neutral-500 mt-1">View all issued receipts across the school.</p>
+      <div className="space-y-1">
+        <h1 className="text-headline-small text-neutral-900 font-bold">Receipts</h1>
+        <p className="text-body-medium text-neutral-600">View all issued receipts across the school.</p>
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 text-red-700 text-body-small">
-          <AlertCircle className="w-4 h-4 shrink-0" />
+        <div className="flex items-start gap-2.5 p-3.5 rounded-lg bg-error-container text-on-error-container text-body-small">
+          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-error" />
           <span>{error}</span>
         </div>
       )}
 
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-        <input
-          type="text"
-          placeholder="Search by receipt number or student..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-9 pr-3 py-2 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
-        />
+      <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm">
+        <div className="relative w-full max-w-sm">
+          <Search className="absolute w-4 h-4 text-neutral-400 left-3 top-3" />
+          <input
+            type="text"
+            aria-label="Search receipts"
+            placeholder="Search by receipt number or student..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+          />
+        </div>
       </div>
 
       {loading ? (
@@ -91,11 +109,11 @@ export default function ReceiptsPage() {
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
+        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-neutral-50 text-left text-label-small text-neutral-500 uppercase">
+                <tr className="bg-neutral-50 text-left text-label-medium text-neutral-500">
                   <th className="px-6 py-3 font-semibold">Receipt #</th>
                   <th className="px-6 py-3 font-semibold">Student</th>
                   <th className="px-6 py-3 font-semibold">Amount</th>
@@ -104,9 +122,9 @@ export default function ReceiptsPage() {
                   <th className="px-6 py-3 font-semibold">Date</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-100">
+              <tbody className="divide-y divide-neutral-200">
                 {filtered.map((r) => (
-                  <tr key={r.id} className="hover:bg-neutral-50 transition">
+                  <tr key={r.id} className="hover:bg-neutral-50/50 transition">
                     <td className="px-6 py-4 font-mono text-body-small font-bold text-primary">
                       {r.receiptNumber}
                     </td>
@@ -141,6 +159,14 @@ export default function ReceiptsPage() {
           </div>
         </div>
       )}
+
+      <PaginationBar
+        currentPage={page}
+        pageSize={pageSize}
+        total={totalRecords}
+        loading={loading}
+        onPageChange={setPage}
+      />
     </div>
   );
 }

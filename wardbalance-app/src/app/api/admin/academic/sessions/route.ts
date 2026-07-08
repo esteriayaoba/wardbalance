@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-const SessionSchema = z.object({
-  name: z.string().min(1, "Session name is required").max(50),
-  isActive: z.boolean().default(false),
-});
+import { SessionSchema } from "@/schemas/academic.schema";
 
 export async function GET(request: NextRequest) {
   try {

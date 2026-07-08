@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
 
     const input = parsed.data.phoneOrEmail.trim().toLowerCase();
 
+    // Scope parent lookup — return the same generic error regardless of outcome
+    // to avoid leaking whether a contact exists (anti-enumeration).
     const parent = await prisma.parent.findFirst({
       where: {
         OR: [
@@ -42,6 +44,7 @@ export async function POST(request: NextRequest) {
           { phone: { endsWith: input.replace(/^\+?234/, "") } },
         ],
       },
+      select: { id: true, schoolId: true, email: true, phone: true },
     });
 
     if (!parent) {
@@ -52,14 +55,18 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate 6-digit OTP
-    const otp = crypto.randomInt(100000, 1000000).toString();
-    const key = `otp:${input}`;
+    const rawOtp = crypto.randomInt(100000, 1000000).toString();
 
-    await upstashSet(key, otp, 300); // 5 minutes expiry
+    // Hash before storing — the plaintext OTP is NEVER persisted.
+    // Key is scoped by schoolId to prevent cross-tenant auth (R-1).
+    const otpHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
+    const key = `otp:${parent.schoolId}:${input}`;
+
+    await upstashSet(key, otpHash, 300); // 5 minutes expiry
 
     const isProd = process.env.NODE_ENV === "production";
 
-    // Send OTP
+    // Send OTP via email if available
     const emailTarget = parent.email;
     if (emailTarget) {
       sendEmail({
@@ -68,29 +75,29 @@ export async function POST(request: NextRequest) {
         html: `
           <h1>Login Code</h1>
           <p>Your verification code is:</p>
-          <h2 style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #155EEF; margin: 16px 0;">${otp}</h2>
+          <h2 style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #155EEF; margin: 16px 0;">${rawOtp}</h2>
           <p>This code expires in 5 minutes.</p>
           <p>If you did not request this code, please ignore this email.</p>
         `,
       }).catch((err) => console.warn("[send-otp] Email failed:", err));
     }
 
-    // Send SMS if input looks like a phone
+    // Send SMS if input looks like a phone number
     if (input.replace(/[\s+\-]/g, "").match(/^(\d{10,15})$/)) {
-      sendTermiiSMS(input, `Your WardBalance login code is: ${otp}. It expires in 5 minutes.`)
+      sendTermiiSMS(input, `Your WardBalance login code is: ${rawOtp}. It expires in 5 minutes.`)
         .catch((err) => console.warn("[send-otp] SMS failed:", err));
     }
 
     const message = isProd
       ? "Verification code sent successfully. Please check your registered email or phone."
-      : `OTP sent successfully. For demo purposes, use code: ${otp}`;
+      : `OTP sent successfully. For demo purposes, use code: ${rawOtp}`;
 
     const response: { data: { success: boolean; message: string; devOtp?: string } } = {
       data: { success: true, message },
     };
 
     if (!isProd) {
-      response.data.devOtp = otp;
+      response.data.devOtp = rawOtp;
     }
 
     return NextResponse.json(response);

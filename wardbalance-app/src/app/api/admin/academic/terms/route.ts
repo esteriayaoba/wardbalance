@@ -2,20 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-const CreateTermSchema = z.object({
-  sessionId: z.string().min(1, "Session ID is required"),
-  name: z.string().min(1, "Term name is required").max(50),
-  isActive: z.boolean().default(false),
-  status: z.enum(["active", "locked"]).default("active"),
-});
-
-const UpdateTermSchema = z.object({
-  id: z.string().min(1, "Term ID is required"),
-  isActive: z.boolean().optional(),
-  status: z.enum(["active", "locked"]).optional(),
-});
+import { CreateTermSchema, UpdateTermSchema } from "@/schemas/academic.schema";
 
 export async function GET(request: NextRequest) {
   try {

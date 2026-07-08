@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 
+function computeStatus(
+  isCompleted: boolean,
+  isBlocked: boolean,
+  hasInvoices: boolean,
+  hasStudentsWithoutParents: boolean,
+  hasFeeItemsWithoutTemplates: boolean,
+): "completed" | "not_started" | "blocked" | "in_progress" | "needs_attention" {
+  if (isCompleted) {
+    if (hasInvoices && hasFeeItemsWithoutTemplates) return "needs_attention";
+    if (hasStudentsWithoutParents) return "needs_attention";
+    return "completed";
+  }
+  if (isBlocked) return "blocked";
+  return "not_started";
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getSession();
@@ -40,6 +56,7 @@ export async function GET(request: NextRequest) {
       feeItemCount,
       templateCount,
       invoiceCount,
+      studentsWithoutParentsCount,
     ] = await Promise.all([
       prisma.academicSession.count({ where: { schoolId } }),
       prisma.academicTerm.count({ where: { schoolId } }),
@@ -52,7 +69,10 @@ export async function GET(request: NextRequest) {
       prisma.feeItem.count({ where: { schoolId } }),
       prisma.classFeeTemplate.count({ where: { schoolId } }),
       prisma.invoice.count({ where: { schoolId } }),
+      prisma.student.count({ where: { schoolId, parents: { none: {} } } }),
     ]);
+
+    const hasFeeItemsWithoutTemplates = feeItemCount > 0 && templateCount === 0 && invoiceCount > 0;
 
     const isProfileComplete = !!(school.address && school.phone);
 
@@ -61,7 +81,7 @@ export async function GET(request: NextRequest) {
       id: 1,
       title: "Complete school profile",
       description: "Set up the school address, telephone, and basic information.",
-      status: isProfileComplete ? "completed" : "not_started",
+      status: computeStatus(isProfileComplete, false, false, false, false),
       blocked: false,
       blockedBy: [] as string[],
       cta: "Edit Profile",
@@ -72,7 +92,7 @@ export async function GET(request: NextRequest) {
       id: 2,
       title: "Create academic session",
       description: "Define the school academic session calendar (e.g. 2026/2027).",
-      status: sessionCount > 0 ? "completed" : "not_started",
+      status: computeStatus(sessionCount > 0, false, false, false, false),
       blocked: false,
       blockedBy: [] as string[],
       cta: "Add Session",
@@ -84,7 +104,7 @@ export async function GET(request: NextRequest) {
       id: 3,
       title: "Create academic term",
       description: "Define active terms under the academic session (e.g. First Term).",
-      status: termCount > 0 ? "completed" : isTermBlocked ? "blocked" : "not_started",
+      status: computeStatus(termCount > 0, isTermBlocked, false, false, false),
       blocked: isTermBlocked,
       blockedBy: isTermBlocked ? ["Academic Session"] : [],
       cta: "Add Term",
@@ -95,7 +115,7 @@ export async function GET(request: NextRequest) {
       id: 4,
       title: "Create divisions",
       description: "Define educational divisions in the school (e.g. Primary, Secondary).",
-      status: divisionCount > 0 ? "completed" : "not_started",
+      status: computeStatus(divisionCount > 0, false, false, false, false),
       blocked: false,
       blockedBy: [] as string[],
       cta: "Add Divisions",
@@ -107,7 +127,7 @@ export async function GET(request: NextRequest) {
       id: 5,
       title: "Create class levels",
       description: "Create levels within each educational division (e.g. Primary 1, JSS1).",
-      status: levelCount > 0 ? "completed" : isLevelBlocked ? "blocked" : "not_started",
+      status: computeStatus(levelCount > 0, isLevelBlocked, false, false, false),
       blocked: isLevelBlocked,
       blockedBy: isLevelBlocked ? ["Divisions"] : [],
       cta: "Add Levels",
@@ -119,7 +139,7 @@ export async function GET(request: NextRequest) {
       id: 6,
       title: "Create class arms",
       description: "Add individual arms to each class level (e.g. Primary 1A, JSS1 Gold).",
-      status: armCount > 0 ? "completed" : isArmBlocked ? "blocked" : "not_started",
+      status: computeStatus(armCount > 0, isArmBlocked, false, false, false),
       blocked: isArmBlocked,
       blockedBy: isArmBlocked ? ["Class Levels"] : [],
       cta: "Add Arms",
@@ -131,7 +151,7 @@ export async function GET(request: NextRequest) {
       id: 7,
       title: "Add or import students",
       description: "Register students into class arms manually or upload a CSV file.",
-      status: studentCount > 0 ? "completed" : isStudentBlocked ? "blocked" : "not_started",
+      status: computeStatus(studentCount > 0, isStudentBlocked, false, false, false),
       blocked: isStudentBlocked,
       blockedBy: isStudentBlocked ? ["Class Arms"] : [],
       cta: "Register Students",
@@ -143,7 +163,7 @@ export async function GET(request: NextRequest) {
       id: 8,
       title: "Add or import parents",
       description: "Register parents details to setup payment notifications channels.",
-      status: parentCount > 0 ? "completed" : isParentBlocked ? "blocked" : "not_started",
+      status: computeStatus(parentCount > 0, isParentBlocked, false, false, false),
       blocked: isParentBlocked,
       blockedBy: isParentBlocked ? ["Students"] : [],
       cta: "Register Parents",
@@ -151,11 +171,12 @@ export async function GET(request: NextRequest) {
     };
 
     const isLinkBlocked = parentCount === 0 || studentCount === 0;
+    const needsLinkAttention = linkCount === 0 && studentCount > 0 && parentCount > 0 && invoiceCount > 0;
     const step9 = {
       id: 9,
       title: "Link parents to wards",
       description: "Link parental profiles to students for invoice delivery and bills tracking.",
-      status: linkCount > 0 ? "completed" : isLinkBlocked ? "blocked" : "not_started",
+      status: computeStatus(linkCount > 0, isLinkBlocked, false, studentsWithoutParentsCount > 0, false),
       blocked: isLinkBlocked,
       blockedBy: isLinkBlocked ? ["Parents", "Students"] : [],
       cta: "Link Wards",
@@ -166,7 +187,7 @@ export async function GET(request: NextRequest) {
       id: 10,
       title: "Create fee items",
       description: "Define library items of billing charges (e.g. Tuition, Development Levy).",
-      status: feeItemCount > 0 ? "completed" : "not_started",
+      status: computeStatus(feeItemCount > 0, false, false, false, false),
       blocked: false,
       blockedBy: [] as string[],
       cta: "Create Fees Library",
@@ -174,11 +195,12 @@ export async function GET(request: NextRequest) {
     };
 
     const isTemplateBlocked = termCount === 0 || levelCount === 0 || feeItemCount === 0;
+    const needsTemplateAttention = templateCount === 0 && feeItemCount > 0 && invoiceCount > 0;
     const step11 = {
       id: 11,
       title: "Create class fee templates",
       description: "Define mandatory fee templates for specific term + level cohorts.",
-      status: templateCount > 0 ? "completed" : isTemplateBlocked ? "blocked" : "not_started",
+      status: needsTemplateAttention ? "needs_attention" : computeStatus(templateCount > 0, isTemplateBlocked, false, false, false),
       blocked: isTemplateBlocked,
       blockedBy: isTemplateBlocked ? ["Academic Term", "Class Levels", "Fee Items"] : [],
       cta: "Build Templates",
@@ -190,7 +212,7 @@ export async function GET(request: NextRequest) {
       id: 12,
       title: "Generate first invoices",
       description: "Run the bulk billing engine to dispatch terms invoices to classrooms.",
-      status: invoiceCount > 0 ? "completed" : isInvoiceBlocked ? "blocked" : "not_started",
+      status: computeStatus(invoiceCount > 0, isInvoiceBlocked, false, false, false),
       blocked: isInvoiceBlocked,
       blockedBy: isInvoiceBlocked ? ["Fee Templates", "Students"] : [],
       cta: "Run Billing Wizard",

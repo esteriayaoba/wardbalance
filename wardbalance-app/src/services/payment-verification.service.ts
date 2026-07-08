@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, PaymentMethod, ManualPaymentSubmissionStatus } from "@/generated/prisma/client";
 import { getPresignedGetUrl } from "@/lib/r2";
 import { recordPayment } from "@/services/payment-recorder.service";
+import { resolveParentId } from "@/lib/payments/resolve-parent";
 
 export async function fetchVerificationQueue(schoolId: string, status: string) {
   const submissions = await prisma.manualPaymentSubmission.findMany({
@@ -87,7 +88,7 @@ export async function approvePaymentSubmission(options: ApprovePaymentOptions) {
     const result = await recordPayment({
       schoolId, invoiceId: submission.invoiceId, studentId: submission.studentId,
       parentId: submission.parentId, amount: submission.amount,
-      method: submission.paymentMethod as PaymentMethod, reference: submission.reference,
+      method: submission.paymentMethod, reference: submission.reference,
       recordedById: actorId, actorId, actorName,
       action: "MANUAL_PAYMENT_APPROVED", receiptPrefix: "REC", tx,
     });
@@ -145,7 +146,7 @@ export async function recordManualPayment(options: {
   if (!invoice) throw new Error("Invoice not found");
   if (invoice.term.status === "locked") throw new Error("Term is locked.");
 
-  const parentId = await resolveParentIdFromInvoice(schoolId, invoice.studentId);
+  const parentId = await resolveParentId(schoolId, invoice.studentId);
 
   return recordPayment({
     schoolId, invoiceId, studentId: invoice.studentId, parentId, amount,
@@ -153,16 +154,4 @@ export async function recordManualPayment(options: {
     recordedById: actorId, actorId, actorName,
     action: "PAYMENT_RECORDED", receiptPrefix: "REC",
   });
-}
-
-async function resolveParentIdFromInvoice(schoolId: string, studentId: string): Promise<string | null> {
-  const primary = await prisma.parentWardLink.findFirst({
-    where: { studentId, schoolId, isPrimaryContact: true },
-  });
-  if (primary) return primary.parentId;
-
-  const anyLink = await prisma.parentWardLink.findFirst({
-    where: { studentId, schoolId },
-  });
-  return anyLink?.parentId || null;
 }

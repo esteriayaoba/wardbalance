@@ -5,8 +5,14 @@ const mockEnqueueNotification = vi.fn();
 vi.mock("@/lib/notifications", () => ({ enqueueNotification: mockEnqueueNotification }));
 
 const mockPrisma = {
-  invoice: { findMany: vi.fn(), update: vi.fn(), count: vi.fn(), aggregate: vi.fn() },
-  auditLog: { create: vi.fn() },
+  invoice: { findMany: vi.fn(), update: vi.fn(), updateMany: vi.fn(), count: vi.fn(), aggregate: vi.fn() },
+  auditLog: { create: vi.fn(), createMany: vi.fn() },
+  $transaction: vi.fn(async (val) => {
+    if (typeof val === "function") {
+      return val(mockPrisma);
+    }
+    return val;
+  }),
 };
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
@@ -29,16 +35,25 @@ describe("processOverdueInvoices", () => {
       ])
       .mockResolvedValueOnce([]);
 
-    mockPrisma.invoice.update.mockResolvedValue({});
+    mockPrisma.invoice.updateMany.mockResolvedValue({ count: 2 });
+    mockPrisma.auditLog.createMany.mockResolvedValue({ count: 2 });
 
     const result = await processOverdueInvoices();
 
     expect(result.markedOverdue).toBe(2);
-    expect(mockPrisma.invoice.update).toHaveBeenCalledTimes(2);
-    expect(mockPrisma.auditLog.create).toHaveBeenCalledTimes(2);
-    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+    expect(mockPrisma.invoice.updateMany).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.invoice.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ action: "invoice.marked_overdue" }),
+        where: { id: { in: ["inv-1", "inv-2"] } },
+      })
+    );
+    expect(mockPrisma.auditLog.createMany).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.auditLog.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ action: "invoice.marked_overdue", entityId: "inv-1" }),
+          expect.objectContaining({ action: "invoice.marked_overdue", entityId: "inv-2" }),
+        ]),
       })
     );
   });

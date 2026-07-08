@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, Plus, Upload, Link2, AlertTriangle, Check, AlertCircle, Search, UserCheck } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
+import { Loader2, Plus, Upload, Link2, AlertTriangle, Check, AlertCircle, Search, UserCheck, Users } from "lucide-react";
 import ImportWizard from "@/components/admin/shared/import-wizard";
 import PaginationBar from "@/components/admin/shared/pagination-bar";
 import ConfirmationDialog from "@/components/admin/shared/confirmation-dialog";
@@ -101,9 +101,14 @@ export default function StudentsPage() {
   const [totalRecords, setTotalRecords] = useState(0);
   const pageSize = 20;
 
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => { setPage(1); }, [filterLevelId, filterArmId, searchQuery]);
 
   const loadData = () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     const offset = (page - 1) * pageSize;
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
@@ -111,10 +116,11 @@ export default function StudentsPage() {
     if (filterLevelId) params.set("classLevelId", filterLevelId);
     if (filterArmId) params.set("classArmId", filterArmId);
     const studentUrl = `/api/admin/students?${params.toString()}`;
+    const signal = controller.signal;
     Promise.all([
-      fetch(studentUrl).then((r) => r.json()),
-      fetch("/api/admin/academic/classes").then((r) => r.json()),
-      fetch("/api/admin/parents").then((r) => r.json()),
+      fetch(studentUrl, { signal }).then((r) => r.json()),
+      fetch("/api/admin/academic/classes", { signal }).then((r) => r.json()),
+      fetch("/api/admin/parents", { signal }).then((r) => r.json()),
     ])
       .then(([studentData, classData, parentData]) => {
         setStudents(studentData.data || []);
@@ -124,6 +130,7 @@ export default function StudentsPage() {
         setLoading(false);
       })
       .catch((err) => {
+        if (err.name === "AbortError") return;
         console.error("Load failed:", err);
         setLoading(false);
       });
@@ -131,6 +138,7 @@ export default function StudentsPage() {
 
   useEffect(() => {
     loadData();
+    return () => abortRef.current?.abort();
   }, [page, filterLevelId, filterArmId, searchQuery]);
 
   const handleManualAdd = async (e: React.FormEvent) => {
@@ -260,18 +268,6 @@ export default function StudentsPage() {
 
   // Available class arms based on selected level in manually add form
   const formAvailableArms = flatClassArms.filter((a) => a.levelId === classLevelId);
-
-  // Student filtering logic
-  const filteredStudents = students.filter((s) => {
-    const matchesSearch =
-      `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.admissionNumber.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesLevel = filterLevelId === "" || s.classLevelId === filterLevelId;
-    const matchesArm = filterArmId === "" || s.classArmId === filterArmId;
-
-    return matchesSearch && matchesLevel && matchesArm;
-  });
 
   const importFields = [
     { targetField: "firstName", label: "First Name", required: true },
@@ -652,67 +648,74 @@ export default function StudentsPage() {
         </div>
       )}
 
-      {/* Students Table */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-neutral-50 border-b border-neutral-200 text-label-medium text-neutral-500">
-              <th className="px-6 py-3 font-semibold">Student Name</th>
-              <th className="px-6 py-3 font-semibold">Admission No</th>
-              <th className="px-6 py-3 font-semibold">Class / Level</th>
-              <th className="px-6 py-3 font-semibold">Linked Parents</th>
-              <th className="px-6 py-3 font-semibold text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-200">
-            {filteredStudents.map((s) => {
-              const hasParents = s.parents.length > 0;
-              return (
-                <tr key={s.id} className="text-body-medium text-neutral-800 hover:bg-neutral-50/50">
-                  <td className="px-6 py-4 font-bold text-neutral-900">
-                    {s.lastName}, {s.firstName}
-                  </td>
-                  <td className="px-6 py-4 font-mono text-neutral-500 tabular-nums">
-                    {s.admissionNumber}
-                  </td>
-                  <td className="px-6 py-4">
-                    {s.classLevel.name} — {s.classArm.name}
-                  </td>
-                  <td className="px-6 py-4">
-                    {hasParents ? (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-50 text-green-700 text-body-small font-bold border border-green-200">
-                        <UserCheck className="w-3.5 h-3.5 text-green-600" />
-                        {s.parents.length} Linked
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-50 text-amber-700 text-body-small font-bold border border-amber-200">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                        No parent linked
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => setLinkingStudent(s)}
-                      className="px-3 py-1.5 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 rounded-lg text-body-small font-bold inline-flex items-center gap-1.5 transition"
-                    >
-                      <Link2 className="w-3.5 h-3.5" />
-                      Manage Links
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-            {filteredStudents.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-neutral-400">
-                  No students match the selected filters.
-                </td>
+      {/* Students Table / Empty State */}
+      {students.length === 0 ? (
+        <div className="text-center py-16">
+          <Users className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+          <p className="text-body-large text-neutral-500 font-medium">
+            {searchQuery || filterLevelId || filterArmId ? "No students match your filters." : "No students registered yet."}
+          </p>
+          <p className="text-body-small text-neutral-400 mt-1">
+            {searchQuery || filterLevelId || filterArmId
+              ? "Try adjusting your search or filter criteria."
+              : "Add your first student to get started."}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-neutral-50 border-b border-neutral-200 text-label-medium text-neutral-500">
+                <th className="px-6 py-3 font-semibold">Student Name</th>
+                <th className="px-6 py-3 font-semibold">Admission No</th>
+                <th className="px-6 py-3 font-semibold">Class / Level</th>
+                <th className="px-6 py-3 font-semibold">Linked Parents</th>
+                <th className="px-6 py-3 font-semibold text-right">Actions</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-neutral-200">
+              {students.map((s) => {
+                const hasParents = s.parents.length > 0;
+                return (
+                  <tr key={s.id} className="text-body-medium text-neutral-800 hover:bg-neutral-50/50">
+                    <td className="px-6 py-4 font-bold text-neutral-900">
+                      {s.lastName}, {s.firstName}
+                    </td>
+                    <td className="px-6 py-4 font-mono text-neutral-500 tabular-nums">
+                      {s.admissionNumber}
+                    </td>
+                    <td className="px-6 py-4">
+                      {s.classLevel.name} — {s.classArm.name}
+                    </td>
+                    <td className="px-6 py-4">
+                      {hasParents ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-green-50 text-green-700 text-body-small font-bold border border-green-200">
+                          <UserCheck className="w-3.5 h-3.5 text-green-600" />
+                          {s.parents.length} Linked
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-50 text-amber-700 text-body-small font-bold border border-amber-200">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                          No parent linked
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => setLinkingStudent(s)}
+                        className="px-3 py-1.5 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 rounded-lg text-body-small font-bold inline-flex items-center gap-1.5 transition"
+                      >
+                        <Link2 className="w-3.5 h-3.5" />
+                        Manage Links
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <PaginationBar
         currentPage={page}

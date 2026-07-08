@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Loader2, Plus, Upload, Check, AlertCircle, Search, Users, MapPin, Phone, Mail } from "lucide-react";
 import ImportWizard from "@/components/admin/shared/import-wizard";
 import PaginationBar from "@/components/admin/shared/pagination-bar";
@@ -51,14 +51,19 @@ export default function ParentsPage() {
   const [totalRecords, setTotalRecords] = useState(0);
   const pageSize = 20;
 
+  const abortRef = useRef<AbortController | null>(null);
+
   useEffect(() => { setPage(1); }, [searchQuery]);
 
   const loadData = () => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     const offset = (page - 1) * pageSize;
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
     if (searchQuery) params.set("search", searchQuery);
-    fetch(`/api/admin/parents?${params.toString()}`)
+    fetch(`/api/admin/parents?${params.toString()}`, { signal: controller.signal })
       .then((r) => r.json())
       .then((body) => {
         setParents(body.data || []);
@@ -66,6 +71,7 @@ export default function ParentsPage() {
         setLoading(false);
       })
       .catch((err) => {
+        if (err.name === "AbortError") return;
         console.error("Load failed:", err);
         setLoading(false);
       });
@@ -73,6 +79,7 @@ export default function ParentsPage() {
 
   useEffect(() => {
     loadData();
+    return () => abortRef.current?.abort();
   }, [page, searchQuery]);
 
   const handleManualAdd = async (e: React.FormEvent) => {
@@ -290,76 +297,84 @@ export default function ParentsPage() {
           <Search className="absolute w-4 h-4 text-neutral-400 left-3 top-3" />
           <input
             type="text"
+            aria-label="Search parents"
             placeholder="Search by parent name, phone, email..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none"
+            className="w-full pl-9 pr-4 py-2 border border-neutral-300 rounded-lg text-body-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
           />
         </div>
       </div>
 
-      {/* Parents Grid/Table */}
-      <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-neutral-50 border-b border-neutral-200 text-label-medium text-neutral-500">
-              <th className="px-6 py-3 font-semibold">Parent / Sponsor Name</th>
-              <th className="px-6 py-3 font-semibold">Contact Credentials</th>
-              <th className="px-6 py-3 font-semibold">Wards (Linked Students)</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-neutral-200">
-            {filteredParents.map((p) => (
-              <tr key={p.id} className="text-body-medium text-neutral-800 hover:bg-neutral-50/50">
-                <td className="px-6 py-4 font-bold text-neutral-900">
-                  {p.lastName}, {p.firstName}
-                </td>
-                <td className="px-6 py-4 space-y-1">
-                  <div className="flex items-center gap-1.5 text-neutral-800">
-                    <Phone className="w-3.5 h-3.5 text-neutral-400" />
-                    <span>{p.phone}</span>
-                  </div>
-                  {p.email && (
-                    <div className="flex items-center gap-1.5 text-body-small text-neutral-500">
-                      <Mail className="w-3.5 h-3.5 text-neutral-400" />
-                      <span>{p.email}</span>
-                    </div>
-                  )}
-                  {p.address && (
-                    <div className="flex items-center gap-1.5 text-[11px] text-neutral-400">
-                      <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
-                      <span className="truncate max-w-[200px]" title={p.address}>{p.address}</span>
-                    </div>
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  {p.wards.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {p.wards.map((w) => (
-                        <span
-                          key={w.id}
-                          className="inline-flex px-2 py-1 rounded bg-neutral-100 text-neutral-700 text-body-small font-medium"
-                        >
-                          {w.student.firstName} {w.student.lastName} ({w.relationshipType})
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-body-small text-neutral-400 italic">No linked students</span>
-                  )}
-                </td>
+      {/* Parents Grid/Table / Empty State */}
+      {filteredParents.length === 0 ? (
+        <div className="text-center py-16">
+          <Users className="w-12 h-12 text-neutral-300 mx-auto mb-3" />
+          <p className="text-body-large text-neutral-500 font-medium">
+            {searchQuery ? "No parents match your search." : "No parents registered yet."}
+          </p>
+          <p className="text-body-small text-neutral-400 mt-1">
+            {searchQuery
+              ? "Try a different search term."
+              : "Add your first parent profile to get started."}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-neutral-50 border-b border-neutral-200 text-label-medium text-neutral-500">
+                <th className="px-6 py-3 font-semibold">Parent / Sponsor Name</th>
+                <th className="px-6 py-3 font-semibold">Contact Credentials</th>
+                <th className="px-6 py-3 font-semibold">Wards (Linked Students)</th>
               </tr>
-            ))}
-            {filteredParents.length === 0 && (
-              <tr>
-                <td colSpan={3} className="px-6 py-12 text-center text-neutral-400">
-                  No parent profiles match the selected search query.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-neutral-200">
+              {filteredParents.map((p) => (
+                <tr key={p.id} className="text-body-medium text-neutral-800 hover:bg-neutral-50/50">
+                  <td className="px-6 py-4 font-bold text-neutral-900">
+                    {p.lastName}, {p.firstName}
+                  </td>
+                  <td className="px-6 py-4 space-y-1">
+                    <div className="flex items-center gap-1.5 text-neutral-800">
+                      <Phone className="w-3.5 h-3.5 text-neutral-400" />
+                      <span>{p.phone}</span>
+                    </div>
+                    {p.email && (
+                      <div className="flex items-center gap-1.5 text-body-small text-neutral-500">
+                        <Mail className="w-3.5 h-3.5 text-neutral-400" />
+                        <span>{p.email}</span>
+                      </div>
+                    )}
+                    {p.address && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-neutral-400">
+                        <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+                        <span className="truncate max-w-[200px]" title={p.address}>{p.address}</span>
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    {p.wards.length > 0 ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {p.wards.map((w) => (
+                          <span
+                            key={w.id}
+                            className="inline-flex px-2 py-1 rounded bg-neutral-100 text-neutral-700 text-body-small font-medium"
+                          >
+                            {w.student.firstName} {w.student.lastName} ({w.relationshipType})
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-body-small text-neutral-400 italic">No linked students</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <PaginationBar
         currentPage={page}

@@ -83,6 +83,9 @@ export default function VerificationQueuePage() {
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState("");
   
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
   // Review action states
   const [actionLoading, setActionLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -92,6 +95,7 @@ export default function VerificationQueuePage() {
   const [isApproveOpen, setIsApproveOpen] = useState(false);
   const [isRejectOpen, setIsRejectOpen] = useState(false);
   const [isReuploadOpen, setIsReuploadOpen] = useState(false);
+  const [isBulkApproveOpen, setIsBulkApproveOpen] = useState(false);
   
   // Dialog fields
   const [rejectReason, setRejectReason] = useState("");
@@ -176,6 +180,60 @@ export default function VerificationQueuePage() {
     }
   };
 
+  const toggleSelectId = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredSubmissions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredSubmissions.map((s) => s.id)));
+    }
+  };
+
+  const handleBulkApprove = async () => {
+    if (selectedIds.size === 0) return;
+
+    setActionLoading(true);
+    setActionError(null);
+    setSuccessMessage(null);
+
+    try {
+      const res = await fetch("/api/admin/payments/verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bulkAction: true,
+          submissionIds: Array.from(selectedIds),
+        }),
+      });
+
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Bulk approve failed");
+
+      setSuccessMessage(body.message);
+      setSelectedIds(new Set());
+      setIsBulkApproveOpen(false);
+
+      // Remove approved items from the queue
+      const approvedIds = new Set(body.data.results.filter((r: any) => r.status === "success").map((r: any) => r.submissionId));
+      setSubmissions((prev) => prev.filter((s) => !approvedIds.has(s.id)));
+    } catch (err: any) {
+      setActionError(err.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-h-[calc(100vh-6rem)] flex flex-col h-full font-sans">
       {/* Top action block */}
@@ -244,56 +302,94 @@ export default function VerificationQueuePage() {
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 flex-1 min-h-0 overflow-hidden items-stretch">
           {/* List panel (Left 3 columns) */}
           <div className="xl:col-span-3 bg-white border border-neutral-200 rounded-xl flex flex-col overflow-hidden max-h-[600px] xl:max-h-full">
-            {/* Search */}
-            <div className="p-3.5 border-b border-neutral-100 relative shrink-0">
-              <Search className="w-4 h-4 text-neutral-400 absolute left-7 top-7" />
-              <input
-                type="text"
-                placeholder="Search student or ref..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setSelectedIndex(0);
-                }}
-                className="w-full pl-9 pr-4 py-2 rounded-lg border border-neutral-300 text-body-small focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none"
-              />
+            {/* Search + Bulk actions */}
+            <div className="p-3.5 border-b border-neutral-100 space-y-2 shrink-0">
+              <div className="relative">
+                <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search student or ref..."
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setSelectedIndex(0);
+                  }}
+                  className="w-full pl-9 pr-4 py-2 rounded-lg border border-neutral-300 text-body-small focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none"
+                />
+              </div>
+              {selectedIds.size > 0 && selectedStatus === "Pending" && (
+                <div className="flex items-center justify-between bg-primary-50/30 px-3 py-2 rounded-lg border border-primary/20">
+                  <span className="text-body-small font-bold text-primary">{selectedIds.size} selected</span>
+                  <button
+                    onClick={() => setIsBulkApproveOpen(true)}
+                    disabled={actionLoading}
+                    className="px-3 py-1.5 bg-primary text-white rounded-lg text-body-small font-bold hover:bg-primary-dark transition cursor-pointer disabled:opacity-50"
+                  >
+                    Approve All
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Scrollable list */}
             <div className="flex-1 overflow-y-auto divide-y divide-neutral-100">
+              <div className="sticky top-0 bg-neutral-50/80 backdrop-blur-sm border-b border-neutral-100 px-3 py-2 flex items-center gap-2 text-body-small text-neutral-500">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === filteredSubmissions.length && filteredSubmissions.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-neutral-300 text-primary focus:ring-primary shrink-0"
+                  aria-label="Select all"
+                />
+                <span className="font-medium">
+                  {selectedIds.size > 0 ? `${selectedIds.size} of ${filteredSubmissions.length} selected` : "Select all"}
+                </span>
+              </div>
               {filteredSubmissions.map((sub, idx) => {
                 const isSelected = activeSubmission?.id === sub.id;
                 return (
                   <div
                     key={sub.id}
-                    onClick={() => {
-                      const actualIdx = submissions.findIndex((s) => s.id === sub.id);
-                      if (actualIdx !== -1) setSelectedIndex(actualIdx);
-                      setActionError(null);
-                      setSuccessMessage(null);
-                    }}
-                    className={`p-4 cursor-pointer transition text-body-small space-y-1.5 select-none ${
+                    className={`flex items-start p-3 cursor-pointer transition text-body-small space-y-0 gap-2 select-none ${
                       isSelected ? "bg-primary-50/20 border-r-4 border-primary" : "hover:bg-neutral-50/50"
                     }`}
                   >
-                    <div className="flex justify-between items-start gap-1">
-                      <span className="font-bold text-neutral-900 truncate">
-                        {sub.student.firstName} {sub.student.lastName}
-                      </span>
-                      <span className="font-extrabold text-neutral-950 shrink-0 tabular-nums">
-                        {formatNaira(sub.amount)}
-                      </span>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(sub.id)}
+                      onChange={(e) => { e.stopPropagation(); toggleSelectId(sub.id); }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-4 h-4 mt-1 rounded border-neutral-300 text-primary focus:ring-primary shrink-0"
+                      aria-label={`Select ${sub.student.firstName} ${sub.student.lastName}`}
+                    />
+                    <div
+                      onClick={() => {
+                        const actualIdx = submissions.findIndex((s) => s.id === sub.id);
+                        if (actualIdx !== -1) setSelectedIndex(actualIdx);
+                        setActionError(null);
+                        setSuccessMessage(null);
+                      }}
+                      className="flex-1 space-y-1"
+                    >
+                      <div className="flex justify-between items-start gap-1">
+                        <span className="font-bold text-neutral-900 truncate">
+                          {sub.student.firstName} {sub.student.lastName}
+                        </span>
+                        <span className="font-extrabold text-neutral-950 shrink-0 tabular-nums">
+                          {formatNaira(sub.amount)}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-neutral-500 truncate flex justify-between">
+                        <span>{sub.student.classLevel.name}-{sub.student.classArm.name}</span>
+                        <span>
+                          {new Date(sub.submittedAt).toLocaleDateString("en-NG", {
+                            month: "short",
+                            day: "numeric",
+                          })}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-neutral-400 font-mono truncate">Ref: {sub.reference}</div>
                     </div>
-                    <div className="text-[11px] text-neutral-500 truncate flex justify-between">
-                      <span>{sub.student.classLevel.name}-{sub.student.classArm.name}</span>
-                      <span>
-                        {new Date(sub.submittedAt).toLocaleDateString("en-NG", {
-                          month: "short",
-                          day: "numeric",
-                        })}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-neutral-400 font-mono truncate">Ref: {sub.reference}</div>
                   </div>
                 );
               })}
@@ -656,6 +752,48 @@ export default function VerificationQueuePage() {
             </div>
           )}
         </>
+      )}
+
+      {/* 4. Bulk approve modal (independent of activeSubmission) */}
+      {isBulkApproveOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => !actionLoading && setIsBulkApproveOpen(false)} />
+          <div className="relative w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-neutral-200 z-10 space-y-4">
+            <div className="flex gap-3">
+              <div className="w-10 h-10 rounded-full bg-green-50 flex items-center justify-center text-green-600 shrink-0">
+                <Check className="w-5 h-5" />
+              </div>
+              <div className="space-y-1.5 flex-1 min-w-0">
+                <h3 className="text-title-small text-neutral-900 font-bold">Bulk Approve Payments</h3>
+                <p className="text-body-medium text-neutral-500">
+                  You are about to approve <strong>{selectedIds.size} payment submission{selectedIds.size !== 1 ? "s" : ""}</strong>. Each will be credited to the respective invoice and a receipt will be generated.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-body-small text-amber-800">
+              <strong>Note:</strong> This action cannot be undone. Verify that all selected submissions have valid proof documents before proceeding.
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                disabled={actionLoading}
+                onClick={() => setIsBulkApproveOpen(false)}
+                className="px-4 py-2 border border-neutral-300 text-neutral-700 bg-white hover:bg-neutral-50 rounded-lg text-body-small font-bold transition disabled:opacity-55"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={actionLoading}
+                onClick={handleBulkApprove}
+                className="px-4 py-2 bg-success-500 hover:bg-success-600 text-white font-bold rounded-lg text-body-small transition inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                {actionLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Approve {selectedIds.size} Payment{selectedIds.size !== 1 ? "s" : ""}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
