@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2, Plus, Search, Coins, XCircle, CheckCircle, FileText, Calendar, User, Receipt, ShieldAlert, Download } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import Input from "@/components/admin/shared/input";
@@ -58,7 +59,11 @@ interface UnpaidInvoice {
 
 export default function PaymentsPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
+
+  // Auto-select invoice from URL param (e.g., navigated from invoice drawer)
+  const urlInvoiceId = searchParams.get("invoiceId");
   const [actionLoading, setActionLoading] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [unpaidInvoices, setUnpaidInvoices] = useState<UnpaidInvoice[]>([]);
@@ -175,6 +180,19 @@ export default function PaymentsPage() {
     loadData();
     return () => abortRef.current?.abort();
   }, [page, searchQuery, filterMethod, filterStatus]);
+
+  // Auto-open record drawer with pre-selected invoice from URL param
+  useEffect(() => {
+    if (urlInvoiceId && unpaidInvoices.length > 0) {
+      const match = unpaidInvoices.find((i) => i.id === urlInvoiceId);
+      if (match) {
+        setSelectedInvoiceId(urlInvoiceId);
+        setShowRecordDrawer(true);
+        // Clear the URL param to prevent re-triggering
+        window.history.replaceState({}, "", "/admin/payments");
+      }
+    }
+  }, [urlInvoiceId, unpaidInvoices]);
 
   const handleRecordPayment = async (e: React.FormEvent) => {
     e.preventDefault();

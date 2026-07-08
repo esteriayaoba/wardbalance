@@ -85,6 +85,8 @@ export default function InvoicesPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
   const [page, setPage] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
@@ -207,6 +209,39 @@ export default function InvoicesPage() {
       setSelectedInvoice(null); setInvoiceDetails(null); loadData();
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "An unexpected error occurred"); }
     finally { setActionLoading(false); }
+  };
+
+  const handleBulkIssue = async (ids: string[]) => {
+    setBulkActionLoading(true); setError(null);
+    let issued = 0;
+    try {
+      for (const id of ids) {
+        const res = await fetch(`/api/admin/invoices/${id}`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "issued" }),
+        });
+        if (res.ok) issued++;
+      }
+      setSuccess(`${issued} of ${ids.length} invoices issued.`);
+      setSelectedInvoiceIds(new Set());
+      loadData();
+    } catch { setError("Bulk issue failed."); }
+    finally { setBulkActionLoading(false); }
+  };
+
+  const handleBulkDelete = async (ids: string[]) => {
+    setBulkActionLoading(true); setError(null);
+    let deleted = 0;
+    try {
+      for (const id of ids) {
+        const res = await fetch(`/api/admin/invoices/${id}`, { method: "DELETE" });
+        if (res.ok) deleted++;
+      }
+      setSuccess(`${deleted} of ${ids.length} invoices deleted.`);
+      setSelectedInvoiceIds(new Set());
+      loadData();
+    } catch { setError("Bulk delete failed."); }
+    finally { setBulkActionLoading(false); }
   };
 
   const handleOpenWizard = () => {
@@ -334,7 +369,28 @@ export default function InvoicesPage() {
           </p>
         </div>
       ) : (
-        <InvoiceTable invoices={invoices} onInvoiceClick={(inv) => handleInvoiceClick(inv as Invoice)} />
+        <InvoiceTable
+          invoices={invoices}
+          onInvoiceClick={(inv) => handleInvoiceClick(inv as Invoice)}
+          selectedIds={selectedInvoiceIds}
+          onToggleSelect={(id) => {
+            setSelectedInvoiceIds((prev) => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id); else next.add(id);
+              return next;
+            });
+          }}
+          onToggleSelectAll={() => {
+            if (selectedInvoiceIds.size === invoices.length) {
+              setSelectedInvoiceIds(new Set());
+            } else {
+              setSelectedInvoiceIds(new Set(invoices.map((i) => i.id)));
+            }
+          }}
+          onBulkIssue={handleBulkIssue}
+          onBulkDelete={handleBulkDelete}
+          bulkActionLoading={bulkActionLoading}
+        />
       )}
 
       <PaginationBar

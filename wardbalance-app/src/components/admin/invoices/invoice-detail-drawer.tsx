@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Trash2, Calendar, Tag, Receipt } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, Trash2, Calendar, Tag, Receipt, Coins } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import Input from "@/components/admin/shared/input";
 import Select from "@/components/admin/shared/select";
@@ -67,6 +68,7 @@ export default function InvoiceDetailDrawer({
   onUpdateDueDate,
   onApplyDiscount,
 }: InvoiceDetailDrawerProps) {
+  const router = useRouter();
   const [editDueDate, setEditDueDate] = useState(false);
   const [newDueDate, setNewDueDate] = useState("");
   const [showDiscountForm, setShowDiscountForm] = useState(false);
@@ -299,6 +301,16 @@ export default function InvoiceDetailDrawer({
                         </div>
                       ))}
                     </div>
+                  )}
+
+                  {parseFloat(details.balanceDue) > 0 && (
+                    <button
+                      onClick={() => router.push(`/admin/payments?invoiceId=${invoice.id}`)}
+                      className="w-full mt-3 py-2.5 bg-primary text-white hover:bg-primary-dark rounded-lg font-bold text-label-medium transition flex items-center justify-center gap-2 shadow-sm cursor-pointer"
+                    >
+                      <Coins className="w-4 h-4" />
+                      Record Payment
+                    </button>
                   )}
                 </div>
               </div>

@@ -15,6 +15,7 @@ import {
   AlertCircle,
   ClipboardList,
   Receipt,
+  ShieldCheck,
 } from "lucide-react";
 
 interface AdminNavProps {
@@ -71,6 +72,13 @@ const NAV_LINKS = [
     href: "/admin/payments",
     icon: Coins,
     roles: ["SchoolOwner", "Principal", "Bursar", "Admin"],
+    requiresActive: true,
+  },
+  {
+    name: "Verification",
+    href: "/admin/payments/verification",
+    icon: ShieldCheck,
+    roles: ["SchoolOwner", "Bursar"],
     requiresActive: true,
   },
   {

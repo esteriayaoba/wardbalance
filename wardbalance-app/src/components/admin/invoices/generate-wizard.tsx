@@ -75,6 +75,7 @@ export default function GenerateWizard({
   onDueDateChange,
   onToggleStudent,
   onToggleSelectAll,
+  generateCount,
 }: GenerateWizardProps) {
   if (!open) return null;
 
