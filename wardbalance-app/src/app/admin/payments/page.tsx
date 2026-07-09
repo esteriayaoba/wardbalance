@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Loader2, Plus, Search, Coins, XCircle, CheckCircle, FileText, Calendar, User, Receipt, ShieldAlert, Download } from "lucide-react";
+import { Loader2, Plus, Search, Coins, XCircle, CheckCircle, FileText, Calendar, User, Receipt, ShieldAlert, Download, AlertCircle } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import Input from "@/components/admin/shared/input";
 import Select from "@/components/admin/shared/select";
@@ -61,6 +61,7 @@ export default function PaymentsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Auto-select invoice from URL param (e.g., navigated from invoice drawer)
   const urlInvoiceId = searchParams.get("invoiceId");
@@ -124,6 +125,7 @@ export default function PaymentsPage() {
     abortRef.current = controller;
     const signal = controller.signal;
     setLoading(true);
+    setLoadError(null);
     const offset = (page - 1) * pageSize;
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
     if (searchQuery) params.set("search", searchQuery);
@@ -143,6 +145,7 @@ export default function PaymentsPage() {
       .catch((err) => {
         if (err.name === "AbortError") return;
         console.error("Load payments page failed:", err);
+        setLoadError("Failed to load payments. Please try again.");
         setLoading(false);
       });
   };
@@ -273,6 +276,26 @@ export default function PaymentsPage() {
 
   // API handles search/filter; payments array is already filtered and paginated
   const filteredPayments = payments;
+
+  if (loadError) {
+    return (
+      <div className="space-y-8">
+        <div className="p-6 bg-red-50 border border-red-200 rounded-xl flex flex-col items-center text-center gap-4">
+          <AlertCircle className="w-10 h-10 text-red-500" />
+          <div>
+            <h2 className="text-title-medium text-red-900 font-bold mb-1">Failed to load payments</h2>
+            <p className="text-body-medium text-red-700">{loadError}</p>
+          </div>
+          <button
+            onClick={loadData}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-label-large font-bold hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -486,7 +509,7 @@ export default function PaymentsPage() {
                     setSelectedInvoiceId("");
                     setPaymentAmount("");
                   }}
-                  className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
                 >
                   Close
                 </button>
@@ -646,7 +669,7 @@ export default function PaymentsPage() {
                 </div>
                 <button
                   onClick={() => setSelectedPayment(null)}
-                  className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
                 >
                   Close
                 </button>

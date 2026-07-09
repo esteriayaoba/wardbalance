@@ -3,10 +3,10 @@ import { describe, it, expect } from "vitest";
 // Replicate the state machine logic from invoices/[id]/route.ts
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   draft: ["issued"],
-  issued: [],
-  partial: [],
+  issued: ["partial", "paid", "overdue"],
+  partial: ["paid", "overdue"],
   paid: [],
-  overdue: [],
+  overdue: ["paid"],
 };
 
 function validateStatusTransition(current: string, next: string | undefined): string | null {
@@ -41,8 +41,28 @@ describe("Invoice Status State Machine", () => {
     expect(validateStatusTransition("issued", "draft")).not.toBeNull();
   });
 
-  it("blocks issued to paid directly (must go through partial or full payment via service)", () => {
-    expect(validateStatusTransition("issued", "paid")).not.toBeNull();
+  it("allows issued to paid directly", () => {
+    expect(validateStatusTransition("issued", "paid")).toBeNull();
+  });
+
+  it("allows issued to partial payment", () => {
+    expect(validateStatusTransition("issued", "partial")).toBeNull();
+  });
+
+  it("allows issued to overdue", () => {
+    expect(validateStatusTransition("issued", "overdue")).toBeNull();
+  });
+
+  it("allows partial to paid", () => {
+    expect(validateStatusTransition("partial", "paid")).toBeNull();
+  });
+
+  it("allows partial to overdue", () => {
+    expect(validateStatusTransition("partial", "overdue")).toBeNull();
+  });
+
+  it("allows overdue to paid", () => {
+    expect(validateStatusTransition("overdue", "paid")).toBeNull();
   });
 
   it("blocks paid to any other status", () => {
@@ -50,6 +70,18 @@ describe("Invoice Status State Machine", () => {
     expect(validateStatusTransition("paid", "issued")).not.toBeNull();
     expect(validateStatusTransition("paid", "partial")).not.toBeNull();
     expect(validateStatusTransition("paid", "overdue")).not.toBeNull();
+  });
+
+  it("blocks overdue to draft", () => {
+    expect(validateStatusTransition("overdue", "draft")).not.toBeNull();
+  });
+
+  it("blocks overdue to issued", () => {
+    expect(validateStatusTransition("overdue", "issued")).not.toBeNull();
+  });
+
+  it("blocks overdue to partial", () => {
+    expect(validateStatusTransition("overdue", "partial")).not.toBeNull();
   });
 
   it("allows no-op transition (same status)", () => {

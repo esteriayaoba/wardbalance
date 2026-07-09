@@ -102,21 +102,23 @@ export async function POST(request: NextRequest) {
     if (submittedHash !== user.verificationCodeHash) {
       const updatedAttempts = user.verificationAttempts + 1;
       
-      await prisma.user.update({
-        where: { id: userId },
-        data: { verificationAttempts: updatedAttempts },
-      });
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: userId },
+          data: { verificationAttempts: updatedAttempts },
+        });
 
-      await prisma.auditLog.create({
-        data: {
-          schoolId,
-          actorId: userId,
-          actorName: user.fullName,
-          action: "auth.email_verification_failed",
-          entityType: "User",
-          entityId: userId,
-          newValue: { attempt: updatedAttempts, reason: "invalid_otp" },
-        },
+        await tx.auditLog.create({
+          data: {
+            schoolId,
+            actorId: userId,
+            actorName: user.fullName,
+            action: "auth.email_verification_failed",
+            entityType: "User",
+            entityId: userId,
+            newValue: { attempt: updatedAttempts, reason: "invalid_otp" },
+          },
+        });
       });
 
       const remaining = 5 - updatedAttempts;

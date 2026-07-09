@@ -23,6 +23,6 @@ export async function GET() {
 
     return NextResponse.json({ data: parents });
   } catch {
-    return NextResponse.json({ error: "Failed to load demo parents" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to load demo parents", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

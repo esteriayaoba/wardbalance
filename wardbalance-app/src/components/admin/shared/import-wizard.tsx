@@ -236,7 +236,8 @@ export default function ImportWizard({ type, fields, onComplete, onClose }: Impo
 
         {/* STEP 1: UPLOAD */}
         {step === 1 && (
-          <div className="flex flex-col items-center justify-center border-2 border-dashed border-neutral-300 rounded-xl p-12 hover:border-primary transition cursor-pointer"
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInputRef.current?.click(); } }}
+               className="flex flex-col items-center justify-center border-2 border-dashed border-neutral-300 rounded-xl p-12 hover:border-primary transition cursor-pointer"
                onClick={() => fileInputRef.current?.click()}>
             <input
               type="file"

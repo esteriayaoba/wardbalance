@@ -7,7 +7,10 @@ import { logError } from "@/lib/logger";
 
 const ProofUploadSchema = z.object({
   invoiceId: z.string().min(1, "Invoice is required"),
-  amount: z.coerce.number().positive("Amount must be positive"),
+  amount: z.string().refine(
+    (val) => !isNaN(Number(val)) && Number(val) > 0,
+    "Amount must be a positive number"
+  ),
   reference: z.string().min(1, "Transaction reference is required"),
   proofFileKey: z.string().min(1, "Proof file key is required"),
   proofFileName: z.string().min(1, "Proof file name is required"),

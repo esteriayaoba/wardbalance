@@ -138,20 +138,23 @@ export async function recordManualPayment(options: {
 }) {
   const { schoolId, actorId, actorName, invoiceId, amount, method, reference } = options;
 
-  const invoice = await prisma.invoice.findFirst({
-    where: { id: invoiceId, schoolId },
-    include: { term: { select: { status: true } } },
-  });
+  return prisma.$transaction(async (tx) => {
+    const invoice = await tx.invoice.findFirst({
+      where: { id: invoiceId, schoolId },
+      include: { term: { select: { status: true } } },
+    });
 
-  if (!invoice) throw new Error("Invoice not found");
-  if (invoice.term.status === "locked") throw new Error("Term is locked.");
+    if (!invoice) throw new Error("Invoice not found");
+    if (invoice.term.status === "locked") throw new Error("Term is locked.");
 
-  const parentId = await resolveParentId(schoolId, invoice.studentId);
+    const parentId = await resolveParentId(schoolId, invoice.studentId);
 
-  return recordPayment({
-    schoolId, invoiceId, studentId: invoice.studentId, parentId, amount,
-    method: method as PaymentMethod, reference: reference || null,
-    recordedById: actorId, actorId, actorName,
-    action: "PAYMENT_RECORDED", receiptPrefix: "REC",
+    return recordPayment({
+      schoolId, invoiceId, studentId: invoice.studentId, parentId, amount,
+      method: method as PaymentMethod, reference: reference || null,
+      recordedById: actorId, actorId, actorName,
+      action: "PAYMENT_RECORDED", receiptPrefix: "REC",
+      tx,
+    });
   });
 }

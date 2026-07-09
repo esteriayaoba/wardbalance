@@ -43,9 +43,23 @@ export async function POST(request: NextRequest) {
     const newToken = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    await prisma.invitation.update({
-      where: { id: existing.id },
-      data: { token: newToken, expiresAt },
+    await prisma.$transaction(async (tx) => {
+      await tx.invitation.update({
+        where: { id: existing.id },
+        data: { token: newToken, expiresAt },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          schoolId: existing.schoolId,
+          actorId: "system",
+          actorName: "Invitation Resend",
+          action: "INVITATION_RESENT",
+          entityType: "Invitation",
+          entityId: existing.id,
+          newValue: { email: existing.email, role: existing.role },
+        },
+      });
     });
 
     const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/invite?token=${newToken}`;

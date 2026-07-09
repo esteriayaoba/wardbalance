@@ -38,8 +38,24 @@ export async function POST(request: NextRequest) {
     const token = crypto.randomBytes(32).toString("hex");
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    const invitation = await prisma.invitation.create({
-      data: { schoolId, email: email.toLowerCase().trim(), role, token, expiresAt },
+    const invitation = await prisma.$transaction(async (tx) => {
+      const inv = await tx.invitation.create({
+        data: { schoolId, email: email.toLowerCase().trim(), role, token, expiresAt },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
+          action: "USER_INVITED",
+          entityType: "Invitation",
+          entityId: inv.id,
+          newValue: { email, role },
+        },
+      });
+
+      return inv;
     });
 
     const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/invite?token=${token}`;
@@ -57,18 +73,6 @@ export async function POST(request: NextRequest) {
         <p>This link expires in 7 days.</p>
         <p>If you did not expect this invitation, please ignore this email.</p>
       `,
-    });
-
-    await prisma.auditLog.create({
-      data: {
-        schoolId,
-        actorId: guard.session.userId,
-        actorName: guard.session.fullName,
-        action: "USER_INVITED",
-        entityType: "Invitation",
-        entityId: invitation.id,
-        newValue: { email, role },
-      },
     });
 
     return NextResponse.json(

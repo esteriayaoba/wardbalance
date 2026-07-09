@@ -27,11 +27,13 @@ const SVG_CIRCUMFERENCE = 2 * Math.PI * SVG_RADIUS;
 export default function SetupChecklistPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [progress, setProgress] = useState<Progress | null>(null);
   const [schoolStatus, setSchoolStatus] = useState<string>("");
 
   const fetchStatus = useCallback(async () => {
+    setError(null);
     try {
       const res = await fetch("/api/admin/setup/status");
       const body = await res.json();
@@ -45,9 +47,12 @@ export default function SetupChecklistPage() {
           await fetch("/api/admin/setup/complete", { method: "POST" });
           setSchoolStatus("active");
         }
+      } else {
+        setError(body.error || "Failed to load setup status.");
       }
       setLoading(false);
     } catch {
+      setError("Failed to load setup status. Please try again.");
       setLoading(false);
     }
   }, []);
@@ -61,6 +66,26 @@ export default function SetupChecklistPage() {
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, [fetchStatus]);
+
+  if (error) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="p-6 bg-red-50 border border-red-200 rounded-xl flex flex-col items-center text-center gap-4">
+          <AlertCircle className="w-10 h-10 text-red-500" />
+          <div>
+            <h2 className="text-title-medium text-red-900 font-bold mb-1">Unable to load setup</h2>
+            <p className="text-body-medium text-red-700">{error}</p>
+          </div>
+          <button
+            onClick={fetchStatus}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-label-large font-bold hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

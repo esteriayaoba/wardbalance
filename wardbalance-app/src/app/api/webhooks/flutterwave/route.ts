@@ -4,6 +4,23 @@ import { Prisma } from "@/generated/prisma/client";
 import { logError, logInfo, logWarn } from "@/lib/logger";
 import { recordPayment } from "@/services/payment-recorder.service";
 import { enqueueNotification } from "@/lib/notifications";
+import { z } from "zod";
+
+const FlutterwaveWebhookSchema = z.object({
+  event: z.literal("charge.completed"),
+  data: z.object({
+    id: z.number(),
+    status: z.literal("successful"),
+    tx_ref: z.string(),
+    amount: z.number().positive(),
+    currency: z.string().default("NGN"),
+    meta: z.object({
+      invoiceId: z.string(),
+      schoolId: z.string(),
+      parentId: z.string(),
+    }),
+  }),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,26 +39,28 @@ export async function POST(request: NextRequest) {
 
     const payload = await request.json();
 
-    if (payload.event !== "charge.completed" || payload.data?.status !== "successful") {
+    const parsed = FlutterwaveWebhookSchema.safeParse(payload);
+    if (!parsed.success) {
       return NextResponse.json({ received: true, ignored: true });
     }
 
-    const flwData = payload.data;
+    const flwData = parsed.data.data;
     const txRef = flwData.tx_ref;
     const transactionId = String(flwData.id);
-    const amount = Number(flwData.amount);
-    const tempInvoiceId = flwData.meta?.invoiceId;
-    const tempSchoolId = flwData.meta?.schoolId;
-    const tempParentId = flwData.meta?.parentId;
+    const tempInvoiceId = flwData.meta.invoiceId;
+    const tempSchoolId = flwData.meta.schoolId;
+    const tempParentId = flwData.meta.parentId;
 
     if (tempSchoolId) {
-      await prisma.auditLog.create({
-        data: {
-          schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-          actorName: "Flutterwave Webhook", action: "payment.webhook_attempt",
-          entityType: "Payment", entityId: transactionId,
-          newValue: { txRef, transactionId, invoiceId: tempInvoiceId },
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.auditLog.create({
+          data: {
+            schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
+            actorName: "Flutterwave Webhook", action: "payment.webhook_attempt",
+            entityType: "Payment", entityId: transactionId,
+            newValue: { txRef, transactionId, invoiceId: tempInvoiceId },
+          },
+        });
       });
     }
 
@@ -52,13 +71,15 @@ export async function POST(request: NextRequest) {
     if (existingPayment) {
       logInfo("flutterwave-webhook", `Transaction ${txRef} already processed`);
       if (tempSchoolId) {
-        await prisma.auditLog.create({
-          data: {
-            schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-            actorName: "Flutterwave Webhook", action: "payment.duplicate_ignored",
-            entityType: "Payment", entityId: transactionId,
-            newValue: { txRef, transactionId, paymentId: existingPayment.id },
-          },
+        await prisma.$transaction(async (tx) => {
+          await tx.auditLog.create({
+            data: {
+              schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
+              actorName: "Flutterwave Webhook", action: "payment.duplicate_ignored",
+              entityType: "Payment", entityId: transactionId,
+              newValue: { txRef, transactionId, paymentId: existingPayment.id },
+            },
+          });
         });
       }
       return NextResponse.json({ received: true, duplicated: true });
@@ -82,13 +103,15 @@ export async function POST(request: NextRequest) {
       if (!flwVerifyRes.ok || flwVerifyBody.data.status !== "successful") {
         logWarn("flutterwave-webhook", `Verification API failed for ${transactionId}`);
         if (tempSchoolId) {
-          await prisma.auditLog.create({
-            data: {
-              schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-              actorName: "Flutterwave Webhook", action: "payment.webhook_attempt_failed",
-              entityType: "Payment", entityId: transactionId,
-              newValue: { reason: "api_verification_failed", txRef, transactionId, flwMessage: flwVerifyBody.message },
-            },
+          await prisma.$transaction(async (tx) => {
+            await tx.auditLog.create({
+              data: {
+                schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
+                actorName: "Flutterwave Webhook", action: "payment.webhook_attempt_failed",
+                entityType: "Payment", entityId: transactionId,
+                newValue: { reason: "api_verification_failed", txRef, transactionId, flwMessage: flwVerifyBody.message },
+              },
+            });
           });
         }
         return NextResponse.json({ error: "Flutterwave verification failed" }, { status: 400 });
@@ -99,13 +122,15 @@ export async function POST(request: NextRequest) {
     if (verifiedData.currency !== "NGN") {
       logWarn("flutterwave-webhook", `Currency mismatch: ${verifiedData.currency}`);
       if (tempSchoolId) {
-        await prisma.auditLog.create({
-          data: {
-            schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-            actorName: "Flutterwave Webhook", action: "payment.currency_mismatch",
-            entityType: "Payment", entityId: transactionId,
-            newValue: { reason: "currency_mismatch", expected: "NGN", actual: verifiedData.currency, txRef, transactionId },
-          },
+        await prisma.$transaction(async (tx) => {
+          await tx.auditLog.create({
+            data: {
+              schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
+              actorName: "Flutterwave Webhook", action: "payment.currency_mismatch",
+              entityType: "Payment", entityId: transactionId,
+              newValue: { reason: "currency_mismatch", expected: "NGN", actual: verifiedData.currency, txRef, transactionId },
+            },
+          });
         });
       }
       return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
@@ -127,13 +152,15 @@ export async function POST(request: NextRequest) {
 
     if (!invoice) {
       logWarn("flutterwave-webhook", `Invoice ${invoiceId} not found`);
-      await prisma.auditLog.create({
-        data: {
-          schoolId, actorId: parentId || "webhook-system",
-          actorName: "Flutterwave Webhook", action: "payment.parent_authorization_failed",
-          entityType: "Payment", entityId: transactionId,
-          newValue: { reason: "invoice_not_found", invoiceId, txRef, transactionId },
-        },
+      await prisma.$transaction(async (tx) => {
+        await tx.auditLog.create({
+          data: {
+            schoolId, actorId: parentId || "webhook-system",
+            actorName: "Flutterwave Webhook", action: "payment.parent_authorization_failed",
+            entityType: "Payment", entityId: transactionId,
+            newValue: { reason: "invoice_not_found", invoiceId, txRef, transactionId },
+          },
+        });
       });
       return NextResponse.json({ error: "Associated invoice not found" }, { status: 404 });
     }

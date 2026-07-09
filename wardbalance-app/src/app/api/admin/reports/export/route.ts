@@ -115,15 +115,17 @@ export async function GET(request: NextRequest) {
       });
 
       const records = Object.values(summaryByTerm).map((term) => {
-        const expected = Number(term.expected.toString());
-        const collected = Number(term.collected.toString());
-        const outstanding = Number(term.outstanding.toString());
+        const expected = term.expected;
+        const collected = term.collected;
+        const outstanding = term.outstanding;
         return {
           termName: term.termName,
-          expected,
-          collected,
-          outstanding,
-          collectionRate: expected > 0 ? ((collected / expected) * 100).toFixed(2) : "0.00",
+          expected: Number(expected.toString()),
+          collected: Number(collected.toString()),
+          outstanding: Number(outstanding.toString()),
+          collectionRate: expected.greaterThan(0)
+            ? collected.div(expected).mul(100).toFixed(2)
+            : "0.00",
         };
       });
 
@@ -179,15 +181,15 @@ export async function GET(request: NextRequest) {
           });
         });
 
-        const expNum = Number(expected.toString());
-        const colNum = Number(collected.toString());
         return {
           className: `${arm.classLevel.name} - ${arm.name}`,
           studentCount: arm.students.length,
-          expected: expNum,
-          collected: colNum,
+          expected: Number(expected.toString()),
+          collected: Number(collected.toString()),
           outstanding: Number(outstanding.toString()),
-          collectionRate: expNum > 0 ? ((colNum / expNum) * 100).toFixed(2) : "0.00",
+          collectionRate: expected.greaterThan(0)
+            ? collected.div(expected).mul(100).toFixed(2)
+            : "0.00",
         };
       });
 

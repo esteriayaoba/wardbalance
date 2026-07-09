@@ -126,7 +126,7 @@ export default function InvoiceDetailDrawer({
                     : details.status === "partial" ? "bg-amber-100 text-amber-700"
                     : details.status === "overdue" ? "bg-red-100 text-red-700"
                     : details.status === "issued" ? "bg-blue-100 text-blue-700"
-                    : "bg-gray-100 text-gray-600"
+                    : "bg-neutral-100 text-neutral-600"
                   }`}>
                     {details.status}
                   </span>

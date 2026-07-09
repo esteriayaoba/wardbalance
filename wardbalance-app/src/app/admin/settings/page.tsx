@@ -64,6 +64,7 @@ export default function SettingsPage() {
   const [bankName, setBankName] = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankAccountName, setBankAccountName] = useState("");
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -78,6 +79,7 @@ export default function SettingsPage() {
           setBankName(body.data.bankName ?? "");
           setBankAccountNumber(body.data.bankAccountNumber ?? "");
           setBankAccountName(body.data.bankAccountName ?? "");
+          setUserRole(body.userRole ?? null);
         }
         setLoading(false);
       })
@@ -323,7 +325,8 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Team Management Section */}
+          {/* Team Management Section — SchoolOwner only */}
+          {userRole === "SchoolOwner" && (
           <div className="pt-6 border-t border-neutral-200 space-y-4">
             <div className="space-y-1">
               <h3 className="text-label-medium text-neutral-900 font-bold uppercase tracking-wider block">
@@ -387,6 +390,7 @@ export default function SettingsPage() {
               <p className="text-body-small text-red-600 font-medium">{inviteError}</p>
             )}
           </div>
+          )}
 
           {/* Notification Preferences Section */}
           <div className="pt-6 border-t border-neutral-200 space-y-4">

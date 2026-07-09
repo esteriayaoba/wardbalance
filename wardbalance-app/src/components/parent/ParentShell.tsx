@@ -3,7 +3,7 @@ import ParentHeader from "./ParentHeader";
 import ParentBottomNav from "./ParentBottomNav";
 import OfflineBanner from "./OfflineBanner";
 import RegisterSW from "./RegisterSW";
-import InstallPWAPrompt from "./InstallPWAPrompt";
+
 
 interface ParentShellProps {
   children: React.ReactNode;
@@ -15,7 +15,6 @@ export default function ParentShell({ children, parentName, schoolName }: Parent
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col pb-[64px] md:pb-0">
       <RegisterSW />
-      <InstallPWAPrompt />
       <a href="#parent-main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-white focus:text-primary focus:rounded-lg focus:shadow-lg focus:border focus:border-primary focus:font-bold">
         Skip to main content
       </a>

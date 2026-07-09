@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
       where: { id: guard.session.schoolId },
     });
 
-    return NextResponse.json({ data: school });
+    return NextResponse.json({
+      data: school,
+      userRole: guard.session.role,
+    });
   } catch (err) {
     console.error("[settings] GET error:", err);
     return NextResponse.json(

@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, CheckCircle, XCircle, Search, Edit } from "lucide-react";
+import { Plus, CheckCircle, XCircle, Search, Edit, AlertCircle } from "lucide-react";
+import { formatNaira } from "@/lib/utils";
 
 type DiscountRule = {
   id: string;
@@ -17,26 +18,31 @@ type DiscountRule = {
 export default function DiscountRulesPage() {
   const [rules, setRules] = useState<DiscountRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    async function fetchRules() {
-      try {
-        const res = await fetch("/api/admin/fees/discounts");
-        if (!res.ok) throw new Error("Failed to fetch");
-        const json = await res.json();
-        setRules(json.data || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
+  const fetchRules = async () => {
+    setError(null);
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin/fees/discounts");
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = await res.json();
+      setRules(json.data || []);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load discount rules. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     fetchRules();
   }, []);
 
   const formatType = (type: string, value: string) => {
-    return type === "percentage" ? `${value}%` : `₦${Number(value).toLocaleString()}`;
+    return type === "percentage" ? `${value}%` : formatNaira(value);
   };
 
   const filteredRules = rules.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
@@ -56,6 +62,22 @@ export default function DiscountRulesPage() {
           Create Rule
         </Link>
       </div>
+
+      {error && (
+        <div className="p-6 bg-red-50 border border-red-200 rounded-xl flex flex-col items-center text-center gap-4">
+          <AlertCircle className="w-10 h-10 text-red-500" />
+          <div>
+            <h2 className="text-title-medium text-red-900 font-bold mb-1">Failed to load discount rules</h2>
+            <p className="text-body-medium text-red-700">{error}</p>
+          </div>
+          <button
+            onClick={fetchRules}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-label-large font-bold hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       <div className="bg-white border border-neutral-200 rounded-xl shadow-sm overflow-hidden">
         <div className="p-4 border-b border-neutral-100 flex items-center gap-3">

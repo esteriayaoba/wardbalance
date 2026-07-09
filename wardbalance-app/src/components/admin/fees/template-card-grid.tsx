@@ -2,6 +2,7 @@
 
 import { Edit2, Trash2 } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import { Decimal } from "@prisma/client-runtime-utils";
 
 interface FeeItem {
   id: string;
@@ -42,10 +43,11 @@ export default function TemplateCardGrid({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {templates.map((temp) => {
-        const total = temp.items.reduce((acc, curr) => {
-          const amount = curr.amountOverride !== null ? curr.amountOverride : curr.feeItem.amount;
-          return acc + Number(amount);
-        }, 0);
+        const totalDecimal = temp.items.reduce((acc, curr) => {
+          const amountStr = curr.amountOverride !== null ? curr.amountOverride : curr.feeItem.amount;
+          return acc.add(new Decimal(amountStr));
+        }, new Decimal(0));
+        const total = Number(totalDecimal.toString());
 
         return (
           <div key={temp.id} className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-4 hover:shadow-md transition flex flex-col justify-between">
