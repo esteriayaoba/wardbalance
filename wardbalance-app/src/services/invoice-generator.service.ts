@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { enqueueNotification } from "@/lib/notifications";
+import { hasExistingInvoice } from "@/lib/invoices/logic";
 
 const termOrder = ["first", "second", "third", "fourth", "fifth"];
 const getTermWeight = (name: string) => {
@@ -229,7 +230,7 @@ export async function generateInvoices(options: GenerateInvoicesOptions) {
   }
 
   // Filter to students that need invoices generated
-  const studentsToProcess = students.filter((s) => !existingSet.has(s.id));
+  const studentsToProcess = students.filter((s) => !hasExistingInvoice(existingSet, s.id));
 
   if (studentsToProcess.length === 0) {
     return { invoices: [], count: 0, message: "All students already have invoices for this term." };

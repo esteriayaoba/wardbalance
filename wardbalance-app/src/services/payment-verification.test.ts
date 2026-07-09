@@ -268,7 +268,10 @@ describe("recordManualPayment", () => {
       status: "issued",
     };
 
-    mockPrisma.invoice.findFirst.mockResolvedValue(mockInvoice);
+    const tx: any = {
+      invoice: { findFirst: vi.fn().mockResolvedValue(mockInvoice) },
+    };
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
     mockPrisma.parentWardLink.findFirst.mockResolvedValue({ parentId: "parent-1" });
 
     mockRecordPayment.mockResolvedValue({
@@ -292,13 +295,17 @@ describe("recordManualPayment", () => {
   });
 
   it("rejects payment when term is locked", async () => {
-    mockPrisma.invoice.findFirst.mockResolvedValue({
-      id: "inv-1",
-      studentId: "student-1",
-      term: { status: "locked" },
-    });
+    const tx: any = {
+      invoice: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "inv-1",
+          studentId: "student-1",
+          term: { status: "locked" },
+        }),
+      },
+    };
 
-    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb({}));
+    mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
 
     await expect(recordManualPayment({
       schoolId: "school-1", actorId: "user-1", actorName: "Admin",

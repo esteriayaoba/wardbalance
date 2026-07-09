@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma, PaymentMethod } from "@/generated/prisma/client";
 import { resolveParentId } from "@/lib/payments/resolve-parent";
+import { validatePayment, deriveStatusAfterPayment } from "@/lib/invoices/logic";
 
 const RECEIPT_NUMBER_REGEX = /^[A-Z0-9_-]{3,10}-\d{8}-[A-Z0-9]{4}$/;
 
@@ -65,8 +66,9 @@ export async function recordPayment(input: RecordPaymentInput): Promise<RecordPa
     });
 
     if (!invoice) throw new Error("Invoice not found");
-    if (amount.lessThanOrEqualTo(0)) throw new Error("Payment amount must be positive");
-    if (amount.greaterThan(invoice.balanceDue)) throw new Error("Payment amount exceeds balance due");
+
+    const validation = validatePayment(amount, invoice.balanceDue);
+    if (!validation.valid) throw new Error(validation.error!);
 
     const payment = await tx.payment.create({
       data: {
@@ -78,9 +80,7 @@ export async function recordPayment(input: RecordPaymentInput): Promise<RecordPa
     const newAmountPaid = invoice.amountPaid.plus(amount);
     const newBalanceDue = invoice.balanceDue.minus(amount);
 
-    let newStatus: "draft" | "issued" | "partial" | "paid" | "overdue" = invoice.status;
-    if (newBalanceDue.equals(0)) newStatus = "paid";
-    else if (newAmountPaid.greaterThan(0)) newStatus = "partial";
+    const newStatus = deriveStatusAfterPayment(invoice.status, newAmountPaid, invoice.finalAmount) as "draft" | "issued" | "partial" | "paid" | "overdue";
 
     // Optimistic lock: only update if balanceDue hasn't changed since we read it.
     // This prevents concurrent payment approvals from causing overpayment.

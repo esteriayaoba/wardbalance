@@ -1,16 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { Decimal } from "@prisma/client-runtime-utils";
+import {
+  calculateCarryover,
+  checkDuplicate,
+  hasExistingInvoice,
+  validatePayment,
+  deriveStatusAfterPayment,
+} from "@/lib/invoices/logic";
 
 // --- Carryover amount calculation ---
 
 describe("Carryover amount calculation", () => {
-  function calculateCarryover(
-    previousInvoice: { balanceDue: Decimal } | null
-  ): Decimal {
-    if (!previousInvoice) return new Decimal(0);
-    return previousInvoice.balanceDue;
-  }
-
   it("returns zero when there is no previous invoice", () => {
     const carryover = calculateCarryover(null);
     expect(carryover.equals(0)).toBe(true);
@@ -54,19 +54,6 @@ describe("Carryover amount calculation", () => {
 // --- Duplicate invoice prevention ---
 
 describe("Duplicate invoice prevention", () => {
-  function checkDuplicate(
-    existingInvoice: { id: string } | null,
-    currentStatus: string | undefined
-  ): { duplicate: boolean; reason: string | null } {
-    if (existingInvoice) {
-      if (currentStatus === "skip") {
-        return { duplicate: true, reason: "skipped" };
-      }
-      return { duplicate: true, reason: "duplicate" };
-    }
-    return { duplicate: false, reason: null };
-  }
-
   it("detects duplicate when invoice already exists", () => {
     const result = checkDuplicate({ id: "inv-1" }, undefined);
     expect(result.duplicate).toBe(true);
@@ -85,28 +72,10 @@ describe("Duplicate invoice prevention", () => {
     expect(result.reason).toBe("skipped");
   });
 
-  it("uses the composite unique key pattern for detection", () => {
-    function hasExistingInvoice(
-      studentId: string,
-      termId: string,
-      existing: Map<string, string>
-    ): string | null {
-      const key = `${studentId}_${termId}`;
-      return existing.get(key) ?? null;
-    }
-
-    const existing = new Map<string, string>();
-    existing.set("student-1_first-term-2025", "inv-1");
-
-    expect(hasExistingInvoice("student-1", "first-term-2025", existing)).toBe(
-      "inv-1"
-    );
-    expect(
-      hasExistingInvoice("student-2", "first-term-2025", existing)
-    ).toBeNull();
-    expect(
-      hasExistingInvoice("student-1", "second-term-2025", existing)
-    ).toBeNull();
+  it("detects existing invoice via composite key in a Set", () => {
+    const existingSet = new Set<string>(["student-1"]);
+    expect(hasExistingInvoice(existingSet, "student-1")).toBe(true);
+    expect(hasExistingInvoice(existingSet, "student-2")).toBe(false);
   });
 });
 
@@ -200,22 +169,6 @@ describe("balanceDue invariant (finalAmount - amountPaid)", () => {
 // --- Payment amount cannot exceed balance due ---
 
 describe("Payment amount validation", () => {
-  function validatePayment(
-    amount: Decimal,
-    balanceDue: Decimal
-  ): { valid: boolean; error: string | null } {
-    if (amount.lessThanOrEqualTo(0)) {
-      return { valid: false, error: "Payment amount must be greater than zero." };
-    }
-    if (amount.greaterThan(balanceDue)) {
-      return {
-        valid: false,
-        error: `Payment amount exceeds invoice balance due (₦${balanceDue.toString()}).`,
-      };
-    }
-    return { valid: true, error: null };
-  }
-
   it("allows payment exactly equal to balance due", () => {
     const result = validatePayment(new Decimal(50000), new Decimal(50000));
     expect(result.valid).toBe(true);
@@ -231,19 +184,19 @@ describe("Payment amount validation", () => {
   it("rejects payment exceeding balance due", () => {
     const result = validatePayment(new Decimal(60000), new Decimal(50000));
     expect(result.valid).toBe(false);
-    expect(result.error).toContain("exceeds invoice balance due");
+    expect(result.error).toContain("Payment amount exceeds balance due");
   });
 
   it("rejects zero payment", () => {
     const result = validatePayment(new Decimal(0), new Decimal(50000));
     expect(result.valid).toBe(false);
-    expect(result.error).toContain("greater than zero");
+    expect(result.error).toContain("Payment amount must be positive");
   });
 
   it("rejects negative payment", () => {
     const result = validatePayment(new Decimal(-1000), new Decimal(50000));
     expect(result.valid).toBe(false);
-    expect(result.error).toContain("greater than zero");
+    expect(result.error).toContain("Payment amount must be positive");
   });
 
   it("allows payment on fully balanced invoice (balanceDue = 0)", () => {
@@ -254,7 +207,7 @@ describe("Payment amount validation", () => {
   it("rejects payment on zero balance invoice", () => {
     const result = validatePayment(new Decimal(100), new Decimal(0));
     expect(result.valid).toBe(false);
-    expect(result.error).toContain("exceeds invoice balance due");
+    expect(result.error).toContain("Payment amount exceeds balance due");
   });
 
   it("handles large payment values without precision issues", () => {
@@ -269,68 +222,49 @@ describe("Payment amount validation", () => {
 // --- New invoice status after payment ---
 
 describe("Invoice status derivation after payment", () => {
-  function deriveStatusAfterPayment(
-    currentAmountPaid: Decimal,
-    currentBalanceDue: Decimal,
-    paymentAmount: Decimal
-  ): { newAmountPaid: Decimal; newBalanceDue: Decimal; newStatus: string } {
-    const newAmountPaid = currentAmountPaid.plus(paymentAmount);
-    const newBalanceDue = currentBalanceDue.minus(paymentAmount);
-
-    let newStatus: string;
-    if (newBalanceDue.equals(0)) {
-      newStatus = "paid";
-    } else if (newAmountPaid.greaterThan(0)) {
-      newStatus = "partial";
-    } else {
-      newStatus = "draft";
-    }
-
-    return { newAmountPaid, newBalanceDue, newStatus };
-  }
-
   it("transitions to paid when full payment clears balance", () => {
-    const result = deriveStatusAfterPayment(
-      new Decimal(0),
+    const newStatus = deriveStatusAfterPayment(
+      "issued",
       new Decimal(50000),
       new Decimal(50000)
     );
-    expect(result.newAmountPaid.equals(50000)).toBe(true);
-    expect(result.newBalanceDue.equals(0)).toBe(true);
-    expect(result.newStatus).toBe("paid");
+    expect(newStatus).toBe("paid");
   });
 
   it("transitions from draft to partial on partial payment", () => {
-    const result = deriveStatusAfterPayment(
-      new Decimal(0),
-      new Decimal(100000),
-      new Decimal(30000)
+    const newStatus = deriveStatusAfterPayment(
+      "draft",
+      new Decimal(30000),
+      new Decimal(100000)
     );
-    expect(result.newAmountPaid.equals(30000)).toBe(true);
-    expect(result.newBalanceDue.equals(70000)).toBe(true);
-    expect(result.newStatus).toBe("partial");
+    expect(newStatus).toBe("partial");
   });
 
   it("transitions from partial to paid on final payment", () => {
-    const result = deriveStatusAfterPayment(
-      new Decimal(70000),
-      new Decimal(30000),
-      new Decimal(30000)
+    const newStatus = deriveStatusAfterPayment(
+      "partial",
+      new Decimal(100000),
+      new Decimal(100000)
     );
-    expect(result.newAmountPaid.equals(100000)).toBe(true);
-    expect(result.newBalanceDue.equals(0)).toBe(true);
-    expect(result.newStatus).toBe("paid");
+    expect(newStatus).toBe("paid");
   });
 
   it("remains partial after additional partial payment", () => {
-    const result = deriveStatusAfterPayment(
-      new Decimal(30000),
-      new Decimal(70000),
-      new Decimal(20000)
+    const newStatus = deriveStatusAfterPayment(
+      "partial",
+      new Decimal(50000),
+      new Decimal(100000)
     );
-    expect(result.newAmountPaid.equals(50000)).toBe(true);
-    expect(result.newBalanceDue.equals(50000)).toBe(true);
-    expect(result.newStatus).toBe("partial");
+    expect(newStatus).toBe("partial");
+  });
+
+  it("returns current status when no payment made", () => {
+    const newStatus = deriveStatusAfterPayment(
+      "issued",
+      new Decimal(0),
+      new Decimal(100000)
+    );
+    expect(newStatus).toBe("issued");
   });
 });
 

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
 import { logError, logInfo, logWarn } from "@/lib/logger";
-import { recordPayment } from "@/services/payment-recorder.service";
+import { processFlutterwavePayment } from "@/services/flutterwave-webhook.service";
 import { enqueueNotification } from "@/lib/notifications";
 import { z } from "zod";
 
@@ -62,27 +61,6 @@ export async function POST(request: NextRequest) {
           },
         });
       });
-    }
-
-    const existingPayment = await prisma.payment.findFirst({
-      where: { OR: [{ reference: txRef }, { reference: transactionId }] },
-    });
-
-    if (existingPayment) {
-      logInfo("flutterwave-webhook", `Transaction ${txRef} already processed`);
-      if (tempSchoolId) {
-        await prisma.$transaction(async (tx) => {
-          await tx.auditLog.create({
-            data: {
-              schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-              actorName: "Flutterwave Webhook", action: "payment.duplicate_ignored",
-              entityType: "Payment", entityId: transactionId,
-              newValue: { txRef, transactionId, paymentId: existingPayment.id },
-            },
-          });
-        });
-      }
-      return NextResponse.json({ received: true, duplicated: true });
     }
 
     const flwSecretKey = process.env.FLW_SECRET_KEY;
@@ -145,50 +123,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing metadata fields" }, { status: 400 });
     }
 
-    const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, schoolId },
-      include: { student: { select: { id: true } } },
+    const result = await processFlutterwavePayment({
+      tx_ref: txRef,
+      id: flwData.id,
+      amount: verifiedData.amount,
+      currency: verifiedData.currency,
+      meta: { invoiceId, schoolId, parentId: parentId || "" },
     });
 
-    if (!invoice) {
-      logWarn("flutterwave-webhook", `Invoice ${invoiceId} not found`);
-      await prisma.$transaction(async (tx) => {
-        await tx.auditLog.create({
-          data: {
-            schoolId, actorId: parentId || "webhook-system",
-            actorName: "Flutterwave Webhook", action: "payment.parent_authorization_failed",
-            entityType: "Payment", entityId: transactionId,
-            newValue: { reason: "invoice_not_found", invoiceId, txRef, transactionId },
-          },
-        });
-      });
-      return NextResponse.json({ error: "Associated invoice not found" }, { status: 404 });
+    if ("duplicate" in result && result.duplicate) {
+      logInfo("flutterwave-webhook", `Transaction ${txRef} already processed`);
+      return NextResponse.json({ received: true, duplicated: true });
     }
 
-    const result = await recordPayment({
-      schoolId,
-      invoiceId,
-      studentId: invoice.studentId,
-      parentId: parentId || null,
-      amount: new Prisma.Decimal(verifiedData.amount),
-      method: "card",
-      reference: txRef,
-      recordedById: null,
-      actorId: parentId || "webhook-system",
-      actorName: "Flutterwave Webhook",
-      action: "payment.webhook_verified",
-      receiptPrefix: "RCT-FLW",
-    });
-
     if (parentId) {
+      const successResult = result as { receipt: { receiptNumber: string }; payment: { id: string } };
       await enqueueNotification({
         schoolId,
         parentId,
         channel: "email",
         recipient: parentId,
         subject: "Payment Received — WardBalance",
-        content: `Your payment of ₦${Number(verifiedData.amount).toLocaleString()} has been received and credited to invoice ${invoiceId}. Receipt: ${result.receipt.receiptNumber}`,
-        reference: `payment-${result.payment.id}`,
+        content: `Your payment of ₦${Number(verifiedData.amount).toLocaleString()} has been received and credited to invoice ${invoiceId}. Receipt: ${successResult.receipt.receiptNumber}`,
+        reference: `payment-${successResult.payment.id}`,
       });
     }
 

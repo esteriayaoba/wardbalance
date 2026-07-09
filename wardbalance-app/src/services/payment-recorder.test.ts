@@ -14,6 +14,7 @@ const mockTx = {
   invoice: {
     findUnique: vi.fn().mockResolvedValue(mockInvoice),
     update: vi.fn().mockResolvedValue({ ...mockInvoice, amountPaid: new Decimal("50000"), balanceDue: new Decimal("50000"), status: "partial" }),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
   },
   receipt: { create: vi.fn().mockResolvedValue({ id: "rcpt-1", receiptNumber: "REC-20260629-ABCD" }) },
   auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -52,6 +53,14 @@ describe("recordPayment", () => {
 
   it("records a payment successfully within its own transaction", async () => {
     mockPrisma.$transaction.mockImplementation(async (cb: (tx: typeof mockTx) => Promise<any>) => {
+      mockTx.invoice.findUnique
+        .mockResolvedValueOnce(mockInvoice)
+        .mockResolvedValueOnce({
+          ...mockInvoice,
+          amountPaid: new Decimal("50000"),
+          balanceDue: new Decimal("50000"),
+          status: "partial",
+        });
       return cb(mockTx);
     });
 
@@ -69,6 +78,14 @@ describe("recordPayment", () => {
 
   it("records a card payment with Flutterwave prefix", async () => {
     mockPrisma.$transaction.mockImplementation(async (cb: (tx: typeof mockTx) => Promise<any>) => {
+      mockTx.invoice.findUnique
+        .mockResolvedValueOnce(mockInvoice)
+        .mockResolvedValueOnce({
+          ...mockInvoice,
+          amountPaid: new Decimal("50000"),
+          balanceDue: new Decimal("50000"),
+          status: "partial",
+        });
       return cb(mockTx);
     });
 
@@ -110,9 +127,15 @@ describe("recordPayment", () => {
       ...mockTx,
       invoice: {
         ...mockTx.invoice,
-        update: vi.fn().mockResolvedValue({
-          ...mockInvoice, amountPaid: new Decimal("100000"), balanceDue: new Decimal("0"), status: "paid",
-        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn()
+          .mockResolvedValueOnce(mockInvoice)
+          .mockResolvedValueOnce({
+            ...mockInvoice,
+            amountPaid: new Decimal("100000"),
+            balanceDue: new Decimal("0"),
+            status: "paid",
+          }),
       },
     };
 
