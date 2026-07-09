@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle, ArrowRight, User, TrendingUp, CreditCard, ChevronRight } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import PWAInstallPrompt from "@/components/parent/PWAInstallPrompt";
+import { useBackgroundSync } from "@/components/pwa/useBackgroundSync";
 
 interface Ward {
   id: string;
@@ -38,6 +40,7 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Auto-refresh data when connectivity returns after being offline
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -52,6 +55,10 @@ export default function ParentDashboard() {
       setLoading(false);
     }
   }, []);
+
+  // Trigger background sync when connectivity returns — must come AFTER fetchData declaration
+  useBackgroundSync(fetchData);
+
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -115,6 +122,9 @@ export default function ParentDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* PWA install prompt — shown on first visit if browser supports it */}
+      <PWAInstallPrompt />
+
       <div className="space-y-1">
         <h1 className="text-headline-small text-neutral-900 font-bold">My Wards</h1>
         <p className="text-body-small text-neutral-600">View academic invoices, track payments, and verify balances.</p>

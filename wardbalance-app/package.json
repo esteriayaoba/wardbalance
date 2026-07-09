@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
@@ -12,7 +12,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
-    "vercel-build": "node -e \"if (process.env.DATABASE_URL) { require('child_process').execSync('npx prisma migrate deploy', { stdio: 'inherit' }); } else { console.log('DATABASE_URL not set, skipping migrations.'); }\" && next build"
+    "vercel-build": "node -e \"if (process.env.DATABASE_URL) { require('child_process').execSync('npx prisma migrate deploy', { stdio: 'inherit' }); } else { console.log('DATABASE_URL not set, skipping migrations.'); }\" && next build --webpack"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",
@@ -20,6 +20,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@serwist/next": "9.5.11",
     "bcryptjs": "^3.0.3",
     "csv-writer": "^1.6.0",
     "jose": "^6.2.3",
@@ -33,6 +34,8 @@
     "react-dom": "19.2.4",
     "react-hook-form": "^7.78.0",
     "resend": "^6.12.4",
+    "serwist": "9.5.11",
+    "web-push": "3.6.7",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -44,6 +47,7 @@
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "3.6.3",
     "@vitejs/plugin-react": "^6.0.2",
     "dotenv": "^17.4.2",
     "eslint": "^9",

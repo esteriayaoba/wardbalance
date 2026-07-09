@@ -6,6 +6,7 @@ import { upstashIncr } from "@/lib/redis";
 import { sendEmail } from "@/lib/email/resend";
 import { headers } from "next/headers";
 import crypto from "crypto";
+import { recordMilestone } from "@/lib/lifecycle/events";
 
 export async function POST(request: NextRequest) {
   try {
@@ -130,6 +131,10 @@ export async function POST(request: NextRequest) {
             status: createdSchool.status,
           },
         },
+      });
+
+      await recordMilestone(createdSchool.id, createdUser.id, "account_created", {
+        plan: createdSchool.selectedPlan,
       });
 
       return { school: createdSchool, user: createdUser };

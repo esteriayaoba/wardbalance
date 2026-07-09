@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
+import { recordMilestone } from "@/lib/lifecycle/events";
 
 export async function POST(_request: NextRequest) {
   try {
@@ -66,6 +67,9 @@ export async function POST(_request: NextRequest) {
       where: { id: schoolId },
       data: { status: "active" },
     });
+
+    await recordMilestone(schoolId, guard.session.userId, "setup_completed");
+    await recordMilestone(schoolId, guard.session.userId, "school_active");
 
     return NextResponse.json({
       data: { status: "active", message: "School setup complete. Dashboard is now active." },

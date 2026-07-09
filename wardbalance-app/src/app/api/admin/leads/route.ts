@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth/require-role";
 
 export async function GET(request: NextRequest) {
   try {
+    const guard = await requireRole(["SchoolOwner"]);
+    if (!guard.authorized) return guard.response;
+
     const leads = await prisma.lead.findMany({
       orderBy: { createdAt: "desc" },
     });

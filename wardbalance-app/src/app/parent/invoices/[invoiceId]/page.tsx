@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { use, useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Loader2, AlertCircle, ArrowLeft, ShieldCheck, Sparkles, Landmark, Upload, CheckCircle2, ChevronRight, FileText } from "lucide-react";
+import { Loader2, AlertCircle, ArrowLeft, ShieldCheck, Sparkles, Landmark, Upload, CheckCircle2, FileText, WifiOff } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import { useOnlineStatus } from "@/components/pwa/useOnlineStatus";
 
 interface InvoiceLineItem {
   id: string;
@@ -41,9 +42,11 @@ interface InvoiceDetail {
   };
 }
 
-export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: string } }) {
+export default function InvoiceCheckoutPage({ params }: { params: Promise<{ invoiceId: string }> }) {
   const router = useRouter();
-  const invoiceId = params.invoiceId;
+  const unwrappedParams = use(params);
+  const invoiceId = unwrappedParams.invoiceId;
+  const { isOnline } = useOnlineStatus();
 
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -340,18 +343,28 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
 
                     <button
                       onClick={handleOnlinePayment}
-                      disabled={initializingPayment}
-                      className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-lg font-bold text-label-large transition flex items-center justify-center gap-2 shadow cursor-pointer"
+                      disabled={initializingPayment || !isOnline}
+                      title={!isOnline ? "Go online to make a payment" : undefined}
+                      className={`w-full py-3 rounded-lg font-bold text-label-large transition flex items-center justify-center gap-2 shadow ${
+                        isOnline
+                          ? "bg-primary hover:bg-primary-dark text-white cursor-pointer"
+                          : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
+                      }`}
                     >
                       {initializingPayment ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin" />
                           Initializing checkout...
                         </>
-                      ) : (
+                      ) : isOnline ? (
                         <>
                           <Sparkles className="w-4 h-4" />
                           Continue to Payment
+                        </>
+                      ) : (
+                        <>
+                          <WifiOff className="w-4 h-4" />
+                          Go online to pay
                         </>
                       )}
                     </button>
@@ -464,16 +477,23 @@ export default function InvoiceCheckoutPage({ params }: { params: { invoiceId: s
 
                       <button
                         type="submit"
-                        disabled={submittingProof || !manualAmount || !manualRef || !selectedFile || !invoice.school.bankDetails}
-                        className="w-full py-3 bg-primary hover:bg-primary-dark text-white rounded-lg font-bold text-label-large transition flex items-center justify-center gap-2 shadow cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={submittingProof || !manualAmount || !manualRef || !selectedFile || !invoice.school.bankDetails || !isOnline}
+                        title={!isOnline ? "Go online to upload proof" : undefined}
+                        className={`w-full py-3 rounded-lg font-bold text-label-large transition flex items-center justify-center gap-2 shadow ${
+                          isOnline && !(submittingProof || !manualAmount || !manualRef || !selectedFile || !invoice.school.bankDetails)
+                            ? "bg-primary hover:bg-primary-dark text-white cursor-pointer"
+                            : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
+                        }`}
                       >
                         {submittingProof ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
                             Uploading proof...
                           </>
-                        ) : (
+                        ) : isOnline ? (
                           "Upload Proof of Payment"
+                        ) : (
+                          "Go online to upload"
                         )}
                       </button>
                     </form>

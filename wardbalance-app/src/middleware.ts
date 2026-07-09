@@ -16,7 +16,7 @@ export default auth((req) => {
       pathname.startsWith("/api/signup") ||
       pathname.startsWith("/api/demo") ||
       pathname.startsWith("/api/webhooks") ||
-      pathname.startsWith("/api/cron")
+      pathname.startsWith("/api/cron") // lifecycle + overdue
     ) {
       return;
     }

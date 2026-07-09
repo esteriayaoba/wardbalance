@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock } from "lucide-react";
+import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock, Rocket, MapPin } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import { DashboardStatCard, DashboardStatCardSkeleton } from "@/components/admin/shared/dashboard-stat-card";
 
@@ -25,6 +25,16 @@ interface AuditLog {
   action: string;
   entityType: string;
   createdAt: string;
+}
+
+interface LifecycleMilestone {
+  milestone: string;
+  occurredAt: string;
+}
+
+interface LifecycleData {
+  stage: string;
+  milestones: LifecycleMilestone[];
 }
 
 interface DashboardData {
@@ -76,12 +86,13 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<DashboardData | null>(null);
   const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
+  const [lifecycle, setLifecycle] = useState<LifecycleData | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [dashRes, setupRes] = await Promise.all([
+      const [dashRes, setupRes, lifecycleRes] = await Promise.all([
         fetch("/api/admin/dashboard").then((r) => {
           if (!r.ok) throw new Error("Failed to load dashboard metrics");
           return r.json();
@@ -90,9 +101,11 @@ export default function DashboardPage() {
           if (!r.ok) throw new Error("Failed to load setup status");
           return r.json();
         }),
+        fetch("/api/admin/lifecycle").then((r) => r.json()).catch(() => ({ data: null })),
       ]);
       setData(dashRes.data);
       setSetupStatus(setupRes.data);
+      setLifecycle(lifecycleRes.data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "An unexpected error occurred";
       setError(message);
@@ -313,6 +326,45 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Lifecycle Stage Card */}
+      {lifecycle && !isOnboarding && (
+        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
+          <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
+            <Rocket className="w-5 h-5 text-primary" />
+            <h3 className="text-title-small text-neutral-900 font-bold">Account Journey</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-body-small font-bold ${
+              lifecycle.stage === "NEW" ? "bg-neutral-100 text-neutral-600" :
+              lifecycle.stage === "ONBOARDING" ? "bg-blue-50 text-blue-700" :
+              lifecycle.stage === "ACTIVATING" ? "bg-amber-50 text-amber-700" :
+              lifecycle.stage === "ACTIVE" ? "bg-green-50 text-green-700" :
+              lifecycle.stage === "AT_RISK" ? "bg-red-50 text-red-700" :
+              "bg-neutral-100 text-neutral-600"
+            }`}>
+              <MapPin className="w-3.5 h-3.5" />
+              {lifecycle.stage === "ACTIVE" ? "Active" :
+               lifecycle.stage === "AT_RISK" ? "At Risk" :
+               lifecycle.stage === "DORMANT" ? "Dormant" :
+               lifecycle.stage.charAt(0) + lifecycle.stage.slice(1).toLowerCase()}
+            </span>
+            <span className="text-body-small text-neutral-500">
+              {lifecycle.milestones.length} milestone{lifecycle.milestones.length !== 1 ? "s" : ""} completed
+            </span>
+          </div>
+          {lifecycle.milestones.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {lifecycle.milestones.slice(-5).map((m) => (
+                <span key={m.milestone} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-100 text-neutral-600 text-[10px] font-medium">
+                  <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
+                  {m.milestone.replace(/_/g, " ")}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {stats && stats.studentsWithoutParents > 0 && (
         <div

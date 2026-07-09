@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { sendEmail } from "@/lib/email/resend";
-import { sendTermiiSMS } from "@/lib/termii";
 import { logError, logWarn } from "@/lib/logger";
-
-interface ProcessError {
-  id: string;
-  error: string;
-}
+import { processOutboxItem } from "@/lib/notifications/notification-service";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +11,7 @@ export async function POST(request: NextRequest) {
     }
 
     const pendingNotifications = await prisma.notificationOutbox.findMany({
-      where: { status: "pending", retryCount: { lt: prisma.notificationOutbox.fields.maxRetries } },
+      where: { status: "pending", retryCount: { lt: 3 } },
       take: 20,
       orderBy: { createdAt: "asc" },
     });
@@ -27,57 +21,21 @@ export async function POST(request: NextRequest) {
     }
 
     let processedCount = 0;
-    const errors: ProcessError[] = [];
+    let failedCount = 0;
 
     for (const notification of pendingNotifications) {
       const acquired = await prisma.notificationOutbox.updateMany({
         where: { id: notification.id, status: "pending" },
         data: { status: "processing" },
       });
-
       if (acquired.count === 0) continue;
 
-      try {
-        if (notification.channel === "email") {
-          const { error } = await sendEmail({
-            to: notification.recipient,
-            subject: notification.subject ?? "Notification from WardBalance",
-            html: notification.content,
-          });
-          if (error) throw error;
-        } else if (notification.channel === "sms") {
-          await sendTermiiSMS(notification.recipient, notification.content);
-        }
-
-        await prisma.notificationOutbox.update({
-          where: { id: notification.id },
-          data: { status: "sent", processedAt: new Date() },
-        });
-        processedCount++;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        logWarn("notification-process", `Failed to send ${notification.id}: ${message}`);
-
-        const newRetryCount = notification.retryCount + 1;
-        const willRetry = newRetryCount < notification.maxRetries;
-
-        await prisma.notificationOutbox.update({
-          where: { id: notification.id },
-          data: {
-            status: willRetry ? "pending" : "failed",
-            errorLog: message,
-            retryCount: newRetryCount,
-            processedAt: willRetry ? null : new Date(),
-          },
-        });
-
-        if (!willRetry) {
-          errors.push({ id: notification.id, error: message });
-        }
-      }
+      const ok = await processOutboxItem(notification.id);
+      if (ok) processedCount++;
+      else failedCount++;
     }
 
-    return NextResponse.json({ processed: processedCount, failed: errors.length, errors });
+    return NextResponse.json({ processed: processedCount, failed: failedCount });
   } catch (err) {
     logError("notification-process", err);
     return NextResponse.json(

@@ -4,6 +4,7 @@ import { upstashGet, upstashDel, rateLimit } from "@/lib/redis";
 import { encryptPassword } from "@/lib/auth/auth";
 import { headers } from "next/headers";
 import { z } from "zod";
+import { logError } from "@/lib/logger";
 
 const Schema = z.object({
   token: z.string().min(1, "Reset token is required"),
@@ -52,10 +53,26 @@ export async function POST(request: NextRequest) {
     // Hash new password
     const passwordHash = await encryptPassword(password);
 
-    // Update user password
-    await prisma.user.update({
-      where: { id: userId },
-      data: { passwordHash },
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    // Update user password + write audit log in a transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: userId },
+        data: { passwordHash },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          schoolId: user?.schoolId || "",
+          actorId: userId,
+          actorName: "System (Password Reset)",
+          action: "auth.password_reset",
+          entityType: "User",
+          entityId: userId,
+          newValue: { email: user?.email },
+        },
+      });
     });
 
     // Invalidate the token — single use only
@@ -63,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ message: "Password updated successfully. You can now sign in." });
   } catch (err) {
-    console.error("[reset-password] Error:", err);
+    logError("[reset-password] Error:", err);
     return NextResponse.json(
       { error: "An unexpected error occurred. Please try again.", code: "INTERNAL_ERROR" },
       { status: 500 }

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireRole } from "@/lib/auth/require-role";
 import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
   try {
+    const guard = await requireRole(["SchoolOwner"]);
+    if (!guard.authorized) return guard.response;
+
     const { leadId } = await request.json();
 
     if (!leadId) {
@@ -34,7 +38,7 @@ export async function POST(request: NextRequest) {
           email: lead.email,
           phone: lead.phone,
           estimatedStudents: lead.numberOfStudents,
-          status: "approved", // approved status
+          status: "invited",
         },
       });
 

@@ -18,6 +18,44 @@ export default function SettingsPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState(false);
 
+  // Notification preferences state
+  const [prefs, setPrefs] = useState<Record<string, boolean>>({});
+  const [prefsLoading, setPrefsLoading] = useState(true);
+  const [prefsSaving, setPrefsSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/notifications/preferences")
+      .then((r) => r.json())
+      .then((res) => {
+        const map: Record<string, boolean> = {};
+        (res.data || []).forEach((p: { channel: string; category: string; subscribed: boolean }) => {
+          map[`${p.channel}:${p.category}`] = p.subscribed;
+        });
+        setPrefs(map);
+        setPrefsLoading(false);
+      })
+      .catch(() => setPrefsLoading(false));
+  }, []);
+
+  const togglePref = async (channel: string, category: string, current: boolean) => {
+    const key = `${channel}:${category}`;
+    setPrefsSaving(key);
+    try {
+      const res = await fetch("/api/admin/notifications/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel, category, subscribed: !current }),
+      });
+      if (res.ok) {
+        setPrefs((prev) => ({ ...prev, [key]: !current }));
+      }
+    } catch {
+      // silent
+    } finally {
+      setPrefsSaving(null);
+    }
+  };
+
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
@@ -347,6 +385,68 @@ export default function SettingsPage() {
             </div>
             {inviteError && (
               <p className="text-body-small text-red-600 font-medium">{inviteError}</p>
+            )}
+          </div>
+
+          {/* Notification Preferences Section */}
+          <div className="pt-6 border-t border-neutral-200 space-y-4">
+            <div className="space-y-1">
+              <h3 className="text-label-medium text-neutral-900 font-bold uppercase tracking-wider block">
+                Notification Preferences
+              </h3>
+              <p className="text-[11px] text-neutral-500">
+                Control which automated communications you receive from WardBalance.
+              </p>
+            </div>
+
+            {prefsLoading ? (
+              <div className="flex items-center gap-2 text-body-small text-neutral-400">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Loading preferences...
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {[
+                  { channel: "email", label: "Email", categories: [
+                    { key: "reminders", label: "Payment Reminders" },
+                    { key: "product_updates", label: "Product Updates" },
+                    { key: "marketing", label: "Marketing" },
+                  ]},
+                  { channel: "sms", label: "SMS", categories: [
+                    { key: "reminders", label: "Payment Reminders" },
+                    { key: "marketing", label: "Marketing" },
+                  ]},
+                ].map((channel) => (
+                  <div key={channel.channel} className="bg-neutral-50 border border-neutral-200 rounded-xl p-4">
+                    <h4 className="text-body-small font-bold text-neutral-700 mb-3 uppercase tracking-wider">{channel.label}</h4>
+                    <div className="space-y-2">
+                      {channel.categories.map((cat) => {
+                        const key = `${channel.channel}:${cat.key}`;
+                        const subscribed = prefs[key] ?? true;
+                        const saving = prefsSaving === key;
+                        return (
+                          <div key={key} className="flex items-center justify-between">
+                            <span className="text-body-small text-neutral-600">{cat.label}</span>
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => togglePref(channel.channel, cat.key, subscribed)}
+                              className={`relative w-10 h-5 rounded-full transition-colors cursor-pointer disabled:opacity-50 ${
+                                subscribed ? "bg-primary" : "bg-neutral-300"
+                              }`}
+                              aria-label={`${subscribed ? "Unsubscribe" : "Subscribe"} from ${cat.label} via ${channel.label}`}
+                            >
+                              <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${
+                                subscribed ? "translate-x-5" : "translate-x-0"
+                              }`} />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
