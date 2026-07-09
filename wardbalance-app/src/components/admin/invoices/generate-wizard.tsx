@@ -93,11 +93,11 @@ export default function GenerateWizard({
     : "Generating...";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="generate-wizard-title">
       <div className="bg-white rounded-xl border border-neutral-200 w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col justify-between max-h-[85vh]">
         <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
           <div>
-            <h3 className="text-title-small text-neutral-900 font-bold">
+            <h3 id="generate-wizard-title" className="text-title-small text-neutral-900 font-bold">
               Bulk Invoice Generation Wizard
             </h3>
             <p className="text-body-small text-neutral-500">
@@ -106,7 +106,7 @@ export default function GenerateWizard({
           </div>
           <button
             onClick={onClose}
-            className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
+            className="min-h-[44px] min-w-[44px] px-3 text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
           >
             Close
           </button>
@@ -154,7 +154,7 @@ export default function GenerateWizard({
               <button
                 type="submit"
                 disabled={actionLoading}
-                className="w-full mt-4 px-4 py-2.5 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center justify-center gap-2 shadow"
+                className="w-full mt-4 min-h-[44px] px-4 py-2.5 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center justify-center gap-2 shadow"
               >
                 {actionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Continue to Preview
@@ -252,7 +252,7 @@ export default function GenerateWizard({
             <>
               <button
                 onClick={onBack}
-                className="px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
+                className="min-h-[44px] px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
                 type="button"
               >
                 Back
@@ -264,7 +264,7 @@ export default function GenerateWizard({
                 <button
                   onClick={handleGenerate}
                   disabled={actionLoading || selectedStudentIds.length === 0}
-                  className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg shadow-sm transition"
+                  className="min-h-[44px] px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg shadow-sm transition"
                 >
                   {actionLoading ? generateLabel : "Generate Invoices"}
                 </button>
@@ -274,7 +274,7 @@ export default function GenerateWizard({
             <div className="flex justify-end w-full">
               <button
                 onClick={onClose}
-                className="px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
+                className="min-h-[44px] px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
                 type="button"
               >
                 Cancel

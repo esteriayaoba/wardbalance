@@ -82,6 +82,7 @@ export default function TemplateCardGrid({
                 <button
                   onClick={() => onEdit(temp)}
                   disabled={!emailVerified}
+                  aria-label={`Edit template for ${temp.classLevel.name}`}
                   className="p-2 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 rounded-lg transition disabled:opacity-50"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
@@ -89,6 +90,7 @@ export default function TemplateCardGrid({
                 <button
                   disabled={actionLoading || !emailVerified}
                   onClick={() => onDelete(temp.id)}
+                  aria-label={`Delete template for ${temp.classLevel.name}`}
                   className="p-2 border border-neutral-200 hover:bg-red-50 text-error rounded-lg transition disabled:opacity-50"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

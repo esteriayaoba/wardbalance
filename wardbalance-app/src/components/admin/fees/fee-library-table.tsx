@@ -61,6 +61,7 @@ export default function FeeLibraryTable({
                 <button
                   onClick={() => onEdit(item)}
                   disabled={!emailVerified}
+                  aria-label={`Edit ${item.name}`}
                   className="p-1.5 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 rounded-lg inline-flex items-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
@@ -68,6 +69,7 @@ export default function FeeLibraryTable({
                 <button
                   disabled={actionLoading || !emailVerified}
                   onClick={() => onDelete(item.id)}
+                  aria-label={`Delete ${item.name}`}
                   className="p-1.5 border border-neutral-200 hover:bg-red-50 text-error rounded-lg inline-flex items-center transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

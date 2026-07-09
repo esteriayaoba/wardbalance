@@ -97,17 +97,17 @@ export default function InvoiceDetailDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
+    <div className="fixed inset-0 z-50 bg-black/40 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="invoice-drawer-title">
       <div className="bg-white w-full max-w-xl h-full overflow-y-auto p-8 shadow-xl flex flex-col justify-between border-l border-neutral-200">
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
             <div>
-              <h3 className="text-title-medium text-neutral-900 font-bold">Invoice Details</h3>
+              <h3 id="invoice-drawer-title" className="text-title-medium text-neutral-900 font-bold">Invoice Details</h3>
               <p className="text-body-small text-neutral-500 font-medium">
                 {invoice.student.lastName}, {invoice.student.firstName} ({invoice.student.admissionNumber})
               </p>
             </div>
-            <button onClick={onClose} className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold">
+            <button onClick={onClose} className="min-h-[44px] min-w-[44px] px-3 text-body-small text-neutral-500 hover:text-neutral-900 font-bold">
               Close
             </button>
           </div>

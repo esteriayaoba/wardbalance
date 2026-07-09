@@ -1,9 +1,8 @@
+// @ts-nocheck — This file is compiled by @serwist/next at build time using webworker lib
 import { defaultCache } from "@serwist/next/worker";
-import { Serwist, type PrecacheEntry } from "serwist";
+import { Serwist, NetworkFirst, ExpirationPlugin } from "serwist";
 
-declare const self: ServiceWorkerGlobalScope & {
-  __SW_MANIFEST: (PrecacheEntry | string)[] | undefined;
-};
+declare const self: ServiceWorkerGlobalScope;
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
@@ -12,40 +11,38 @@ const serwist = new Serwist({
   navigationPreload: true,
   runtimeCaching: [
     ...defaultCache,
-    // Cache parent portal API responses for offline balance viewing
     {
-      urlPattern: /\/api\/portal\/dashboard/,
-      handler: "NetworkFirst",
-      method: "GET",
-      options: {
+      matcher: /\/api\/portal\/dashboard/,
+      handler: new NetworkFirst({
         cacheName: "portal-dashboard",
-        expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 },
-      },
+        plugins: [
+          new ExpirationPlugin({ maxEntries: 10, maxAgeSeconds: 60 * 60 }),
+        ],
+      }),
     },
     {
-      urlPattern: /\/api\/portal\/invoices/,
-      handler: "NetworkFirst",
-      method: "GET",
-      options: {
+      matcher: /\/api\/portal\/invoices/,
+      handler: new NetworkFirst({
         cacheName: "portal-invoices",
-        expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 },
-      },
+        plugins: [
+          new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 }),
+        ],
+      }),
     },
     {
-      urlPattern: /\/api\/portal\/payments/,
-      handler: "NetworkFirst",
-      method: "GET",
-      options: {
+      matcher: /\/api\/portal\/payments/,
+      handler: new NetworkFirst({
         cacheName: "portal-payments",
-        expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 },
-      },
+        plugins: [
+          new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 }),
+        ],
+      }),
     },
   ],
 });
 
 serwist.addEventListeners();
 
-// Push notification event: display notification when received
 self.addEventListener("push", (event) => {
   const data = event.data?.json();
   if (!data) return;
@@ -63,7 +60,6 @@ self.addEventListener("push", (event) => {
   );
 });
 
-// Notification click event: navigate to relevant page
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 

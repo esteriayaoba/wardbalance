@@ -27,8 +27,7 @@ export const viewport: Viewport = {
   themeColor: "#155EEF",
   width: "device-width",
   initialScale: 1,
-  minimumScale: 1,
-  userScalable: false,
+  userScalable: true,
 };
 
 interface LayoutProps {

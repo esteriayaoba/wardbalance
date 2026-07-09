@@ -23,7 +23,7 @@ export async function sendPushNotification(
   }
 
   try {
-    const { webpush } = await import("web-push");
+    const webpush = await import("web-push");
     webpush.setVapidDetails(subject, publicKey, privateKey);
 
     await webpush.sendNotification(

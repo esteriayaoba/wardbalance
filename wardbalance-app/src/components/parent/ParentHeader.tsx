@@ -59,15 +59,16 @@ export default function ParentHeader({ parentName, schoolName }: ParentHeaderPro
           </span>
         )}
 
-        <button className="relative p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors" aria-label="Notifications">
+        <button className="relative min-h-[44px] min-w-[44px] flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors" aria-label="Notifications">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-error rounded-full" aria-hidden="true" />
         </button>
 
         <button
           onClick={handleLogout}
-          className="p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
           title="Sign Out"
+          aria-label="Sign Out"
         >
           <LogOut className="w-4 h-4" />
         </button>

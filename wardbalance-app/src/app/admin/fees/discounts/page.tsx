@@ -66,6 +66,7 @@ export default function DiscountRulesPage() {
               placeholder="Search rules..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search discount rules"
               className="w-full pl-9 pr-4 py-2 border border-neutral-200 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline"
             />
           </div>
@@ -116,7 +117,7 @@ export default function DiscountRulesPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-neutral-400 hover:text-primary rounded-lg hover:bg-primary-50 transition-colors">
+                      <button className="p-2 text-neutral-400 hover:text-primary rounded-lg hover:bg-primary-50 transition-colors" aria-label={`Edit ${rule.name}`}>
                         <Edit className="w-4 h-4" />
                       </button>
                     </td>
