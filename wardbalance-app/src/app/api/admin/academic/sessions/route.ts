@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { logError } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { SessionSchema } from "@/schemas/academic.schema";
+import { SessionSchema } from "@/modules/academic/schemas";
 
 export async function GET(request: NextRequest) {
   try {

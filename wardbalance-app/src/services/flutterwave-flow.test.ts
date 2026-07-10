@@ -3,7 +3,7 @@ import { Decimal } from "@prisma/client-runtime-utils";
 
 const mockRecordPayment = vi.fn();
 
-vi.mock("@/services/payment-recorder.service", () => ({
+vi.mock("@/modules/payments/recorder.service", () => ({
   recordPayment: mockRecordPayment,
 }));
 

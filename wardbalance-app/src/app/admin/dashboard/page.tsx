@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock, Rocket, MapPin } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import { DashboardStatCard, DashboardStatCardSkeleton } from "@/components/admin/shared/dashboard-stat-card";
 
@@ -25,6 +25,16 @@ interface AuditLog {
   action: string;
   entityType: string;
   createdAt: string;
+}
+
+interface LifecycleMilestone {
+  milestone: string;
+  occurredAt: string;
+}
+
+interface LifecycleData {
+  stage: string;
+  milestones: LifecycleMilestone[];
 }
 
 interface DashboardData {
@@ -72,40 +82,40 @@ const formatActionMessage = (log: AuditLog) => {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [setupStatus, setSetupStatus] = useState<SetupStatus | null>(null);
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const [dashRes, setupRes] = await Promise.all([
-        fetch("/api/admin/dashboard").then((r) => {
-          if (!r.ok) throw new Error("Failed to load dashboard metrics");
-          return r.json();
-        }),
-        fetch("/api/admin/setup/status").then((r) => {
-          if (!r.ok) throw new Error("Failed to load setup status");
-          return r.json();
-        }),
-      ]);
-      setData(dashRes.data);
-      setSetupStatus(setupRes.data);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "An unexpected error occurred";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const dashQuery = useQuery({
+    queryKey: ["admin", "dashboard"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/dashboard");
+      if (!res.ok) throw new Error("Failed to load dashboard metrics");
+      return res.json();
+    },
+  });
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  const setupQuery = useQuery({
+    queryKey: ["admin", "setup", "status"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/setup/status");
+      if (!res.ok) throw new Error("Failed to load setup status");
+      return res.json();
+    },
+  });
 
-  if (loading && !data) {
+  const lifecycleQuery = useQuery({
+    queryKey: ["admin", "lifecycle"],
+    queryFn: async () => {
+      const res = await fetch("/api/admin/lifecycle");
+      return res.json();
+    },
+  });
+
+  const data = dashQuery.data?.data as DashboardData | undefined;
+  const setupStatus = setupQuery.data?.data as SetupStatus | undefined;
+  const lifecycle = lifecycleQuery.data?.data as LifecycleData | undefined;
+  const error = dashQuery.error || setupQuery.error;
+  const loading = dashQuery.isLoading && !dashQuery.data;
+
+  if (loading) {
     return (
       <div className="space-y-8">
         <div className="space-y-2">
@@ -127,11 +137,8 @@ export default function DashboardPage() {
       <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]">
         <AlertCircle className="w-12 h-12 text-error mb-4" />
         <h3 className="text-title-medium text-neutral-900 font-bold mb-2">Could Not Load Dashboard</h3>
-        <p className="text-body-medium text-neutral-600 mb-6">{error}</p>
-        <button
-          onClick={fetchData}
-          className="px-4 py-2 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition inline-flex items-center gap-2 cursor-pointer"
-        >
+        <p className="text-body-medium text-neutral-600 mb-6">{error instanceof Error ? error.message : "An unexpected error occurred"}</p>
+        <button onClick={() => { dashQuery.refetch(); setupQuery.refetch(); lifecycleQuery.refetch(); }} className="px-4 py-2 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition inline-flex items-center gap-2 cursor-pointer">
           <RefreshCw className="w-4 h-4" />
           Retry
         </button>
@@ -150,9 +157,7 @@ export default function DashboardPage() {
       <div className="space-y-8 max-w-4xl mx-auto">
         <div className="space-y-2 text-center py-4">
           <h1 className="text-headline-small text-neutral-900 font-bold">Welcome to WardBalance</h1>
-          <p className="text-body-medium text-neutral-600">
-            Let&apos;s configure your school&apos;s workspace settings to activate your financial ledger.
-          </p>
+          <p className="text-body-medium text-neutral-600">Let&apos;s configure your school&apos;s workspace settings to activate your financial ledger.</p>
         </div>
 
         <div className="bg-white border border-neutral-200 rounded-2xl shadow-sm p-8 space-y-6 text-center">
@@ -161,12 +166,8 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-2 max-w-lg mx-auto">
-            <h3 className="text-title-medium text-neutral-950 font-bold">
-              Your Finance Dashboard is Almost Ready
-            </h3>
-            <p className="text-body-medium text-neutral-500">
-              Complete your school onboarding checklist to start recording class fee items, generating invoice bills, and tracking manual payments.
-            </p>
+            <h3 className="text-title-medium text-neutral-950 font-bold">Your Finance Dashboard is Almost Ready</h3>
+            <p className="text-body-medium text-neutral-500">Complete your school onboarding checklist to start recording class fee items, generating invoice bills, and tracking manual payments.</p>
           </div>
 
           <div className="bg-neutral-50 p-6 rounded-xl max-w-md mx-auto border border-neutral-200 text-left space-y-3">
@@ -174,23 +175,13 @@ export default function DashboardPage() {
               <span>Setup Checklist Progress</span>
               <span className="font-mono">{completedCount} / {totalCount} Steps</span>
             </div>
-
             <div className="w-full bg-neutral-200 h-2.5 rounded-full overflow-hidden">
-              <div
-                className="bg-primary h-full transition-all duration-500"
-                style={{ width: `${progressPercent}%` }}
-              />
+              <div className="bg-primary h-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
             </div>
-
-            <span className="text-[11px] text-neutral-400 block text-center pt-1">
-              Checklist tracks academic sessions, divisions, levels, arms, fee items, and invoicing setup.
-            </span>
+            <span className="text-[11px] text-neutral-400 block text-center pt-1">Checklist tracks academic sessions, divisions, levels, arms, fee items, and invoicing setup.</span>
           </div>
 
-          <button
-            onClick={() => router.push("/admin/setup")}
-            className="px-6 py-3 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm cursor-pointer"
-          >
+          <button onClick={() => router.push("/admin/setup")} className="px-6 py-3 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm cursor-pointer">
             Continue Workspace Setup
             <ArrowRight className="w-4 h-4" />
           </button>
@@ -213,126 +204,81 @@ export default function DashboardPage() {
           {activeTerm && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-body-small font-bold">
               <Calendar className="w-3.5 h-3.5" />
-              {activeTerm.sessionName} — {activeTerm.name}
+              {activeTerm.sessionName} &mdash; {activeTerm.name}
             </span>
           )}
         </div>
         <p className="text-body-medium text-neutral-600">
-          {activeTerm
-            ? `Revenue and collection overview for ${activeTerm.sessionName} — ${activeTerm.name}. KPIs are scoped to this active term.`
-            : "Overview of school collections, outstanding balances, and administrative log activity. Set an active term to scope dashboard data."
-          }
+          {activeTerm ? `Revenue and collection overview for ${activeTerm.sessionName} &mdash; ${activeTerm.name}. KPIs are scoped to this active term.` : "Overview of school collections, outstanding balances, and administrative log activity. Set an active term to scope dashboard data."}
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <DashboardStatCard
-          label="Expected Revenue"
-          value={stats?.expectedRevenue}
-          icon={TrendingUp}
-          subtitle="Sum of generated term invoices"
-          href="/admin/invoices"
-        />
-        <DashboardStatCard
-          label="Collected Revenue"
-          value={stats?.collectedRevenue}
-          icon={Coins}
-          subtitle="Total verified manual payments"
-          valueColor="green"
-          href="/admin/payments"
-        />
-        <DashboardStatCard
-          label="Outstanding Balance"
-          value={stats?.outstandingBalance}
-          icon={CreditCard}
-          subtitle="Remaining receivable fee dues"
-          valueColor="amber"
-          href="/admin/reports"
-        />
-        <DashboardStatCard
-          label="Invoices Generated"
-          value={stats?.totalInvoices ?? 0}
-          icon={FileText}
-          subtitle="Total generated student bills"
-          href="/admin/invoices"
-        />
+        <DashboardStatCard label="Expected Revenue" value={stats?.expectedRevenue} icon={TrendingUp} subtitle="Sum of generated term invoices" href="/admin/invoices" />
+        <DashboardStatCard label="Collected Revenue" value={stats?.collectedRevenue} icon={Coins} subtitle="Total verified manual payments" valueColor="green" href="/admin/payments" />
+        <DashboardStatCard label="Outstanding Balance" value={stats?.outstandingBalance} icon={CreditCard} subtitle="Remaining receivable fee dues" valueColor="amber" href="/admin/reports" />
+        <DashboardStatCard label="Invoices Generated" value={stats?.totalInvoices ?? 0} icon={FileText} subtitle="Total generated student bills" href="/admin/invoices" />
       </div>
 
       {stats && stats.overdue.overdueCount > 0 && (
-        <div
-          onClick={() => router.push("/admin/reports")}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/reports"); }}
-          role="button"
-          tabIndex={0}
-          aria-label={`${stats.overdue.overdueCount} overdue invoices totalling ${stats.overdue.overdueTotal}. Click to view reports.`}
-          className="flex items-center justify-between gap-4 p-4 rounded-xl bg-red-50 text-red-900 border border-red-200 shadow-sm cursor-pointer hover:bg-red-100/60 transition"
-        >
+        <div onClick={() => router.push("/admin/reports")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/reports"); }} role="button" tabIndex={0} aria-label={`${stats.overdue.overdueCount} overdue invoices totalling ${stats.overdue.overdueTotal}. Click to view reports.`} className="flex items-center justify-between gap-4 p-4 rounded-xl bg-red-50 text-red-900 border border-red-200 shadow-sm cursor-pointer hover:bg-red-100/60 transition">
           <div className="flex items-center gap-3">
             <Clock className="w-5 h-5 text-red-600 shrink-0" />
-            <span className="text-body-medium">
-              <strong>{stats.overdue.overdueCount} overdue invoice{stats.overdue.overdueCount !== 1 ? "s" : ""}</strong> totalling <strong>{formatNaira(stats.overdue.overdueTotal)}</strong>. {stats.overdue.pendingReminders > 0 && ` ${stats.overdue.pendingReminders} reminder${stats.overdue.pendingReminders !== 1 ? "s" : ""} pending delivery.`}
-            </span>
+            <span className="text-body-medium"><strong>{stats.overdue.overdueCount} overdue invoice{stats.overdue.overdueCount !== 1 ? "s" : ""}</strong> totalling <strong>{formatNaira(stats.overdue.overdueTotal)}</strong>. {stats.overdue.pendingReminders > 0 && ` ${stats.overdue.pendingReminders} reminder${stats.overdue.pendingReminders !== 1 ? "s" : ""} pending delivery.`}</span>
           </div>
-          <span className="text-body-small text-red-700 font-bold inline-flex items-center gap-1 shrink-0">
-            View Debtors
-            <ArrowRight className="w-4 h-4" />
-          </span>
+          <span className="text-body-small text-red-700 font-bold inline-flex items-center gap-1 shrink-0">View Debtors <ArrowRight className="w-4 h-4" /></span>
         </div>
       )}
 
-      <div
-        onClick={() => router.push("/admin/reports")}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/reports"); }}
-        role="button"
-        tabIndex={0}
-        aria-label="Collection rate — click to view reports"
-        className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm cursor-pointer hover:border-primary/40 hover:shadow-md transition-all"
-      >
+      <div onClick={() => router.push("/admin/reports")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/reports"); }} role="button" tabIndex={0} aria-label="Collection rate — click to view reports" className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm cursor-pointer hover:border-primary/40 hover:shadow-md transition-all">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
-            Collection Rate
-          </span>
+          <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">Collection Rate</span>
           <TrendingUp className={`w-5 h-5 ${collectionRate >= 75 ? "text-green-500" : collectionRate >= 50 ? "text-amber-500" : "text-neutral-400"}`} />
         </div>
         <div className="space-y-2">
           <div className="flex items-baseline gap-2">
-            <span className={`text-headline-small font-extrabold tabular-nums ${collectionRate >= 75 ? "text-green-600" : collectionRate >= 50 ? "text-amber-600" : "text-neutral-900"}`}>
-              {collectionRate}%
-            </span>
-            <span className="text-[11px] text-neutral-400">
-              of expected revenue collected
-            </span>
+            <span className={`text-headline-small font-extrabold tabular-nums ${collectionRate >= 75 ? "text-green-600" : collectionRate >= 50 ? "text-amber-600" : "text-neutral-900"}`}>{collectionRate}%</span>
+            <span className="text-[11px] text-neutral-400">of expected revenue collected</span>
           </div>
           <div className="w-full bg-neutral-200 h-2 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                collectionRate >= 75 ? "bg-green-500" : collectionRate >= 50 ? "bg-amber-500" : "bg-neutral-400"
-              }`}
-              style={{ width: `${collectionRate}%` }}
-            />
+            <div className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 75 ? "bg-green-500" : collectionRate >= 50 ? "bg-amber-500" : "bg-neutral-400"}`} style={{ width: `${collectionRate}%` }} />
           </div>
         </div>
       </div>
 
+      {lifecycle && !isOnboarding && (
+        <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
+          <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
+            <Rocket className="w-5 h-5 text-primary" />
+            <h3 className="text-title-small text-neutral-900 font-bold">Account Journey</h3>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-body-small font-bold ${lifecycle.stage === "NEW" ? "bg-neutral-100 text-neutral-600" : lifecycle.stage === "ONBOARDING" ? "bg-blue-50 text-blue-700" : lifecycle.stage === "ACTIVATING" ? "bg-amber-50 text-amber-700" : lifecycle.stage === "ACTIVE" ? "bg-green-50 text-green-700" : lifecycle.stage === "AT_RISK" ? "bg-red-50 text-red-700" : "bg-neutral-100 text-neutral-600"}`}>
+              <MapPin className="w-3.5 h-3.5" />
+              {lifecycle.stage === "ACTIVE" ? "Active" : lifecycle.stage === "AT_RISK" ? "At Risk" : lifecycle.stage === "DORMANT" ? "Dormant" : lifecycle.stage.charAt(0) + lifecycle.stage.slice(1).toLowerCase()}
+            </span>
+            <span className="text-body-small text-neutral-500">{lifecycle.milestones.length} milestone{lifecycle.milestones.length !== 1 ? "s" : ""} completed</span>
+          </div>
+          {lifecycle.milestones.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {lifecycle.milestones.slice(-5).map((m) => (
+                <span key={m.milestone} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-100 text-neutral-600 text-[10px] font-medium">
+                  <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
+                  {m.milestone.replace(/_/g, " ")}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {stats && stats.studentsWithoutParents > 0 && (
-        <div
-          onClick={() => router.push("/admin/students")}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/students"); }}
-          role="button"
-          tabIndex={0}
-          aria-label={`${stats.studentsWithoutParents} students without linked parents. Click to manage.`}
-          className="flex items-center justify-between gap-3 p-4 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 shadow-sm cursor-pointer hover:bg-amber-100/60 transition"
-        >
+        <div onClick={() => router.push("/admin/students")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/students"); }} role="button" tabIndex={0} aria-label={`${stats.studentsWithoutParents} students without linked parents. Click to manage.`} className="flex items-center justify-between gap-3 p-4 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 shadow-sm cursor-pointer hover:bg-amber-100/60 transition">
           <div className="flex items-center gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
-            <span className="text-body-medium">
-              You have <strong>{stats.studentsWithoutParents} students</strong> in your registry without any linked parents. No parent will receive invoice alerts or payment notifications.
-            </span>
+            <span className="text-body-medium">You have <strong>{stats.studentsWithoutParents} students</strong> in your registry without any linked parents. No parent will receive invoice alerts or payment notifications.</span>
           </div>
-          <button className="text-body-small text-amber-700 hover:underline font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer">
-            Link Wards
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <button className="text-body-small text-amber-700 hover:underline font-bold inline-flex items-center gap-1 shrink-0 cursor-pointer">Link Wards <ArrowRight className="w-4 h-4" /></button>
         </div>
       )}
 
@@ -343,16 +289,11 @@ export default function DashboardPage() {
               <Activity className="w-5 h-5 text-neutral-400" />
               <h3 className="text-title-small text-neutral-900 font-bold">Recent System Logs</h3>
             </div>
-            <button
-              onClick={() => router.push("/admin/audit")}
-              className="text-body-small text-primary hover:underline font-bold cursor-pointer"
-            >
-              Full Log History
-            </button>
+            <button onClick={() => router.push("/admin/audit")} className="text-body-small text-primary hover:underline font-bold cursor-pointer">Full Log History</button>
           </div>
 
           <div className="space-y-4">
-            {loading && !data?.recentActivity ? (
+            {dashQuery.isFetching && !data?.recentActivity ? (
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="flex gap-4 items-start animate-pulse">
                   <div className="w-1.5 h-1.5 rounded-full bg-neutral-200 mt-2 shrink-0" />
@@ -368,14 +309,7 @@ export default function DashboardPage() {
                   <div className="w-1.5 h-1.5 rounded-full bg-neutral-300 mt-2 shrink-0" />
                   <div className="flex-1">
                     <p className="leading-snug">{formatActionMessage(log)}</p>
-                    <span className="text-[10px] text-neutral-400 font-medium block mt-0.5">
-                      {new Date(log.createdAt).toLocaleDateString("en-NG", {
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+                    <span className="text-[10px] text-neutral-400 font-medium block mt-0.5">{new Date(log.createdAt).toLocaleDateString("en-NG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                   </div>
                 </div>
               ))
@@ -393,14 +327,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="space-y-3.5 text-body-medium">
-              <div
-                onClick={() => router.push("/admin/invoices")}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/invoices"); }}
-                role="button"
-                tabIndex={0}
-                aria-label="Open billing wizard to generate term invoices"
-                className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer"
-              >
+              <div onClick={() => router.push("/admin/invoices")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/invoices"); }} role="button" tabIndex={0} aria-label="Open billing wizard to generate term invoices" className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer">
                 <FileText className="w-5 h-5 text-primary" />
                 <div>
                   <div className="font-bold text-neutral-800">Billing Wizard</div>
@@ -408,14 +335,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div
-                onClick={() => router.push("/admin/payments")}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/payments"); }}
-                role="button"
-                tabIndex={0}
-                aria-label="Record a manual payment collection"
-                className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer"
-              >
+              <div onClick={() => router.push("/admin/payments")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/payments"); }} role="button" tabIndex={0} aria-label="Record a manual payment collection" className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer">
                 <Coins className="w-5 h-5 text-green-500" />
                 <div>
                   <div className="font-bold text-neutral-800">Record Collection</div>
@@ -423,14 +343,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div
-                onClick={() => router.push("/admin/students")}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/students"); }}
-                role="button"
-                tabIndex={0}
-                aria-label="Open student registry to add or manage students"
-                className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer"
-              >
+              <div onClick={() => router.push("/admin/students")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/students"); }} role="button" tabIndex={0} aria-label="Open student registry to add or manage students" className="flex items-center gap-3 p-3 bg-neutral-50 rounded-lg border border-neutral-100 hover:bg-neutral-100/50 cursor-pointer">
                 <UserPlus className="w-5 h-5 text-neutral-500" />
                 <div>
                   <div className="font-bold text-neutral-800">Student Registry</div>
@@ -443,13 +356,9 @@ export default function DashboardPage() {
           <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-xl space-y-2 mt-4">
             <div className="text-[10px] text-neutral-400 uppercase font-semibold">Active Term Tracker</div>
             {activeTerm ? (
-              <p className="text-body-small text-neutral-700 leading-snug font-bold">
-                Dashboard KPIs are scoped to <span className="text-primary">{activeTerm.sessionName} — {activeTerm.name}</span>. Switch the active term in Academic Settings to view data for a different period.
-              </p>
+              <p className="text-body-small text-neutral-700 leading-snug font-bold">Dashboard KPIs are scoped to <span className="text-primary">{activeTerm.sessionName} &mdash; {activeTerm.name}</span>. Switch the active term in Academic Settings to view data for a different period.</p>
             ) : (
-              <p className="text-body-small text-amber-700 leading-snug font-bold">
-                No active term set. KPIs show all-time data. Set an active term in Academic Settings to scope invoices and payments.
-              </p>
+              <p className="text-body-small text-amber-700 leading-snug font-bold">No active term set. KPIs show all-time data. Set an active term in Academic Settings to scope invoices and payments.</p>
             )}
           </div>
         </div>

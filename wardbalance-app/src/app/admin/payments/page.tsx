@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Loader2, Plus, Search, Coins, XCircle, CheckCircle, FileText, Calendar, User, Receipt, ShieldAlert, Download } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2, Plus, Search, Coins, XCircle, CheckCircle, FileText, Calendar, User, Receipt, ShieldAlert, Download, AlertCircle } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import Input from "@/components/admin/shared/input";
 import Select from "@/components/admin/shared/select";
@@ -60,12 +61,10 @@ interface UnpaidInvoice {
 export default function PaymentsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(true);
 
   // Auto-select invoice from URL param (e.g., navigated from invoice drawer)
   const urlInvoiceId = searchParams.get("invoiceId");
   const [actionLoading, setActionLoading] = useState(false);
-  const [payments, setPayments] = useState<Payment[]>([]);
   const [unpaidInvoices, setUnpaidInvoices] = useState<UnpaidInvoice[]>([]);
   const [emailVerified, setEmailVerified] = useState(true);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
@@ -74,7 +73,7 @@ export default function PaymentsPage() {
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
   const [filterMethod, setFilterMethod] = useState("");
-  const [filterStatus, setFilterStatus] = useState("recorded"); // Default to showing active payments
+  const [filterStatus, setFilterStatus] = useState("recorded");
 
   // UI state overlays
   const [showRecordDrawer, setShowRecordDrawer] = useState(false);
@@ -94,8 +93,6 @@ export default function PaymentsPage() {
   const [page, setPage] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
   const pageSize = 20;
-
-  const abortRef = useRef<AbortController | null>(null);
 
   // Close any open drawer on Escape key
   const handleGlobalKeyDown = useCallback((e: KeyboardEvent) => {
@@ -118,34 +115,33 @@ export default function PaymentsPage() {
 
   useEffect(() => { setPage(1); }, [searchQuery, filterMethod, filterStatus]);
 
-  const loadData = () => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    const signal = controller.signal;
-    setLoading(true);
-    const offset = (page - 1) * pageSize;
-    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
-    if (searchQuery) params.set("search", searchQuery);
-    if (filterMethod) params.set("method", filterMethod);
-    if (filterStatus) params.set("status", filterStatus);
-    const paymentUrl = `/api/admin/payments?${params.toString()}`;
-    Promise.all([
-      fetch(paymentUrl, { signal }).then((r) => r.json()),
-      fetch("/api/admin/verify-email", { signal }).then((r) => r.json()).catch(() => ({ emailVerified: true })),
-    ])
-      .then(([paymentRes, verifyRes]) => {
-        setPayments(paymentRes.data || []);
-        setTotalRecords(paymentRes.meta?.total ?? 0);
-        setEmailVerified(verifyRes.emailVerified ?? true);
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        console.error("Load payments page failed:", err);
-        setLoading(false);
-      });
-  };
+  const offset = (page - 1) * pageSize;
+  const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+  if (searchQuery) params.set("search", searchQuery);
+  if (filterMethod) params.set("method", filterMethod);
+  if (filterStatus) params.set("status", filterStatus);
+  const paymentUrl = `/api/admin/payments?${params.toString()}`;
+
+  const paymentsQuery = useQuery({
+    queryKey: ["admin", "payments", params.toString()],
+    queryFn: async ({ signal }) => {
+      const [paymentRes, verifyRes] = await Promise.all([
+        fetch(paymentUrl, { signal }).then((r) => r.json()),
+        fetch("/api/admin/verify-email", { signal }).then((r) => r.json()).catch(() => ({ emailVerified: true })),
+      ]);
+      return { paymentRes, verifyRes };
+    },
+  });
+
+  const { data: queryResult, isLoading: loading, error: loadError } = paymentsQuery;
+  const payments = (queryResult?.paymentRes?.data || []) as Payment[];
+
+  useEffect(() => {
+    if (queryResult) {
+      setTotalRecords(queryResult.paymentRes.meta?.total ?? 0);
+      setEmailVerified(queryResult.verifyRes.emailVerified ?? true);
+    }
+  }, [queryResult]);
 
   const fetchUnpaidInvoices = async (search = "") => {
     setLoadingInvoices(true);
@@ -171,15 +167,9 @@ export default function PaymentsPage() {
       const delayDebounceFn = setTimeout(() => {
         fetchUnpaidInvoices(invoiceSearchQuery);
       }, 400);
-
       return () => clearTimeout(delayDebounceFn);
     }
   }, [invoiceSearchQuery, showRecordDrawer]);
-
-  useEffect(() => {
-    loadData();
-    return () => abortRef.current?.abort();
-  }, [page, searchQuery, filterMethod, filterStatus]);
 
   // Auto-open record drawer with pre-selected invoice from URL param
   useEffect(() => {
@@ -239,7 +229,7 @@ export default function PaymentsPage() {
       setPaymentAmount("");
       setPaymentMethod("bank_transfer");
       setPaymentReference("");
-      loadData();
+      paymentsQuery.refetch();
     } catch (err: unknown) {
       toast("error", err instanceof Error ? err.message : "Failed to record payment.");
     } finally {
@@ -261,7 +251,7 @@ export default function PaymentsPage() {
       if (!res.ok) throw new Error(data.error ?? "Failed to void payment");
 
       toast("success", "Payment has been voided. Invoice balance due has been adjusted.");
-      loadData();
+      paymentsQuery.refetch();
     } catch (err: unknown) {
       toast("error", err instanceof Error ? err.message : "Failed to void payment.");
     } finally {
@@ -273,6 +263,26 @@ export default function PaymentsPage() {
 
   // API handles search/filter; payments array is already filtered and paginated
   const filteredPayments = payments;
+
+  if (loadError) {
+    return (
+      <div className="space-y-8">
+        <div className="p-6 bg-red-50 border border-red-200 rounded-xl flex flex-col items-center text-center gap-4">
+          <AlertCircle className="w-10 h-10 text-red-500" />
+          <div>
+            <h2 className="text-title-medium text-red-900 font-bold mb-1">Failed to load payments</h2>
+            <p className="text-body-medium text-red-700">{loadError instanceof Error ? loadError.message : "Failed to load payments"}</p>
+          </div>
+          <button
+            onClick={() => paymentsQuery.refetch()}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-label-large font-bold hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -486,7 +496,7 @@ export default function PaymentsPage() {
                     setSelectedInvoiceId("");
                     setPaymentAmount("");
                   }}
-                  className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
                 >
                   Close
                 </button>
@@ -646,7 +656,7 @@ export default function PaymentsPage() {
                 </div>
                 <button
                   onClick={() => setSelectedPayment(null)}
-                  className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
                 >
                   Close
                 </button>

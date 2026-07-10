@@ -9,11 +9,14 @@ const mockInvoice = {
   status: "issued" as const,
 };
 
+const updatedInvoice = { ...mockInvoice, amountPaid: new Decimal("50000"), balanceDue: new Decimal("50000"), status: "partial" as const };
+
 const mockTx = {
   payment: { create: vi.fn().mockImplementation((args: any) => Promise.resolve({ id: "pay-1", method: args.data.method })) },
   invoice: {
-    findUnique: vi.fn().mockResolvedValue(mockInvoice),
-    update: vi.fn().mockResolvedValue({ ...mockInvoice, amountPaid: new Decimal("50000"), balanceDue: new Decimal("50000"), status: "partial" }),
+    findUnique: vi.fn().mockResolvedValue(updatedInvoice),
+    update: vi.fn().mockResolvedValue(updatedInvoice),
+    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
   },
   receipt: { create: vi.fn().mockResolvedValue({ id: "rcpt-1", receiptNumber: "REC-20260629-ABCD" }) },
   auditLog: { create: vi.fn().mockResolvedValue({}) },
@@ -24,12 +27,12 @@ const mockPrisma = {
   payment: { create: vi.fn() },
   receipt: { create: vi.fn() },
   auditLog: { create: vi.fn() },
-  $transaction: vi.fn(),
+  $transaction: vi.fn().mockImplementation((cb: Function) => cb(mockTx)),
 };
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 
-const { recordPayment } = await import("./payment-recorder.service");
+const { recordPayment } = await import("@/modules/payments/recorder.service");
 
 describe("recordPayment", () => {
   const baseInput = {
@@ -110,6 +113,9 @@ describe("recordPayment", () => {
       ...mockTx,
       invoice: {
         ...mockTx.invoice,
+        findUnique: vi.fn()
+          .mockResolvedValueOnce(mockInvoice)
+          .mockResolvedValue({ ...mockInvoice, amountPaid: new Decimal("100000"), balanceDue: new Decimal("0"), status: "paid" }),
         update: vi.fn().mockResolvedValue({
           ...mockInvoice, amountPaid: new Decimal("100000"), balanceDue: new Decimal("0"), status: "paid",
         }),

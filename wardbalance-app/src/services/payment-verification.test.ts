@@ -3,7 +3,7 @@ import { Decimal } from "@prisma/client-runtime-utils";
 
 const mockRecordPayment = vi.fn();
 
-vi.mock("@/services/payment-recorder.service", () => ({
+vi.mock("@/modules/payments/recorder.service", () => ({
   recordPayment: mockRecordPayment,
 }));
 
@@ -27,7 +27,13 @@ const mockPrisma = {
   auditLog: { create: vi.fn() },
   parentWardLink: { findFirst: vi.fn() },
   notificationOutbox: { create: vi.fn() },
-  $transaction: vi.fn(),
+  $transaction: vi.fn().mockImplementation((cb: Function) => cb({
+    invoice: { findFirst: vi.fn(), findUnique: vi.fn(), updateMany: vi.fn() },
+    manualPaymentSubmission: { findUnique: vi.fn(), update: vi.fn() },
+    payment: { create: vi.fn() },
+    receipt: { create: vi.fn() },
+    auditLog: { create: vi.fn() },
+  })),
 };
 
 vi.mock("@/lib/prisma", () => ({

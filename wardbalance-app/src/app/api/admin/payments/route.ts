@@ -4,7 +4,7 @@ import { z } from "zod";
 import { Prisma, PaymentMethod, PaymentStatus } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { logError } from "@/lib/logger";
-import { recordManualPayment } from "@/services/payment-verification.service";
+import { recordManualPayment } from "@/modules/payments/verification.service";
 import { studentBasicSelect } from "@/lib/prisma-selects";
 import { parsePagination, paginatedJsonResponse } from "@/lib/server/pagination";
 

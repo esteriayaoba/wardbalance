@@ -152,7 +152,7 @@ export default function InvoiceTable({
                   {formatNaira(inv.balanceDue)}
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusStyles[inv.status] || "bg-gray-100 text-gray-600"}`}>
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusStyles[inv.status] || "bg-neutral-100 text-neutral-600"}`}>
                     {inv.status}
                   </span>
                 </td>

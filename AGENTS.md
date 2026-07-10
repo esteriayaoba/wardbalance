@@ -30,7 +30,7 @@ digital infrastructure.
 |-------|--------|-------|
 | Phase 1 — MVP | ✅ Complete | Marketing landing page, lead capture form, lead database, email notification |
 | Phase 2A — Admin Platform Foundation | ✅ Complete | Auth-aware admin shell, school tenant setup, setup checklist, academic structure, students & parents, fee items & templates, invoice generation, manual payments, basic receipts, basic dashboard, audit log |
-| Phase 2B — Payment & Parent Experience | 🔨 Building now | Parent portal, Flutterwave payment links, verification queue, parent invoice view, receipt download, automated reminders, CSV/PDF exports |
+| Phase 2B — Payment & Parent Experience | ✅ Complete | Parent portal, Flutterwave payment links, verification queue, parent invoice view, receipt download, automated reminders, CSV/PDF exports, lifecycle automation engine, PWA support |
 | Phase 3 — Expand | Future | WhatsApp integration, multi-branch support, native mobile app (conditional on PMF data) |
 | Phase 4 — Platform | Future | Attendance, results, payroll, full school OS |
 
@@ -1055,6 +1055,7 @@ A Phase 2A feature is done when:
 | `skills/api-route-scaffolder/` | API route scaffold with auth, tenant, Zod, audit |
 | `skills/db-migration-runner/` | Prisma migration workflow, schema conventions, enums |
 | `skills/report-builder/` | Revenue summaries, debtor lists, CSV/PDF exports |
+| `skills/lifecycle-engine/` | Lifecycle Automation & Customer Engagement Engine specification |
 | `workflows/new-component.md` | Step-by-step for building any UI component |
 | `workflows/new-api-route.md` | Step-by-step for building any API route |
 | `workflows/new-payment-flow.md` | Step-by-step for building any payment feature |
@@ -1080,4 +1081,4 @@ When given a task, follow these steps in order:
 
 ---
 
-*Last updated: July 2026 — WardBalance Phase 2B (Payment & Parent Experience)*
+*Last updated: July 2026 — WardBalance Phase 2B Complete*

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-import { SettingsSchema } from "@/schemas/settings.schema";
+import { SettingsSchema } from "@/modules/school/schemas";
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
       where: { id: guard.session.schoolId },
     });
 
-    return NextResponse.json({ data: school });
+    return NextResponse.json({
+      data: school,
+      userRole: guard.session.role,
+    });
   } catch (err) {
     console.error("[settings] GET error:", err);
     return NextResponse.json(

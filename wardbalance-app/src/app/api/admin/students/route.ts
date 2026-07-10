@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
-import { CreateStudentSchema } from "@/schemas/student.schema";
+import { CreateStudentSchema } from "@/modules/academic/schemas";
 import { parsePagination, paginatedJsonResponse } from "@/lib/server/pagination";
 
 export async function GET(request: NextRequest) {

@@ -111,6 +111,10 @@ model School {
   notifications             NotificationOutbox[]
   studentActivityEnrolments StudentActivityEnrolment[]
   parentWardLinks           ParentWardLink[]
+  lifecycleEvents           LifecycleEvent[]
+  notificationHistories     NotificationHistory[]
+  notificationPreferences   NotificationPreference[]
+  pushSubscriptions         PushSubscription[]
 }
 
 enum UserRole {
@@ -694,4 +698,77 @@ model StudentActivityEnrolment {
   @@index([schoolId])
   @@index([studentId])
   @@index([feeItemId])
+}
+
+// =========================================================
+// Phase 2B Enhancement: Lifecycle Automation & Engagement
+// =========================================================
+
+/// Records important user journey milestones for lifecycle automation
+model LifecycleEvent {
+  id         String   @id @default(cuid())
+  schoolId   String
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId     String   // admin user who performed the action
+  milestone  String   // "account_created", "setup_completed", "first_invoice", etc.
+  occurredAt DateTime @default(now())
+  metadata   Json?
+
+  @@index([schoolId, userId])
+  @@index([milestone, occurredAt])
+}
+
+/// Tracks sent lifecycle notifications for dedup and analytics
+model NotificationHistory {
+  id         String    @id @default(cuid())
+  schoolId   String
+  school     School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId     String?
+  trigger    String    // "signup_7d", "missing_invoices", etc.
+  channel    String    // "email", "sms"
+  template   String    // template identifier
+  recipient  String
+  subject    String?
+  status     String    // "queued", "sent", "failed", "skipped"
+  providerId String?   // Resend/Termii message ID
+  sentAt     DateTime?
+  failedAt   DateTime?
+  errorLog   String?
+  createdAt  DateTime  @default(now())
+
+  @@index([schoolId])
+  @@index([trigger, status])
+  @@index([schoolId, userId, trigger])
+}
+
+/// Push notification subscriptions for PWA
+model PushSubscription {
+  id         String   @id @default(cuid())
+  schoolId   String
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  parentId   String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([parentId])
+}
+
+/// User notification preferences (opt-in/out per channel/category)
+model NotificationPreference {
+  id         String   @id @default(cuid())
+  schoolId   String
+  school     School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  userId     String?
+  parentId   String?
+  channel    String   // "email", "sms"
+  category   String   // "marketing", "product_updates", "reminders"
+  subscribed Boolean  @default(true)
+  updatedAt  DateTime @updatedAt
+
+  @@unique([schoolId, userId, parentId, channel, category])
+  @@index([schoolId])
 }

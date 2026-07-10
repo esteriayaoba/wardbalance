@@ -1,19 +1,19 @@
 const STUDENT_STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-50 text-green-700 border-green-200",
-  inactive: "bg-neutral-50 text-neutral-500 border-neutral-200",
-  graduated: "bg-blue-50 text-blue-700 border-blue-200",
+  active: "bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20",
+  inactive: "bg-[var(--color-outline-variant)]/30 text-neutral-500 border-[var(--color-outline-variant)]",
+  graduated: "bg-[var(--color-info)]/10 text-[var(--color-info)] border-[var(--color-info)]/20",
   transferred: "bg-purple-50 text-purple-700 border-purple-200",
-  suspended: "bg-amber-50 text-amber-700 border-amber-200",
-  withdrawn: "bg-red-50 text-red-700 border-red-200",
+  suspended: "bg-[var(--color-warning)]/10 text-[var(--color-warning)] border-[var(--color-warning)]/20",
+  withdrawn: "bg-[var(--color-error)]/10 text-[var(--color-error)] border-[var(--color-error)]/20",
   archived: "bg-neutral-100 text-neutral-400 border-neutral-300",
 };
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   draft: "bg-neutral-100 text-neutral-600",
-  issued: "bg-blue-100 text-blue-700",
-  paid: "bg-green-100 text-green-700",
-  partial: "bg-amber-100 text-amber-700",
-  overdue: "bg-red-100 text-red-700",
+  issued: "bg-[var(--color-info)]/10 text-[var(--color-info)]",
+  paid: "bg-[var(--color-success)]/10 text-[var(--color-success)]",
+  partial: "bg-[var(--color-warning)]/10 text-[var(--color-warning)]",
+  overdue: "bg-[var(--color-error)]/10 text-[var(--color-error)]",
 };
 
 export function StudentStatusBadge({ status }: { status: string }) {
@@ -34,8 +34,8 @@ export function InvoiceStatusBadge({ status }: { status: string }) {
 }
 
 const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  recorded: "bg-green-50 text-green-700 border-green-200",
-  void: "bg-red-50 text-red-700 border-red-200",
+  recorded: "bg-[var(--color-success)]/10 text-[var(--color-success)] border-[var(--color-success)]/20",
+  void: "bg-[var(--color-error)]/10 text-[var(--color-error)] border-[var(--color-error)]/20",
 };
 
 export function PaymentStatusBadge({ status }: { status: string }) {

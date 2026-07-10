@@ -1,3 +1,8 @@
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
+
 /**
  * Formats a numeric value into Nigerian Naira currency representation.
  * Always formats as ₦120,000 with thousands separators and optional decimals.
