@@ -72,16 +72,6 @@ function SetupContent() {
   const [isCompleting, setIsCompleting] = useState(false);
   const celebratedRef = useRef<Set<number>>(new Set());
 
-  // Show loading while flags resolve to prevent rendering wizard when it should be hidden
-  if (flagsLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]" role="status" aria-live="polite" aria-label="Loading setup">
-        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" aria-hidden="true" />
-        <p className="text-body-large text-neutral-600">Loading setup...</p>
-      </div>
-    );
-  }
-
   const statusQuery = useQuery<SetupStatusResponse>({
     queryKey: ["admin", "setup", "status"],
     queryFn: async () => {
@@ -228,6 +218,15 @@ function SetupContent() {
   const handleCelebrationDashboard = () => {
     router.push("/admin/dashboard");
   };
+
+  if (flagsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]" role="status" aria-live="polite" aria-label="Loading setup">
+        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" aria-hidden="true" />
+        <p className="text-body-large text-neutral-600">Loading setup...</p>
+      </div>
+    );
+  }
 
   if (error) {
     return (
