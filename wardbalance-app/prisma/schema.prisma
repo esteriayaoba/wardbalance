@@ -115,6 +115,9 @@ model School {
   notificationHistories     NotificationHistory[]
   notificationPreferences   NotificationPreference[]
   pushSubscriptions         PushSubscription[]
+  subscription              SchoolSubscription?
+  subscriptionInvoices      SubscriptionInvoice[]
+  billingTransactions       BillingTransaction[]
 }
 
 enum UserRole {
@@ -771,4 +774,110 @@ model NotificationPreference {
 
   @@unique([schoolId, userId, parentId, channel, category])
   @@index([schoolId])
+}
+
+// ==========================================
+// Phase 2C — Subscription & Billing
+// ==========================================
+
+/// Available subscription plans (seeded, not user-managed)
+model PricingPlan {
+  id            String   @id // "starter_free", "pro_term", "group_custom"
+  name          String   // "Starter", "Pro", "Group"
+  tier          Int      @default(0) // 0=free, 1=paid, 2=enterprise
+  price         Decimal  @default(0) @db.Decimal(12, 2)
+  currency      String   @default("NGN")
+  billingPeriod String?  // "term", null for free/one-off
+  features      Json     // feature flag map
+  limits        Json     // { maxStudents, maxStaff, maxWorkspaces, ... }
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  subscriptions SchoolSubscription[]
+
+  @@map("pricing_plans")
+}
+
+/// Per-school subscription record
+model SchoolSubscription {
+  id                 String   @id @default(cuid())
+  schoolId           String   @unique
+  school             School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               PricingPlan @relation(fields: [planId], references: [id])
+  status             String   @default("trialing") // trialing | active | past_due | suspended | cancelled | expired
+  autoRenew          Boolean  @default(true)
+  cancelAtPeriodEnd  Boolean  @default(false)
+  trialStartedAt     DateTime @default(now())
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  flwCustomerId      String?  // Flutterwave customer ID for tokenized charges
+  flwCardToken       Json?    // Saved card token for recurring billing
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  invoices       SubscriptionInvoice[]
+  transactions   BillingTransaction[]
+
+  @@index([status])
+  @@index([planId])
+  @@map("school_subscriptions")
+}
+
+/// Subscription invoices (WardBalance charges to schools)
+model SubscriptionInvoice {
+  id                String   @id @default(cuid())
+  subscriptionId    String
+  subscription      SchoolSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  schoolId          String
+  school            School             @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  invoiceNumber     String   @unique // e.g. "INV-WB-2026-00001"
+  planId            String
+  amount            Decimal  @default(0) @db.Decimal(12, 2)
+  currency          String   @default("NGN")
+  status            String   @default("pending") // pending | paid | failed | refunded
+  periodStart       DateTime
+  periodEnd         DateTime
+  paidAt            DateTime?
+  flwTransactionId  String?
+  receiptUrl        String?
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  transactions BillingTransaction[] @relation("InvoiceTransactions")
+
+  @@index([subscriptionId])
+  @@index([schoolId])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@map("subscription_invoices")
+}
+
+/// Individual billing transactions
+model BillingTransaction {
+  id               String   @id @default(cuid())
+  invoiceId        String
+  invoice          SubscriptionInvoice @relation("InvoiceTransactions", fields: [invoiceId], references: [id], onDelete: Cascade)
+  subscriptionId   String
+  subscription     SchoolSubscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  schoolId         String
+  school           School              @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  amount           Decimal  @default(0) @db.Decimal(12, 2)
+  currency         String   @default("NGN")
+  paymentMethod    String?  // "card", "bank_transfer", "ussd"
+  flwTransactionId String?  @unique
+  status           String   @default("pending") // pending | success | failed
+  failureReason    String?
+  metadata         Json?
+  createdAt        DateTime @default(now())
+
+  @@index([invoiceId])
+  @@index([flwTransactionId])
+  @@index([schoolId])
+  @@map("billing_transactions")
 }

@@ -6,6 +6,7 @@ import { upstashIncr } from "@/lib/redis";
 import { sendEmail } from "@/lib/email/resend";
 import { headers } from "next/headers";
 import crypto from "crypto";
+import { PRICING_PLANS } from "@/constants/pricing";
 
 export async function POST(request: NextRequest) {
   try {
@@ -85,6 +86,11 @@ export async function POST(request: NextRequest) {
 
     // 6. Execute database transaction
     const { school, user } = await prisma.$transaction(async (tx) => {
+      const planId = data.plan === "freemium" ? "starter_free" : "pro_term";
+      const planConfig = PRICING_PLANS.find((p) => p.id === data.plan) ?? PRICING_PLANS[0];
+      const isTrial = data.plan === "business";
+      const trialDays = 30;
+
       const createdSchool = await tx.school.create({
         data: {
           name: data.schoolName,
@@ -93,14 +99,26 @@ export async function POST(request: NextRequest) {
           estimatedStudents: String(estimatedStudents),
           status: "onboarding",
           selectedPlan: data.plan ?? "freemium",
-          planStatus: "active",
+          planStatus: isTrial ? "trialing" : "active",
           planStartedAt: new Date(),
-          planLimits: {
-            maxStudents: data.plan === "freemium" ? 50 : 500,
-            maxStaff: data.plan === "freemium" ? 1 : 5,
-            paymentMethods: data.plan === "freemium" ? "manual" : "all",
-            reports: data.plan === "freemium" ? "basic" : "advanced",
-          },
+          trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : null,
+          planLimits: planConfig.limits,
+        },
+      });
+
+      // Create SchoolSubscription record
+      await tx.schoolSubscription.create({
+        data: {
+          schoolId: createdSchool.id,
+          planId,
+          status: isTrial ? "trialing" : "active",
+          autoRenew: isTrial,
+          trialStartedAt: isTrial ? new Date() : undefined,
+          trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000) : undefined,
+          currentPeriodStart: new Date(),
+          currentPeriodEnd: isTrial
+            ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000)
+            : undefined,
         },
       });
 
@@ -133,6 +151,8 @@ export async function POST(request: NextRequest) {
             selectedPlan: createdSchool.selectedPlan,
             status: createdSchool.status,
             schoolType,
+            subscriptionStatus: isTrial ? "trialing" : "active",
+            trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString() : null,
           },
         },
       });

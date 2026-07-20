@@ -2,9 +2,11 @@ export type PlanId = "freemium" | "business" | "multi_school";
 
 export interface PricingPlan {
   id: PlanId;
+  dbPlanId: string; // maps to PricingPlan.id in the database
   name: string;
   targetUser: string;
   priceDisplay: string;
+  rawPrice: number; // in Naira, for backend calculations
   billingLabel: string;
   ctaText: string;
   ctaRoute: string;
@@ -22,9 +24,11 @@ export interface PricingPlan {
 export const PRICING_PLANS: PricingPlan[] = [
   {
     id: "freemium",
+    dbPlanId: "starter_free",
     name: "Starter",
     targetUser: "Perfect for testing the waters and managing your first class.",
     priceDisplay: "₦0",
+    rawPrice: 0,
     billingLabel: "Free forever",
     ctaText: "Get Started Free",
     ctaRoute: "/signup?plan=freemium&source=pricing",
@@ -47,11 +51,13 @@ export const PRICING_PLANS: PricingPlan[] = [
   },
   {
     id: "business",
+    dbPlanId: "pro_term",
     name: "Pro",
     targetUser: "For active schools needing advanced operations and staff tools.",
-    priceDisplay: "₦50,000",
-    billingLabel: "per term",
-    ctaText: "Start Business Plan",
+    priceDisplay: "₦20",
+    rawPrice: 20,
+    billingLabel: "per term (test pricing)",
+    ctaText: "Start Pro Plan",
     ctaRoute: "/signup?plan=business&source=pricing",
     isPopular: true,
     features: [
@@ -74,9 +80,11 @@ export const PRICING_PLANS: PricingPlan[] = [
   },
   {
     id: "multi_school",
+    dbPlanId: "group_custom",
     name: "Group",
     targetUser: "Built for multi-branch schools and educational groups.",
     priceDisplay: "Custom",
+    rawPrice: 0,
     billingLabel: "Contact sales",
     ctaText: "Book a Demo",
     ctaRoute: "#demo",
@@ -89,7 +97,7 @@ export const PRICING_PLANS: PricingPlan[] = [
       "Custom system integration",
     ],
     limits: {
-      students: -1, // Unlimited / Custom
+      students: -1,
       workspaces: -1,
       staffUsers: -1,
       paymentMethods: "all",
@@ -98,5 +106,6 @@ export const PRICING_PLANS: PricingPlan[] = [
   },
 ];
 
-// TODO: Final pricing must be confirmed before public launch.
-// Subscription payment collection/billing is not active yet in this phase.
+// TODO: Set final pricing before public launch.
+// Currently using ₦20/test pricing for the Pro plan during development.
+// To change, update `rawPrice` and `priceDisplay` on the business entry above.

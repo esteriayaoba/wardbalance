@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { logError, logInfo, logWarn } from "@/lib/logger";
 import { recordPayment } from "@/services/payment-recorder.service";
+import { processSubscriptionPayment } from "@/services/subscription-payment.service";
 import { enqueueNotification } from "@/lib/notifications";
 
 export async function POST(request: NextRequest) {
@@ -111,13 +112,72 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
     }
 
-    const invoiceId = verifiedData.meta?.invoiceId || flwData.meta?.invoiceId;
     const schoolId = verifiedData.meta?.schoolId || flwData.meta?.schoolId;
+
+    if (!schoolId) {
+      logError("flutterwave-webhook", "Missing schoolId in metadata");
+      return NextResponse.json({ error: "Missing metadata fields" }, { status: 400 });
+    }
+
+    // ── Subscription payment branch (tx_ref starts with "SUB-") ──────────────
+    if (txRef.startsWith("SUB-")) {
+      const metaSubscriptionId = verifiedData.meta?.subscriptionId || flwData.meta?.subscriptionId;
+      const metaPlanId = verifiedData.meta?.planId || flwData.meta?.planId;
+
+      if (!metaSubscriptionId || !metaPlanId) {
+        logWarn("flutterwave-webhook", `Missing subscription metadata for SUB- tx: ${txRef}`);
+        return NextResponse.json({ error: "Missing subscription metadata" }, { status: 400 });
+      }
+
+      // Check idempotency — has this transaction been processed?
+      const existingTx = await prisma.billingTransaction.findUnique({
+        where: { flwTransactionId: transactionId },
+      });
+      if (existingTx) {
+        logInfo("flutterwave-webhook", `Subscription tx ${txRef} already processed`);
+        return NextResponse.json({ received: true, duplicated: true });
+      }
+
+      // Extract card token from Flutterwave response
+      const card = verifiedData.card as {
+        token?: string;
+        last_4digits?: string;
+        brand?: string;
+        expirymonth?: string;
+        expiryyear?: string;
+      } | undefined;
+
+      const cardToken = card?.token
+        ? {
+            token: card.token,
+            last4: card.last_4digits ?? "",
+            brand: card.brand ?? "",
+            expiry: `${card.expirymonth ?? "??"}/${card.expiryyear ?? "??"}`,
+          }
+        : null;
+
+      const result = await processSubscriptionPayment({
+        schoolId,
+        subscriptionId: metaSubscriptionId,
+        planId: metaPlanId,
+        amount: Number(verifiedData.amount),
+        flwTransactionId: transactionId,
+        flwCustomerId: String(verifiedData.customer?.id ?? ""),
+        cardToken,
+        billingPeriod: "term",
+      });
+
+      logInfo("flutterwave-webhook", `Subscription payment processed: invoice ${result.invoice.invoiceNumber}, ref: ${txRef}`);
+      return NextResponse.json({ received: true, success: true, type: "subscription" });
+    }
+
+    // ── School invoice payment branch (existing logic) ──────────────────────
+    const invoiceId = verifiedData.meta?.invoiceId || flwData.meta?.invoiceId;
     const parentId = verifiedData.meta?.parentId || flwData.meta?.parentId;
 
-    if (!invoiceId || !schoolId) {
-      logError("flutterwave-webhook", "Missing invoiceId or schoolId in metadata");
-      return NextResponse.json({ error: "Missing metadata fields" }, { status: 400 });
+    if (!invoiceId) {
+      logError("flutterwave-webhook", "Missing invoiceId in metadata for school payment");
+      return NextResponse.json({ error: "Missing invoiceId" }, { status: 400 });
     }
 
     const invoice = await prisma.invoice.findFirst({
