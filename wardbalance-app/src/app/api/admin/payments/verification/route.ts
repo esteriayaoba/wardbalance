@@ -164,8 +164,18 @@ export async function POST(request: NextRequest) {
     }
   } catch (err) {
     logError("verification POST", err);
+    const message = err instanceof Error ? err.message : "An unexpected error occurred";
+    
+    // Check for Optimistic Concurrency Control (OCC) conflicts
+    if (message.includes("Invoice balance changed since payment was initiated")) {
+      return NextResponse.json(
+        { error: "This invoice balance has been modified in another window. Please refresh and review.", code: "CONCURRENCY_CONFLICT" },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "An unexpected error occurred", code: "INTERNAL_ERROR" },
+      { error: message, code: "INTERNAL_ERROR" },
       { status: 500 }
     );
   }
