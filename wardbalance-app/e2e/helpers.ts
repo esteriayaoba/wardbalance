@@ -1,6 +1,5 @@
 import { Page } from "@playwright/test";
 
-const BASE_URL = "http://localhost:3000";
 
 export async function bypassCookieConsent(page: Page) {
   await page.addInitScript(() => {
@@ -17,7 +16,7 @@ export async function bypassCookieConsent(page: Page) {
 
 export async function loginAs(page: Page, role: string) {
   await bypassCookieConsent(page);
-  await page.goto(`${BASE_URL}/login`);
+  await page.goto("/login");
   await page.fill("#login-email", `${role.toLowerCase()}@school.edu`);
   await page.fill("#login-password", "password123");
   await page.click("#login-submit");
@@ -26,7 +25,7 @@ export async function loginAs(page: Page, role: string) {
 
 export async function loginAsDemo(page: Page) {
   await bypassCookieConsent(page);
-  await page.goto(`${BASE_URL}/login`);
+  await page.goto("/login");
   await page.click("#demo-login");
   await page.waitForURL(/\/admin\/dashboard/);
 }
