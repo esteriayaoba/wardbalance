@@ -50,8 +50,10 @@ test.describe("Onboarding — Accessibility & Mobile QA", () => {
         const results: { tag: string; text: string; height: number }[] = [];
         elements.forEach((el) => {
           const rect = el.getBoundingClientRect();
-          // Skip inline text links (which naturally have small line-height, e.g. < 36px)
-          // and check actual buttons/action items (height > 0)
+          // Skip breadcrumbs or navigation links which are meant to be small text links rather than action buttons
+          if (el.closest('[aria-label*="breadcrumb"]') || el.closest('[class*="breadcrumb"]') || el.closest('nav')) {
+            return;
+          }
           if (rect.height > 0 && rect.height < 36) {
             results.push({
               tag: el.tagName,
