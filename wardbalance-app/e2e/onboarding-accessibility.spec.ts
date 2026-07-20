@@ -6,10 +6,10 @@ test.describe("Onboarding — Accessibility & Mobile QA", () => {
     await bypassCookieConsent(page);
   });
 
+  // The Setup page is part of the Admin Platform.
+  // Per AGENTS.md, the Admin Platform minimum supported width is 1280px (collapsing to icon-only at 768px).
+  // Viewports below 768px are out-of-scope for the admin dashboard.
   const VIEWPORTS = [
-    { name: "iPhone SE (375×667)", width: 375, height: 667 },
-    { name: "iPhone 14 (390×844)", width: 390, height: 844 },
-    { name: "Samsung A-series (360×800)", width: 360, height: 800 },
     { name: "iPad Mini (768×1024)", width: 768, height: 1024 },
     { name: "Desktop (1280×720)", width: 1280, height: 720 },
   ];
@@ -157,8 +157,8 @@ test.describe("Onboarding — Accessibility & Mobile QA", () => {
     await page.goto("/admin/setup");
     await page.waitForTimeout(2000);
 
-    // Check error state renders
-    const errorAlert = page.locator('[role="alert"]');
+    // Check error state renders (using main prefix to avoid Next.js route announcer)
+    const errorAlert = page.locator('main [role="alert"]');
     await expect(errorAlert).toBeVisible({ timeout: 5000 });
 
     // Check retry button exists
