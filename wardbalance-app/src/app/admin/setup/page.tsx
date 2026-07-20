@@ -13,6 +13,7 @@ import {
   trackSetupPhaseCompleted,
   trackSetupCompleted,
 } from "@/lib/analytics/funnel";
+import { useOnboardingFlags } from "@/hooks/use-onboarding-flags";
 
 interface SetupStatusResponse {
   steps: StepData[];
@@ -55,12 +56,31 @@ const SVG_CIRCUMFERENCE = 2 * Math.PI * SVG_RADIUS;
 function SetupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { setupWizardV2, loading: flagsLoading } = useOnboardingFlags();
+
+  // Feature flag: if phase wizard is disabled, redirect to dashboard immediately.
+  // Show a brief loading screen while flags resolve so there's no flash.
+  useEffect(() => {
+    if (!flagsLoading && !setupWizardV2) {
+      router.replace("/admin/dashboard");
+    }
+  }, [flagsLoading, setupWizardV2, router]);
 
   const [activePhase, setActivePhase] = useState<number>(1);
   const [showCelebration, setShowCelebration] = useState<number | null>(null);
   const [celebrationCounts, setCelebrationCounts] = useState<Record<string, number>>({});
   const [isCompleting, setIsCompleting] = useState(false);
   const celebratedRef = useRef<Set<number>>(new Set());
+
+  // Show loading while flags resolve to prevent rendering wizard when it should be hidden
+  if (flagsLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center min-h-[400px]" role="status" aria-live="polite" aria-label="Loading setup">
+        <Loader2 className="w-12 h-12 text-primary animate-spin mb-4" aria-hidden="true" />
+        <p className="text-body-large text-neutral-600">Loading setup...</p>
+      </div>
+    );
+  }
 
   const statusQuery = useQuery<SetupStatusResponse>({
     queryKey: ["admin", "setup", "status"],

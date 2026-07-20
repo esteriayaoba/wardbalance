@@ -14,10 +14,12 @@ import {
   trackDemoModeEntered,
 } from "@/lib/analytics/funnel";
 import { isCategoryAllowed } from "@/lib/cookies/consent";
+import { useOnboardingFlags } from "@/hooks/use-onboarding-flags";
 
 function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { signupV2, dashboardPreview, loading: flagsLoading } = useOnboardingFlags();
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -40,10 +42,10 @@ function SignupContent() {
 
   // Track dashboard preview view when step 4 is reached
   useEffect(() => {
-    if (step === 4) {
+    if (step === 4 && dashboardPreview) {
       trackPreviewDashboardViewed();
     }
-  }, [step]);
+  }, [step, dashboardPreview]);
 
   useEffect(() => {
     trackSignupStarted(searchParams.get("source") || undefined);
@@ -150,7 +152,13 @@ function SignupContent() {
 
       setCreatedSchoolName(schoolName);
       setLoading(false);
-      setStep(4);
+
+      // Feature flag: skip the dashboard preview (step 4) if flag is off
+      if (dashboardPreview) {
+        setStep(4);
+      } else {
+        router.push("/admin/setup?phase=1");
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Workspace creation failed. Please try again.";
       setError(message);
@@ -160,6 +168,62 @@ function SignupContent() {
       }
     }
   };
+
+  // Feature flag: if signupV2 is disabled, show a minimal bridge UI that
+  // collects only the essential fields and creates the account in one step.
+  if (!flagsLoading && !signupV2) {
+    return (
+      <div className="w-full max-w-xl mx-auto">
+        <div className="text-center mb-8">
+          <h1 className="text-headline-small text-neutral-900 font-bold mb-2">Create Your School Workspace</h1>
+          <p className="text-body-medium text-neutral-600">No credit card required.</p>
+        </div>
+        <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-neutral-200 space-y-4">
+          {error && (
+            <div className="flex items-start gap-2.5 p-3.5 rounded-lg bg-error-container text-on-error-container text-body-small">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-error" />
+              <span>{error}</span>
+            </div>
+          )}
+          <div className="space-y-1.5">
+            <label className="text-label-medium text-neutral-700 block">School Name *</label>
+            <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:outline-none" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-label-medium text-neutral-700 block">Your Full Name *</label>
+            <input type="text" value={ownerFullName} onChange={(e) => setOwnerFullName(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:outline-none" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-label-medium text-neutral-700 block">Work Email *</label>
+            <input type="email" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:outline-none" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-label-medium text-neutral-700 block">Phone *</label>
+            <input type="tel" value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:outline-none" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-label-medium text-neutral-700 block">Password *</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:outline-none" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-label-medium text-neutral-700 block">Confirm Password *</label>
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:outline-none" />
+          </div>
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input type="checkbox" checked={agreedToTerms} onChange={(e) => setAgreedToTerms(e.target.checked)} className="mt-1 accent-primary-500 shrink-0" />
+            <span className="text-body-medium text-neutral-600">I agree to the <Link href="/terms" target="_blank" className="text-primary underline">Terms of Service</Link> and <Link href="/privacy" target="_blank" className="text-primary underline">Privacy Policy</Link>.</span>
+          </label>
+          <button
+            disabled={loading}
+            onClick={() => { if (validateStep1()) handleSubmit(); }}
+            className="w-full flex items-center justify-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg text-label-large font-bold hover:bg-primary-dark transition cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+          >
+            {loading ? <><Loader2 className="w-4 h-4 animate-spin" />Creating Workspace...</> : "Create Free Account"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`w-full mx-auto transition-all duration-500 ease-in-out ${step === 4 ? "max-w-4xl" : "max-w-xl"}`}>
