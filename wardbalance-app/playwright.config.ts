@@ -17,8 +17,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    command: "npx next dev --hostname 127.0.0.1",
     url: "http://127.0.0.1:3000",
+    env: {
+      NEXTAUTH_URL: "http://127.0.0.1:3000",
+      AUTH_URL: "http://127.0.0.1:3000",
+    },
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
