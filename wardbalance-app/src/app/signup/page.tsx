@@ -5,82 +5,54 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
-import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
-import { PRICING_PLANS, PlanId } from "@/constants/pricing";
+import { Loader2, ArrowLeft, ArrowRight, CheckCircle2, AlertCircle, Eye, EyeOff, TrendingUp, Coins, CreditCard, FileText, Sparkles, Upload, Monitor } from "lucide-react";
 import { trackEvent } from "@/lib/analytics/posthog";
+import {
+  trackSignupStarted,
+  trackSignupCompleted,
+  trackPreviewDashboardViewed,
+  trackDemoModeEntered,
+} from "@/lib/analytics/funnel";
 import { isCategoryAllowed } from "@/lib/cookies/consent";
 
 function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Multi-step State
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Form Fields
-  const [plan, setPlan] = useState<PlanId>("freemium");
   const [schoolName, setSchoolName] = useState("");
-  const [schoolType, setSchoolType] = useState("");
-  const [country, setCountry] = useState("Nigeria");
-  const [state, setState] = useState("");
-  const [city, setCity] = useState("");
-  const [estimatedStudents, setEstimatedStudents] = useState("");
-  const [ownerFullName, setOwnerFullName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("");
+  const [ownerFullName, setOwnerFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [schoolType, setSchoolType] = useState("");
+  const [estimatedStudents, setEstimatedStudents] = useState("");
 
-  // Field errors for each step
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [createdSchoolName, setCreatedSchoolName] = useState("");
 
-  // Initialize selected plan from query param
+  // Track dashboard preview view when step 4 is reached
   useEffect(() => {
-    const planParam = searchParams.get("plan");
-    if (planParam === "business") {
-      setPlan("business");
-    } else if (planParam === "multi_school") {
-      setPlan("multi_school");
-    } else {
-      setPlan("freemium");
+    if (step === 4) {
+      trackPreviewDashboardViewed();
     }
+  }, [step]);
 
-    if (isCategoryAllowed("analytics")) {
-      trackEvent({
-        event: "signup_started",
-        properties: { plan: planParam || "freemium", source: searchParams.get("source") || "unknown" },
-      });
-    }
+  useEffect(() => {
+    trackSignupStarted(searchParams.get("source") || undefined);
   }, [searchParams]);
 
-  // Validation functions for each step
   const validateStep1 = () => {
     const errors: Record<string, string> = {};
-    if (!plan) errors.plan = "Please select a pricing plan.";
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const validateStep2 = () => {
-    const errors: Record<string, string> = {};
     if (!schoolName.trim()) errors.schoolName = "School name is required.";
-    if (!schoolType) errors.schoolType = "School type is required.";
-    if (!country.trim()) errors.country = "Country is required.";
-    if (!estimatedStudents || Number(estimatedStudents) <= 0) {
-      errors.estimatedStudents = "Please enter a valid number of students greater than 0.";
-    }
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  const validateStep3 = () => {
-    const errors: Record<string, string> = {};
-    if (!ownerFullName.trim()) errors.ownerFullName = "Owner name is required.";
+    if (!ownerFullName.trim()) errors.ownerFullName = "Full name is required.";
     if (!ownerEmail.trim()) {
       errors.ownerEmail = "Email address is required.";
     } else if (!/\S+@\S+\.\S+/.test(ownerEmail)) {
@@ -110,20 +82,19 @@ function SignupContent() {
 
   const handleNext = () => {
     setError(null);
-    let isValid = false;
-
-    if (step === 1) isValid = validateStep1();
-    if (step === 2) isValid = validateStep2();
-    if (step === 3) isValid = validateStep3();
-
-    if (isValid) {
-      if (isCategoryAllowed("analytics")) {
-        trackEvent({
-          event: "signup_step_completed",
-          properties: { step: String(step), plan },
-        });
+    if (step === 1) {
+      if (validateStep1()) {
+        if (isCategoryAllowed("analytics")) {
+          trackEvent({ event: "signup_step_completed", properties: { step: "1" } });
+        }
+        setStep(2);
       }
-      setStep((prev) => prev + 1);
+    }
+    if (step === 2) {
+      if (isCategoryAllowed("analytics")) {
+        trackEvent({ event: "signup_step_completed", properties: { step: "2" } });
+      }
+      setStep(3);
     }
   };
 
@@ -138,7 +109,7 @@ function SignupContent() {
     setLoading(true);
 
     if (isCategoryAllowed("analytics")) {
-      trackEvent({ event: "signup_submitted", properties: { plan } });
+      trackEvent({ event: "signup_submitted", properties: {} });
     }
 
     try {
@@ -146,18 +117,14 @@ function SignupContent() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          plan,
           schoolName,
-          schoolType,
-          country,
-          state,
-          city,
-          estimatedStudents: Number(estimatedStudents),
           ownerFullName,
           ownerEmail,
           ownerPhone,
           password,
           agreedToTerms,
+          schoolType: schoolType || undefined,
+          estimatedStudents: estimatedStudents ? Number(estimatedStudents) : undefined,
           source: searchParams.get("source") || undefined,
         }),
       });
@@ -168,11 +135,9 @@ function SignupContent() {
         throw new Error(body.error ?? "Workspace creation failed. Please try again.");
       }
 
-      if (isCategoryAllowed("analytics")) {
-        trackEvent({ event: "signup_succeeded", properties: { plan } });
-      }
+      const schoolData = body.data?.school;
+      trackSignupCompleted(schoolData?.id, schoolType || undefined, schoolData?.selectedPlan || "freemium");
 
-      // Sign in with NextAuth using the password the user just set
       const signInResult = await signIn("admin-login", {
         email: ownerEmail,
         password,
@@ -183,38 +148,37 @@ function SignupContent() {
         console.warn("Auto-login after signup failed:", signInResult.error);
       }
 
-      // Successful creation, redirect to verify-email
+      setCreatedSchoolName(schoolName);
       setLoading(false);
-      setStep(5);
-    } catch (err: any) {
-      setError(err.message);
+      setStep(4);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Workspace creation failed. Please try again.";
+      setError(message);
       setLoading(false);
       if (isCategoryAllowed("analytics")) {
-        trackEvent({ event: "signup_failed", properties: { plan, reason: err.message } });
+        trackEvent({ event: "signup_failed", properties: { reason: message } });
       }
     }
   };
 
   return (
-    <div className="w-full max-w-xl mx-auto">
-      {/* Title */}
+    <div className={`w-full mx-auto transition-all duration-500 ease-in-out ${step === 4 ? "max-w-4xl" : "max-w-xl"}`}>
       <div className="text-center mb-8">
         <h1 className="text-headline-small text-neutral-900 font-bold mb-2">
-          {step === 5 ? "Workspace Created!" : "Create Your Free School Workspace"}
+          {step === 4 ? "Welcome to WardBalance!" : step === 3 ? "Review Your Details" : "Create Your School Workspace"}
         </h1>
         <p className="text-body-medium text-neutral-600">
-          {step === 1 && "Choose a plan tailored to your school's current operations."}
-          {step === 2 && "Provide basic details about your school's divisions and arms."}
-          {step === 3 && "Create your administrative account credentials."}
-          {step === 4 && "Review your configuration details before setup begins."}
-          {step === 5 && "Congratulations! Let's get started on setting up your finance desk."}
+          {step === 1 && "No credit card required. Free plan includes up to 50 students."}
+          {step === 2 && "Tell us about your school. You can change this later."}
+          {step === 3 && "Confirm your information before we create your workspace."}
+          {step === 4 && "Here's what your school's financial dashboard will look like."}
         </p>
       </div>
 
       {/* Progress Tracker */}
-      {step < 5 && (
+      {step < 4 && (
         <div className="flex items-center justify-between mb-8 px-4">
-          {[1, 2, 3, 4].map((s) => (
+          {[1, 2, 3].map((s) => (
             <div key={s} className="flex items-center flex-1 last:flex-none">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-label-medium font-bold transition-all duration-300 ${
@@ -227,7 +191,7 @@ function SignupContent() {
               >
                 {step > s ? "✓" : s}
               </div>
-              {s < 4 && (
+              {s < 3 && (
                 <div
                   className={`h-0.5 flex-1 mx-2 transition-all duration-300 ${
                     step > s ? "bg-success-500" : "bg-neutral-200"
@@ -239,88 +203,22 @@ function SignupContent() {
         </div>
       )}
 
-      {/* Card Content */}
       <div className="bg-white p-6 md:p-8 rounded-xl shadow-sm border border-neutral-200">
-        {error && (
+        {error && step < 4 && (
           <div className="flex items-start gap-2.5 p-3.5 rounded-lg bg-error-container text-on-error-container text-body-small mb-6">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-error" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* STEP 1: Plan Selection */}
+        {/* STEP 1: Account Info */}
         {step === 1 && (
           <div className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
-              {PRICING_PLANS.filter((p) => p.id !== "multi_school").map((p) => (
-                <div
-                  key={p.id}
-                  onClick={() => setPlan(p.id)}
-                  className={`p-5 rounded-lg border-2 cursor-pointer transition-all ${
-                    plan === p.id
-                      ? "border-primary bg-primary-50/20"
-                      : "border-neutral-200 hover:border-neutral-300"
-                  }`}
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-title-medium text-neutral-900 font-bold">{p.name}</span>
-                    <input
-                      type="radio"
-                      checked={plan === p.id}
-                      onChange={() => setPlan(p.id)}
-                      className="accent-primary-500"
-                    />
-                  </div>
-                  <p className="text-body-small text-neutral-700 mb-3">{p.targetUser}</p>
-                  <p className="text-title-large text-primary font-bold tabular-nums">
-                    {p.priceDisplay}
-                    <span className="text-body-small font-normal text-neutral-600 ml-1">
-                      {p.billingLabel}
-                    </span>
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* Special Multi-School Redirect message */}
-            <div
-              onClick={() => {
-                if (isCategoryAllowed("analytics")) {
-                  trackEvent({ event: "multi_school_demo_clicked" });
-                }
-                router.push("/#demo");
-              }}
-              className="p-4 rounded-lg border border-dashed border-neutral-300 hover:border-primary cursor-pointer transition text-center"
-            >
-              <p className="text-label-medium text-neutral-800 font-bold mb-1">
-                Managing Multiple Branches / Schools?
-              </p>
-              <p className="text-body-small text-neutral-600">
-                Multi-school setups require guided onboarding. Click here to book a branch demo instead.
-              </p>
-            </div>
-            
-            <div className="flex justify-end pt-4">
-              <button
-                onClick={handleNext}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-primary text-white rounded-lg text-label-large font-bold hover:bg-primary-dark transition cursor-pointer"
-              >
-                Next Step
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: School Info */}
-        {step === 2 && (
-          <div className="space-y-4">
-            {/* School Name */}
             <div className="space-y-1.5">
               <label className="text-label-medium text-neutral-700 block">School Name *</label>
               <input
                 type="text"
-                placeholder="e.g. Royal Academy"
+                placeholder="e.g. Royal Academy International"
                 value={schoolName}
                 onChange={(e) => setSchoolName(e.target.value)}
                 className={`w-full px-3.5 py-2.5 rounded-lg border text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none ${
@@ -332,109 +230,8 @@ function SignupContent() {
               )}
             </div>
 
-            {/* School Type & Estimated Students */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">School Type *</label>
-                <select
-                  value={schoolType}
-                  onChange={(e) => setSchoolType(e.target.value)}
-                  className={`w-full px-3.5 py-2.5 rounded-lg border text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none ${
-                    fieldErrors.schoolType ? "border-error" : "border-neutral-300"
-                  }`}
-                >
-                  <option value="">Select type</option>
-                  <option value="Nursery">Nursery</option>
-                  <option value="Primary">Primary</option>
-                  <option value="Secondary">Secondary</option>
-                  <option value="Nursery & Primary">Nursery & Primary</option>
-                  <option value="Primary & Secondary">Primary & Secondary</option>
-                  <option value="Nursery, Primary & Secondary">Nursery, Primary & Secondary</option>
-                  <option value="Other">Other</option>
-                </select>
-                {fieldErrors.schoolType && (
-                  <p className="text-label-small text-error">{fieldErrors.schoolType}</p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Estimated Students *</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 250"
-                  value={estimatedStudents}
-                  onChange={(e) => setEstimatedStudents(e.target.value)}
-                  className={`w-full px-3.5 py-2.5 rounded-lg border text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none ${
-                    fieldErrors.estimatedStudents ? "border-error" : "border-neutral-300"
-                  }`}
-                />
-                {fieldErrors.estimatedStudents && (
-                  <p className="text-label-small text-error">{fieldErrors.estimatedStudents}</p>
-                )}
-              </div>
-            </div>
-
-            {/* Country & State */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Country *</label>
-                <input
-                  type="text"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">State (optional)</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Lagos"
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
-                />
-              </div>
-            </div>
-
-            {/* City */}
             <div className="space-y-1.5">
-              <label className="text-label-medium text-neutral-700 block">City (optional)</label>
-              <input
-                type="text"
-                placeholder="e.g. Ikeja"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
-              />
-            </div>
-
-            <div className="flex justify-between pt-4">
-              <button
-                onClick={handlePrev}
-                className="flex items-center gap-1.5 px-4 py-2.5 border border-neutral-300 text-neutral-700 rounded-lg text-label-large font-bold hover:bg-neutral-50 transition cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back
-              </button>
-              <button
-                onClick={handleNext}
-                className="flex items-center gap-1.5 px-5 py-2.5 bg-primary text-white rounded-lg text-label-large font-bold hover:bg-primary-dark transition cursor-pointer"
-              >
-                Next Step
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: Owner / Admin Info */}
-        {step === 3 && (
-          <div className="space-y-4">
-            {/* Full Name */}
-            <div className="space-y-1.5">
-              <label className="text-label-medium text-neutral-700 block">Full Name *</label>
+              <label className="text-label-medium text-neutral-700 block">Your Full Name *</label>
               <input
                 type="text"
                 placeholder="e.g. Babatunde Johnson"
@@ -449,10 +246,9 @@ function SignupContent() {
               )}
             </div>
 
-            {/* Email & Phone */}
             <div className="grid md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Work Email Address *</label>
+                <label className="text-label-medium text-neutral-700 block">Work Email *</label>
                 <input
                   type="email"
                   placeholder="e.g. proprietor@school.com"
@@ -484,89 +280,86 @@ function SignupContent() {
               </div>
             </div>
 
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Password *</label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Create a strong password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full pl-3.5 pr-10 py-2.5 rounded-lg border text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none ${
-                      fieldErrors.password ? "border-error" : "border-neutral-300"
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 focus:outline-none cursor-pointer"
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {fieldErrors.password && (
-                  <p className="text-label-small text-error">{fieldErrors.password}</p>
-                )}
-
-                {/* Password Criteria List */}
-                <div className="mt-2.5 p-3 rounded-lg bg-neutral-50 border border-neutral-100 space-y-2">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
-                    Password Requirements:
-                  </p>
-                  <div className="grid sm:grid-cols-1 gap-1.5">
-                    {[
-                      { label: "Minimum 8 characters", met: password.length >= 8 },
-                      { label: "At least one special character (e.g. !, @, #, $, %)", met: /[^a-zA-Z0-9\s]/.test(password) },
-                      { label: "At least one uppercase letter", met: /[A-Z]/.test(password) },
-                      { label: "At least one lowercase letter", met: /[a-z]/.test(password) },
-                    ].map((item, index) => (
-                      <div key={index} className="flex items-center gap-2 text-body-small">
-                        <CheckCircle2
-                          className={`w-3.5 h-3.5 shrink-0 transition-colors duration-200 ${
-                            item.met ? "text-success-500 fill-success-50" : "text-neutral-300"
-                          }`}
-                        />
-                        <span
-                          className={`transition-colors duration-200 ${
-                            item.met ? "text-success-700 font-medium" : "text-neutral-500"
-                          }`}
-                        >
-                          {item.label}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+            <div className="space-y-1.5">
+              <label className="text-label-medium text-neutral-700 block">Password *</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Create a strong password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className={`w-full pl-3.5 pr-10 py-2.5 rounded-lg border text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none ${
+                    fieldErrors.password ? "border-error" : "border-neutral-300"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 focus:outline-none cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <p className="text-label-small text-error">{fieldErrors.password}</p>
+              )}
+              <div className="mt-2.5 p-3 rounded-lg bg-neutral-50 border border-neutral-100 space-y-2">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-600">
+                  Password Requirements:
+                </p>
+                <div className="grid sm:grid-cols-1 gap-1.5">
+                  {[
+                    { label: "Minimum 8 characters", met: password.length >= 8 },
+                    { label: "At least one special character (e.g. !, @, #, $, %)", met: /[^a-zA-Z0-9\s]/.test(password) },
+                    { label: "At least one uppercase letter", met: /[A-Z]/.test(password) },
+                    { label: "At least one lowercase letter", met: /[a-z]/.test(password) },
+                  ].map((item, index) => (
+                    <div key={index} className="flex items-center gap-2 text-body-small">
+                      <CheckCircle2
+                        className={`w-3.5 h-3.5 shrink-0 transition-colors duration-200 ${
+                          item.met ? "text-success-500 fill-success-50" : "text-neutral-300"
+                        }`}
+                      />
+                      <span
+                        className={`transition-colors duration-200 ${
+                          item.met ? "text-success-700 font-medium" : "text-neutral-700"
+                        }`}
+                      >
+                        {item.label}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
+            </div>
 
-              <div className="space-y-1.5">
-                <label className="text-label-medium text-neutral-700 block">Confirm Password *</label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Re-enter password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={`w-full pl-3.5 pr-10 py-2.5 rounded-lg border text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none ${
-                      fieldErrors.confirmPassword ? "border-error" : "border-neutral-300"
-                    }`}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 focus:outline-none cursor-pointer"
-                    tabIndex={-1}
-                  >
-                    {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                {fieldErrors.confirmPassword && (
-                  <p className="text-label-small text-error">{fieldErrors.confirmPassword}</p>
-                )}
+            <div className="space-y-1.5">
+              <label className="text-label-medium text-neutral-700 block">Confirm Password *</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Re-enter password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`w-full pl-3.5 pr-10 py-2.5 rounded-lg border text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none ${
+                    fieldErrors.confirmPassword ? "border-error" : "border-neutral-300"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 focus:outline-none cursor-pointer"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
+              {fieldErrors.confirmPassword && (
+                <p className="text-label-small text-error">{fieldErrors.confirmPassword}</p>
+              )}
+            </div>
 
-            {/* Terms checkbox */}
             <div className="space-y-1.5 pt-2">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
@@ -592,6 +385,57 @@ function SignupContent() {
               )}
             </div>
 
+            <div className="flex justify-end pt-4">
+              <button
+                onClick={handleNext}
+                className="flex items-center gap-1.5 px-5 py-2.5 bg-primary text-white rounded-lg text-label-large font-bold hover:bg-primary-dark transition cursor-pointer"
+              >
+                Next Step
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: Quick Details */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="p-4 rounded-lg bg-primary-50 border border-primary-100 text-body-small text-primary-800 flex items-start gap-2.5 mb-2">
+              <Sparkles className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>These details help us personalize your setup. You can change them later in Settings.</span>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-label-medium text-neutral-700 block">School Type (optional)</label>
+                <select
+                  value={schoolType}
+                  onChange={(e) => setSchoolType(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
+                >
+                  <option value="">Select type</option>
+                  <option value="Nursery">Nursery</option>
+                  <option value="Primary">Primary</option>
+                  <option value="Secondary">Secondary</option>
+                  <option value="Nursery & Primary">Nursery & Primary</option>
+                  <option value="Primary & Secondary">Primary & Secondary</option>
+                  <option value="Nursery, Primary & Secondary">Nursery, Primary & Secondary</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-label-medium text-neutral-700 block">Estimated Students (optional)</label>
+                <input
+                  type="number"
+                  placeholder="e.g. 250"
+                  value={estimatedStudents}
+                  onChange={(e) => setEstimatedStudents(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none"
+                />
+              </div>
+            </div>
+
             <div className="flex justify-between pt-4">
               <button
                 onClick={handlePrev}
@@ -611,33 +455,13 @@ function SignupContent() {
           </div>
         )}
 
-        {/* STEP 4: Review Details */}
-        {step === 4 && (
+        {/* STEP 3: Review */}
+        {step === 3 && (
           <div className="space-y-5">
             <div className="divide-y divide-neutral-200 border border-neutral-200 rounded-lg overflow-hidden bg-neutral-50/50">
               <div className="p-4 flex justify-between">
-                <span className="text-body-medium font-medium text-neutral-600">Selected Plan</span>
-                <span className="text-body-medium font-bold text-neutral-900">
-                  {PRICING_PLANS.find((p) => p.id === plan)?.name ?? plan}
-                </span>
-              </div>
-              <div className="p-4 flex justify-between">
                 <span className="text-body-medium font-medium text-neutral-600">School Name</span>
                 <span className="text-body-medium font-bold text-neutral-900">{schoolName}</span>
-              </div>
-              <div className="p-4 flex justify-between">
-                <span className="text-body-medium font-medium text-neutral-600">School Type</span>
-                <span className="text-body-medium font-bold text-neutral-900">{schoolType}</span>
-              </div>
-              <div className="p-4 flex justify-between">
-                <span className="text-body-medium font-medium text-neutral-600">Estimated Students</span>
-                <span className="text-body-medium font-bold text-neutral-900 tabular-nums">{estimatedStudents}</span>
-              </div>
-              <div className="p-4 flex justify-between">
-                <span className="text-body-medium font-medium text-neutral-600">Location</span>
-                <span className="text-body-medium font-bold text-neutral-900">
-                  {[city, state, country].filter(Boolean).join(", ")}
-                </span>
               </div>
               <div className="p-4 flex justify-between">
                 <span className="text-body-medium font-medium text-neutral-600">Owner Name</span>
@@ -647,6 +471,22 @@ function SignupContent() {
                 <span className="text-body-medium font-medium text-neutral-600">Work Email</span>
                 <span className="text-body-medium font-bold text-neutral-900">{ownerEmail}</span>
               </div>
+              <div className="p-4 flex justify-between">
+                <span className="text-body-medium font-medium text-neutral-600">Phone</span>
+                <span className="text-body-medium font-bold text-neutral-900">{ownerPhone}</span>
+              </div>
+              {schoolType && (
+                <div className="p-4 flex justify-between">
+                  <span className="text-body-medium font-medium text-neutral-600">School Type</span>
+                  <span className="text-body-medium font-bold text-neutral-900">{schoolType}</span>
+                </div>
+              )}
+              {estimatedStudents && (
+                <div className="p-4 flex justify-between">
+                  <span className="text-body-medium font-medium text-neutral-600">Est. Students</span>
+                  <span className="text-body-medium font-bold text-neutral-900 tabular-nums">{estimatedStudents}</span>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-between pt-4">
@@ -669,52 +509,240 @@ function SignupContent() {
                     Creating Workspace...
                   </>
                 ) : (
-                  "Create School Workspace"
+                  "Create Free Account"
                 )}
               </button>
             </div>
           </div>
         )}
 
-        {/* STEP 5: Success Flow */}
-        {step === 5 && (
-          <div className="text-center py-6">
-            {/* One-shot pop-in animation via inline style */}
-            <div
-              style={{ animation: "popIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275) forwards" }}
-              className="w-14 h-14 bg-success-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-success-100"
-            >
-              <CheckCircle2 className="w-8 h-8 text-success-500" />
-            </div>
-            <h2 className="text-title-large text-neutral-900 font-bold mb-1">
-              {schoolName || "School Workspace"} is Ready!
-            </h2>
-            <p className="text-body-small text-neutral-500 mb-5">
-              {PRICING_PLANS.find((p) => p.id === plan)?.name ?? plan} Plan · {ownerEmail}
-            </p>
-            <p className="text-body-medium text-neutral-600 mb-6 max-w-md mx-auto">
-              Your WardBalance account is active. Complete your school setup to start creating invoices and tracking payments.
-            </p>
-
-            {/* Account active confirmation */}
-            <div className="mb-6 p-4 rounded-lg bg-success-500/10 border border-success-500/20 text-left">
-              <p className="text-label-medium text-success-700 font-bold mb-1">
-                ✅ You are signed in
-              </p>
-              <p className="text-body-small text-success-700">
-                You can proceed to the setup checklist. Email verification will be required later for financial actions like generating invoices and recording payments.
-              </p>
+        {/* STEP 4: Aha Moment — Dashboard Preview */}
+        {step === 4 && (
+          <div className="space-y-6 animate-fade-in-up">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 bg-success-50 rounded-full flex items-center justify-center mx-auto mb-2 border border-success-200 shadow-sm animate-bounce">
+                <CheckCircle2 className="w-9 h-9 text-success-600" />
+              </div>
+              <h2 className="text-headline-small text-neutral-900 font-bold mb-1">
+                {createdSchoolName || "Your School"} is Ready!
+              </h2>
+              <p className="text-body-large text-neutral-700 font-medium">{ownerEmail} · Free Plan</p>
             </div>
 
-            <button
-              onClick={() => {
-                router.push("/admin/verify-email");
-              }}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-lg text-label-large font-bold hover:bg-primary-dark transition cursor-pointer"
-            >
-              Verify Email & Start Setup
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="p-4 rounded-xl bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-250 text-neutral-800 flex items-start gap-3 shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-amber-200/50 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle className="w-4 h-4 text-amber-700" />
+              </div>
+              <span className="text-body-small text-neutral-700 leading-relaxed">
+                <strong>Simulated workspace view:</strong> We have populated this preview with mock records to demonstrate how WardBalance tracks cash flows. No actual database records are created until you select an onboarding path below.
+              </span>
+            </div>
+
+            {/* Sample Dashboard Preview */}
+            <div className="border border-neutral-200 rounded-2xl bg-white overflow-hidden shadow-md">
+              <div className="p-5 border-b border-neutral-100 bg-neutral-50/50 flex justify-between items-center">
+                <p className="text-label-medium text-neutral-700 uppercase tracking-wider font-bold">Workspace Live Preview</p>
+                <span className="px-2.5 py-0.5 rounded-full bg-success-100 text-success-800 text-[10px] font-bold uppercase tracking-wider">
+                  Interactive demo
+                </span>
+              </div>
+              <div className="p-5 space-y-6">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* Expected Revenue */}
+                  <div className="p-5 rounded-xl border border-neutral-200 bg-gradient-to-br from-white to-primary-50/10 shadow-sm space-y-2 hover:scale-[1.02] hover:shadow-md transition-all duration-200 border-t-4 border-t-primary-500">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-primary-50 flex items-center justify-center">
+                        <TrendingUp className="w-4 h-4 text-primary-600" />
+                      </div>
+                      <span className="text-label-small text-neutral-700 font-bold uppercase tracking-wider">Expected</span>
+                    </div>
+                    <p className="text-title-large text-neutral-900 font-extrabold font-mono tracking-tight">₦12,450,000</p>
+                    <p className="text-body-small text-neutral-600 font-medium">Total term invoices</p>
+                  </div>
+
+                  {/* Collected Revenue */}
+                  <div className="p-5 rounded-xl border border-neutral-200 bg-gradient-to-br from-white to-success-50/10 shadow-sm space-y-2 hover:scale-[1.02] hover:shadow-md transition-all duration-200 border-t-4 border-t-success-500">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-success-50 flex items-center justify-center">
+                        <Coins className="w-4 h-4 text-success-600" />
+                      </div>
+                      <span className="text-label-small text-neutral-700 font-bold uppercase tracking-wider">Collected</span>
+                    </div>
+                    <p className="text-title-large text-success-600 font-extrabold font-mono tracking-tight">₦8,230,000</p>
+                    <p className="text-body-small text-neutral-600 font-medium">Verified payments</p>
+                  </div>
+
+                  {/* Outstanding */}
+                  <div className="p-5 rounded-xl border border-neutral-200 bg-gradient-to-br from-white to-amber-50/10 shadow-sm space-y-2 hover:scale-[1.02] hover:shadow-md transition-all duration-200 border-t-4 border-t-amber-500">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
+                        <CreditCard className="w-4 h-4 text-amber-600" />
+                      </div>
+                      <span className="text-label-small text-neutral-700 font-bold uppercase tracking-wider">Outstanding</span>
+                    </div>
+                    <p className="text-title-large text-amber-700 font-extrabold font-mono tracking-tight">₦4,220,000</p>
+                    <p className="text-body-small text-neutral-600 font-medium">Remaining dues</p>
+                  </div>
+
+                  {/* Collection Rate */}
+                  <div className="p-5 rounded-xl border border-neutral-200 bg-gradient-to-br from-white to-blue-50/10 shadow-sm space-y-2 hover:scale-[1.02] hover:shadow-md transition-all duration-200 border-t-4 border-t-blue-500">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
+                        <FileText className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <span className="text-label-small text-neutral-700 font-bold uppercase tracking-wider">Rate</span>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                      <p className="text-title-large text-neutral-900 font-extrabold font-mono tracking-tight">66%</p>
+                      <span className="text-[11px] text-success-600 font-bold">+4% vs last term</span>
+                    </div>
+                    <div className="w-full bg-neutral-200 h-2 rounded-full overflow-hidden mt-1">
+                      <div className="bg-success-500 h-full rounded-full transition-all duration-500" style={{ width: "66%" }} />
+                    </div>
+                    <p className="text-[10px] text-neutral-600 font-medium">Target: 90% collection</p>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-6 pt-2">
+                  {/* Left block: Collection Progress Chart (Visual) */}
+                  <div className="md:col-span-2 p-5 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-4 shadow-inner">
+                    <p className="text-label-small text-neutral-700 uppercase tracking-wider font-bold">Term Collection Breakdown</p>
+                    <div className="space-y-3.5">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-body-small font-semibold text-neutral-700">
+                          <span>Tuition Fees</span>
+                          <span className="font-mono text-neutral-900">₦6.8M / ₦9.0M (75%)</span>
+                        </div>
+                        <div className="w-full bg-neutral-200 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-primary-500 h-full rounded-full" style={{ width: "75%" }} />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-body-small font-semibold text-neutral-700">
+                          <span>Bus & Transportation</span>
+                          <span className="font-mono text-neutral-900">₦1.1M / ₦2.2M (51%)</span>
+                        </div>
+                        <div className="w-full bg-neutral-200 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-amber-500 h-full rounded-full" style={{ width: "51%" }} />
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-body-small font-semibold text-neutral-700">
+                          <span>Uniforms & Books</span>
+                          <span className="font-mono text-neutral-900">₦300k / ₦1.2M (24%)</span>
+                        </div>
+                        <div className="w-full bg-neutral-200 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-success-500 h-full rounded-full" style={{ width: "24%" }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right block: Recent Activity */}
+                  <div className="p-5 rounded-xl border border-neutral-200 bg-neutral-50/50 space-y-3 flex flex-col justify-between shadow-inner">
+                    <div>
+                      <p className="text-label-small text-neutral-700 uppercase tracking-wider font-bold mb-3">Live Feed</p>
+                      <div className="space-y-3">
+                        <div className="flex gap-2 items-start text-body-small text-neutral-700">
+                          <span className="px-1.5 py-0.5 rounded bg-success-100 text-success-800 text-[9px] font-bold uppercase shrink-0 mt-0.5">PAYMENT</span>
+                          <span className="truncate">₦120k recorded for Chioma O.</span>
+                        </div>
+                        <div className="flex gap-2 items-start text-body-small text-neutral-700">
+                          <span className="px-1.5 py-0.5 rounded bg-primary-100 text-primary-800 text-[9px] font-bold uppercase shrink-0 mt-0.5">INVOICE</span>
+                          <span className="truncate">JSS 1A class bills published</span>
+                        </div>
+                        <div className="flex gap-2 items-start text-body-small text-neutral-700">
+                          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[9px] font-bold uppercase shrink-0 mt-0.5">PROOF</span>
+                          <span className="truncate">Parent uploaded proof for ₦85k</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-neutral-200 flex items-center justify-between text-[11px] text-neutral-600 font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-success-500 animate-pulse" />
+                        Active Term
+                      </span>
+                      <span className="font-mono">1st Term</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Path Selection */}
+            <div className="space-y-4">
+              <p className="text-title-medium text-neutral-900 font-bold text-center">How would you like to start?</p>
+              <div className="grid md:grid-cols-3 gap-4">
+                <button
+                  onClick={() => router.push("/admin/setup?phase=1")}
+                  className="p-5 rounded-2xl border border-neutral-200 bg-white hover:border-primary-500 hover:shadow-md hover:scale-[1.02] transition-all duration-200 text-left group cursor-pointer flex flex-col justify-between min-h-[170px] shadow-sm relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-primary-500/5 rounded-full blur-xl group-hover:bg-primary-500/10 transition-colors" />
+                  <div>
+                    <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center mb-3 group-hover:bg-primary-100 transition-colors">
+                      <Sparkles className="w-5 h-5 text-primary-500" />
+                    </div>
+                    <p className="text-title-small text-neutral-900 font-bold mb-1">Start Fresh</p>
+                    <p className="text-[12px] text-neutral-700 leading-relaxed">Configure divisions, classes, and fee structures step-by-step.</p>
+                  </div>
+                  <span className="text-[11px] font-bold text-primary-500 mt-4 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+                    Begin guided setup <ArrowRight className="w-3 h-3" />
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => router.push("/admin/setup?phase=1")}
+                  className="p-5 rounded-2xl border border-neutral-200 bg-white hover:border-primary-500 hover:shadow-md hover:scale-[1.02] transition-all duration-200 text-left group cursor-pointer flex flex-col justify-between min-h-[170px] shadow-sm relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-primary-500/5 rounded-full blur-xl group-hover:bg-primary-500/10 transition-colors" />
+                  <div>
+                    <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center mb-3 group-hover:bg-primary-100 transition-colors">
+                      <Upload className="w-5 h-5 text-primary-500" />
+                    </div>
+                    <p className="text-title-small text-neutral-900 font-bold mb-1">Import Students</p>
+                    <p className="text-[12px] text-neutral-700 leading-relaxed">Upload your CSV sheet to instantiate your student records immediately.</p>
+                  </div>
+                  <span className="text-[11px] font-bold text-primary-500 mt-4 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+                    Upload school list <ArrowRight className="w-3 h-3" />
+                  </span>
+                </button>
+
+                <button
+                  onClick={async () => {
+                    trackDemoModeEntered();
+                    try {
+                      const res = await fetch("/api/demo/start", { method: "POST" });
+                      if (res.ok) {
+                        window.location.href = "/admin/dashboard?demo=true";
+                        return;
+                      }
+                    } catch {
+                      // Fallback to setup if demo fails
+                    }
+                    router.push("/admin/setup?phase=1");
+                  }}
+                  className="p-5 rounded-2xl border border-neutral-200 bg-white hover:border-primary-500 hover:shadow-md hover:scale-[1.02] transition-all duration-200 text-left group cursor-pointer flex flex-col justify-between min-h-[170px] shadow-sm relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-primary-500/5 rounded-full blur-xl group-hover:bg-primary-500/10 transition-colors" />
+                  <div>
+                    <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center mb-3 group-hover:bg-primary-100 transition-colors">
+                      <Monitor className="w-5 h-5 text-primary-500" />
+                    </div>
+                    <p className="text-title-small text-neutral-900 font-bold mb-1">Explore Demo</p>
+                    <p className="text-[12px] text-neutral-700 leading-relaxed">Explore the platform with fully configured sample financial ledgers.</p>
+                  </div>
+                  <span className="text-[11px] font-bold text-primary-500 mt-4 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+                    Launch live sandbox <ArrowRight className="w-3 h-3" />
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-200 text-center">
+              <p className="text-body-small text-neutral-700 font-medium">
+                📧 <strong>Email verification recommended.</strong> Verify your email in Settings to unlock core functions like publishing invoices. You can safely continue setting up in the meantime.
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -754,7 +782,7 @@ export default function SignupPage() {
         <SignupContent />
       </Suspense>
 
-      <p className="text-center text-body-small text-neutral-500 mt-6">
+      <p className="text-center text-body-small text-neutral-700 mt-6">
         Prefer a guided walkthrough?{" "}
         <a href="/#demo" className="text-primary font-bold hover:underline">
           Book a demo instead

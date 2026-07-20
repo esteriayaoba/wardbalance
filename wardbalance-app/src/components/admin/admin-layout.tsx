@@ -12,6 +12,7 @@ import { RouteGuard } from "./route-guard";
 import AdminMobileNav from "./AdminMobileNav";
 import AdminBreadcrumbs from "./admin-breadcrumbs";
 import AdminToastWrapper from "./admin-toast-wrapper";
+import DashboardTour from "@/components/admin/shared/dashboard-tour";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -131,7 +132,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
             </div>
 
             {/* Active Session & Term Tracker */}
-            <div className="flex items-center gap-3">
+            <div id="active-term-tracker" className="flex items-center gap-3">
               {activeTerm ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-100 text-neutral-800 text-body-small font-bold">
                   <span className="w-2 h-2 rounded-full bg-success"></span>
@@ -152,7 +153,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
               <div className="flex items-center gap-2.5 min-w-0">
                 <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse"></span>
                 <p className="text-body-small text-amber-900 leading-normal">
-                  <strong>Email verification is pending.</strong> Sensitive financial actions (generating invoices, recording manual payments, creating fees, and publishing templates) are restricted.
+                  <strong>Email verification is pending.</strong> You can continue setting up your school — verify your email to unlock financial actions like generating invoices and recording payments.
                 </p>
               </div>
               <Link
@@ -173,6 +174,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
           </main>
         </div>
       </div>
+      {schoolStatus === "active" && <DashboardTour />}
     </div>
     </>
   );

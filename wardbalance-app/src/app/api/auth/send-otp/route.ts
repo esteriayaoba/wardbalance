@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { upstashSet, rateLimit } from "@/lib/redis";
+import { rateLimit } from "@/lib/redis";
 import { sendEmail } from "@/lib/email/resend";
 import { sendTermiiSMS } from "@/lib/termii";
 import { headers } from "next/headers";
-import crypto from "crypto";
 import { z } from "zod";
+import { OtpService } from "@/lib/auth/otp.service";
 
 const SendOtpSchema = z.object({
   phoneOrEmail: z.string().min(1, "Phone number or email is required"),
@@ -50,36 +50,42 @@ export async function POST(request: NextRequest) {
     const isProd = process.env.NODE_ENV === "production";
 
     if (parent) {
-      // Generate 6-digit OTP
-      const rawOtp = crypto.randomInt(100000, 1000000).toString();
+      // 1. Check failed verification lockout status
+      const lockout = await OtpService.checkLockout(parent.schoolId, input);
+      if (lockout.locked) {
+        const minutes = Math.ceil(lockout.remainingSeconds / 60);
+        return NextResponse.json(
+          { error: `Too many failed attempts. Try again in ${minutes} minutes.`, code: "LOCKED" },
+          { status: 423 }
+        );
+      }
 
-      // Hash before storing — the plaintext OTP is NEVER persisted.
-      // Key is scoped by schoolId to prevent cross-tenant auth (R-1).
-      const otpHash = crypto.createHash("sha256").update(rawOtp).digest("hex");
-      const key = `otp:${parent.schoolId}:${input}`;
+      // 2. Generate secure 6-digit OTP using the unified OtpService (expires in 10 minutes)
+      const { otp: rawOtp } = await OtpService.generateOtp(parent.schoolId, input);
 
-      await upstashSet(key, otpHash, 300); // 5 minutes expiry
-
-      // Send OTP via email if available
+      // 3. Send OTP via email if available (updated message and expiry time)
       const emailTarget = parent.email;
       if (emailTarget) {
         sendEmail({
           to: emailTarget,
           subject: "Your WardBalance Parent Portal Login Code",
           html: `
-            <h1>Login Code</h1>
-            <p>Your verification code is:</p>
-            <h2 style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #155EEF; margin: 16px 0;">${rawOtp}</h2>
-            <p>This code expires in 5 minutes.</p>
-            <p>If you did not request this code, please ignore this email.</p>
+            <div style="font-family: system-ui, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
+              <h2 style="color: #155EEF; margin-top: 0;">Verification Code</h2>
+              <p>Your WardBalance login verification code is:</p>
+              <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #155EEF; margin: 24px 0; text-align: center; background: #eff6ff; padding: 12px; border-radius: 6px; font-family: monospace;">${rawOtp}</div>
+              <p style="color: #475569; font-size: 14px;">This code expires in 10 minutes. Never share this code with anyone. If you didn't request it, you can safely ignore this email.</p>
+            </div>
           `,
         }).catch((err) => console.warn("[send-otp] Email failed:", err));
       }
 
-      // Send SMS if input looks like a phone number
+      // 4. Send SMS if input looks like a phone number (updated to standard approved Termii copy)
       if (input.replace(/[\s+\-]/g, "").match(/^(\d{10,15})$/)) {
-        sendTermiiSMS(input, `Your WardBalance login code is: ${rawOtp}. It expires in 5 minutes.`)
-          .catch((err) => console.warn("[send-otp] SMS failed:", err));
+        sendTermiiSMS(
+          input,
+          `WardBalance: Your verification code is ${rawOtp}. It expires in 10 minutes. Never share this code with anyone. If you didn't request it, you can safely ignore this message.`
+        ).catch((err) => console.warn("[send-otp] SMS failed:", err));
       }
 
       if (!isProd) {

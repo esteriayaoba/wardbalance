@@ -62,10 +62,30 @@ export async function POST(_request: NextRequest) {
       );
     }
 
-    await prisma.school.update({
-      where: { id: schoolId },
-      data: { status: "active" },
-    });
+    await prisma.$transaction([
+      prisma.school.update({
+        where: { id: schoolId },
+        data: { status: "active" },
+      }),
+      prisma.lifecycleEvent.create({
+        data: {
+          schoolId,
+          userId: guard.session.userId,
+          milestone: "setup_completed",
+        },
+      }),
+      prisma.auditLog.create({
+        data: {
+          schoolId,
+          actorId: guard.session.userId,
+          actorName: guard.session.fullName,
+          action: "setup_completed",
+          entityType: "School",
+          entityId: schoolId,
+          newValue: { status: "active" },
+        },
+      }),
+    ]);
 
     return NextResponse.json({
       data: { status: "active", message: "School setup complete. Dashboard is now active." },

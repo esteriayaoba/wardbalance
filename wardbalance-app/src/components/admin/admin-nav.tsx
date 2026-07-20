@@ -135,6 +135,7 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
             <div
               key={link.href}
               title={`Complete setup to access ${link.name}`}
+              id={`nav-${link.name.replace(/\s+/g, "")}`}
               className="flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-body-medium font-medium text-neutral-600 opacity-40 cursor-not-allowed select-none"
             >
               <Icon className="w-5 h-5 shrink-0" />
@@ -148,6 +149,7 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
             key={link.href}
             href={link.href}
             title={link.name}
+            id={`nav-${link.name.replace(/\s+/g, "")}`}
             className={`flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-body-medium font-medium transition-colors ${
               isActive
                 ? "bg-primary text-white"
@@ -167,9 +169,9 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
           <div className="flex gap-2">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-body-small text-white font-bold leading-tight">Setup Incomplete</p>
+              <p className="text-body-small text-white font-bold leading-tight">School Setup</p>
               <p className="text-[11px] text-neutral-400 mt-0.5 leading-normal">
-                Most features are locked until the setup checklist is done.
+                Complete 3 phases to activate your finance desk.
               </p>
               <Link
                 href="/admin/setup"

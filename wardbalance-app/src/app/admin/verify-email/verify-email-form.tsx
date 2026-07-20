@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
+import { trackEmailVerified } from "@/lib/analytics/funnel";
 
 interface VerifyEmailFormProps {
   devOtp?: string;
@@ -45,8 +46,9 @@ export default function VerifyEmailForm({ devOtp }: VerifyEmailFormProps) {
       }
 
       setSuccess(true);
+      trackEmailVerified();
       setTimeout(() => {
-        router.push("/admin/dashboard");
+        router.push("/admin/setup");
         router.refresh();
       }, 1500);
     } catch (err: unknown) {

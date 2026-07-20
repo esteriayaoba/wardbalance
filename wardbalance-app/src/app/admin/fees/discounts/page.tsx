@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, CheckCircle, XCircle, Search, Edit } from "lucide-react";
+import { Plus, CheckCircle, XCircle, Search, Edit, AlertCircle, RefreshCw } from "lucide-react";
 
 type DiscountRule = {
   id: string;
@@ -18,20 +18,25 @@ export default function DiscountRulesPage() {
   const [rules, setRules] = useState<DiscountRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchRules = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/fees/discounts");
+      if (!res.ok) throw new Error("Failed to load discount rules.");
+      const json = await res.json();
+      setRules(json.data || []);
+    } catch (err: unknown) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to load discount rules.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchRules() {
-      try {
-        const res = await fetch("/api/admin/fees/discounts");
-        if (!res.ok) throw new Error("Failed to fetch");
-        const json = await res.json();
-        setRules(json.data || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
     fetchRules();
   }, []);
 
@@ -87,6 +92,19 @@ export default function DiscountRulesPage() {
               {isLoading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-neutral-500">Loading rules...</td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-error space-y-3">
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <AlertCircle className="w-8 h-8 text-error-500" />
+                      <p className="text-body-medium font-bold">{error}</p>
+                      <button onClick={fetchRules} className="px-3 py-1.5 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition inline-flex items-center gap-1.5 cursor-pointer">
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Retry Load
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ) : filteredRules.length === 0 ? (
                 <tr>

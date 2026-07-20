@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { CreateLeadSchema } from "@/modules/leads/lead.schema";
-import { sendLeadNotification } from "@/modules/leads/send-lead-notification";
+import { sendLeadNotification, addLeadToAudience } from "@/modules/leads/send-lead-notification";
 import { rateLimit } from "@/lib/redis";
 import { headers } from "next/headers";
+import { sendEmail } from "@/lib/email/resend";
 
 export async function POST(request: NextRequest) {
   try {
@@ -142,6 +143,58 @@ export async function POST(request: NextRequest) {
     }).catch((err) => {
       // Do not throw — lead is already saved
       console.warn("[leads] Email notification failed (async):", err);
+    });
+
+    // Sync to Resend Audience for broadcast emails (non-blocking)
+    addLeadToAudience({
+      email: lead.email,
+      fullName: lead.fullName,
+    }).catch((err) => {
+      console.warn("[leads] Audience sync failed (async):", err);
+    });
+
+    // Send welcome email to the lead (non-blocking)
+    sendEmail({
+      to: lead.email,
+      subject: "WardBalance — Demo Request Received!",
+      html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family:system-ui,sans-serif;margin:0;padding:0;background:#f9fafb">
+  <table style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.05)">
+    <tr>
+      <td style="padding:32px 24px;background:#155EEF;color:#fff;text-align:center">
+        <h2 style="margin:0;font-size:24px;font-weight:700;letter-spacing:-0.02em">Demo Request Received</h2>
+        <p style="margin:8px 0 0;font-size:14px;color:#dbeafe">Simplifying school financial operations</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:32px 24px;color:#1e293b;line-height:1.6;font-size:15px">
+        <p style="margin:0 0 16px">Hi ${lead.fullName},</p>
+        <p style="margin:0 0 16px">Thank you for requesting a demo of WardBalance! We have successfully received the request for your school: <strong>${lead.schoolName}</strong>.</p>
+        <p style="margin:0 0 24px">Our team is preparing your workspace walkthrough and will reach out to you shortly to schedule a convenient time for a guided demo.</p>
+        
+        <table style="margin:0 auto">
+          <tr>
+            <td>
+              <a href="${process.env.NEXT_PUBLIC_SITE_URL ?? "https://wardbalance.com.ng"}" style="display:inline-block;padding:12px 24px;background:#155EEF;color:#fff;font-weight:700;text-decoration:none;border-radius:8px;font-size:14px">Visit Our Website</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 24px;background:#f8fafc;border-top:1px solid #f1f5f9;text-align:center;font-size:12px;color:#64748b">
+        &copy; ${new Date().getFullYear()} WardBalance. All rights reserved.
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+      `
+    }).catch((err) => {
+      console.warn("[leads] Welcome email failed (async):", err);
     });
 
     return NextResponse.json(

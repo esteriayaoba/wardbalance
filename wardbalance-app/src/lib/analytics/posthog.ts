@@ -43,8 +43,12 @@ export function initPostHog() {
     posthog.init(key, {
       api_host: host,
       loaded: () => posthogInitialized = true,
-      // TODO: configure person profiles to be identified only when appropriate
-      // TODO: add session recording opt-in when needed
+      session_recording: {
+        maskAllInputs: true,
+        maskTextSelector: "[data-ph-mask]",
+      },
+      mask_all_text: true,
+      mask_all_element_attributes: true,
     });
   } catch {
     console.warn("[posthog] Failed to initialize");

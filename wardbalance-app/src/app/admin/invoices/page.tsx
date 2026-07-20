@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus, AlertCircle, CheckCircle, FileText } from "lucide-react";
+import { trackInvoiceGenerated } from "@/lib/analytics/funnel";
 import InvoiceFilters from "@/components/admin/invoices/invoice-filters";
 import InvoiceTable from "@/components/admin/invoices/invoice-table";
 import PaginationBar from "@/components/admin/shared/pagination-bar";
@@ -284,6 +285,7 @@ export default function InvoicesPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to generate invoices");
       setSuccess(`Generated ${data.count} invoices.`);
+      trackInvoiceGenerated(data.count);
       setShowWizard(false); reloadList();
     } catch (err: unknown) { setError(err instanceof Error ? err.message : "An unexpected error occurred"); }
     finally { setActionLoading(false); }

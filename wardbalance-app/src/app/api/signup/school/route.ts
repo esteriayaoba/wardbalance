@@ -40,6 +40,10 @@ export async function POST(request: NextRequest) {
 
     const data = parsed.data;
 
+    // Default optional fields for backward compatibility
+    const schoolType = data.schoolType ?? "Other";
+    const estimatedStudents = data.estimatedStudents ?? 50;
+
     // 3. Check duplicate user email
     const existingUser = await prisma.user.findUnique({
       where: { email: data.ownerEmail },
@@ -86,9 +90,9 @@ export async function POST(request: NextRequest) {
           name: data.schoolName,
           email: data.ownerEmail,
           phone: data.ownerPhone,
-          estimatedStudents: String(data.estimatedStudents),
+          estimatedStudents: String(estimatedStudents),
           status: "onboarding",
-          selectedPlan: data.plan,
+          selectedPlan: data.plan ?? "freemium",
           planStatus: "active",
           planStartedAt: new Date(),
           planLimits: {
@@ -128,6 +132,7 @@ export async function POST(request: NextRequest) {
             ownerEmail: createdUser.email,
             selectedPlan: createdSchool.selectedPlan,
             status: createdSchool.status,
+            schoolType,
           },
         },
       });

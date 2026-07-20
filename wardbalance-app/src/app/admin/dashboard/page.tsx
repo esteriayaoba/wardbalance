@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock, Rocket, MapPin } from "lucide-react";
+import { Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock, Rocket, MapPin } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import { DashboardStatCard, DashboardStatCardSkeleton } from "@/components/admin/shared/dashboard-stat-card";
 
@@ -99,6 +99,16 @@ export default function DashboardPage() {
       if (!res.ok) throw new Error("Failed to load setup status");
       return res.json();
     },
+    // Poll every 5 seconds while school is still onboarding
+    refetchInterval: (query) => {
+      const data = query.state.data?.data;
+      return data?.schoolStatus === "onboarding" ? 5_000 : false;
+    },
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
+    // Shared cache with the setup page — 30s stale window means the dashboard
+    // almost never re-fetches if the user was just on the setup page.
+    staleTime: 30_000,
   });
 
   const lifecycleQuery = useQuery({
@@ -153,36 +163,67 @@ export default function DashboardPage() {
     const completedCount = setupStatus?.progress?.completed ?? 0;
     const totalCount = setupStatus?.progress?.total ?? 12;
 
+    // Determine which phase the user is on
+    let phaseLabel = "Set Up Your School";
+    let phaseIcon = "🏫";
+    if (completedCount >= 6) {
+      phaseLabel = "Add Your Community";
+      phaseIcon = "👥";
+    }
+    if (completedCount >= 8) {
+      phaseLabel = "Start Collecting Fees";
+      phaseIcon = "💰";
+    }
+
     return (
       <div className="space-y-8 max-w-4xl mx-auto">
         <div className="space-y-2 text-center py-4">
           <h1 className="text-headline-small text-neutral-900 font-bold">Welcome to WardBalance</h1>
-          <p className="text-body-medium text-neutral-600">Let&apos;s configure your school&apos;s workspace settings to activate your financial ledger.</p>
+          <p className="text-body-medium text-neutral-600">Let&apos;s set up your school in 3 quick phases.</p>
         </div>
 
         <div className="bg-white border border-neutral-200 rounded-2xl shadow-sm p-8 space-y-6 text-center">
           <div className="w-16 h-16 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-2">
-            <Coins className="w-8 h-8" />
+            <Rocket className="w-8 h-8" />
           </div>
 
           <div className="space-y-2 max-w-lg mx-auto">
-            <h3 className="text-title-medium text-neutral-950 font-bold">Your Finance Dashboard is Almost Ready</h3>
-            <p className="text-body-medium text-neutral-500">Complete your school onboarding checklist to start recording class fee items, generating invoice bills, and tracking manual payments.</p>
+            <h3 className="text-title-medium text-neutral-950 font-bold">Your Finance Desk Awaits</h3>
+            <p className="text-body-medium text-neutral-500">Complete the 3-phase setup to start managing fees, invoices, and payments — just like the preview you saw.</p>
           </div>
 
-          <div className="bg-neutral-50 p-6 rounded-xl max-w-md mx-auto border border-neutral-200 text-left space-y-3">
-            <div className="flex justify-between items-center text-body-medium font-bold text-neutral-800">
-              <span>Setup Checklist Progress</span>
-              <span className="font-mono">{completedCount} / {totalCount} Steps</span>
+          <div className="bg-neutral-50 p-6 rounded-xl max-w-md mx-auto border border-neutral-200 text-left space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">{phaseIcon}</span>
+              <div>
+                <p className="text-body-small text-neutral-500 font-medium">Current Phase</p>
+                <p className="text-title-small text-neutral-900 font-bold">{phaseLabel}</p>
+              </div>
             </div>
-            <div className="w-full bg-neutral-200 h-2.5 rounded-full overflow-hidden">
-              <div className="bg-primary h-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+            <div className="space-y-2">
+              <div className="flex justify-between items-center text-body-medium font-bold text-neutral-800">
+                <span>Overall Progress</span>
+                <span className="font-mono">{completedCount} / {totalCount} Steps</span>
+              </div>
+              <div className="w-full bg-neutral-200 h-2.5 rounded-full overflow-hidden">
+                <div className="bg-primary h-full transition-all duration-500" style={{ width: `${progressPercent}%` }} />
+              </div>
             </div>
-            <span className="text-[11px] text-neutral-400 block text-center pt-1">Checklist tracks academic sessions, divisions, levels, arms, fee items, and invoicing setup.</span>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {["Set Up School", "Add Community", "Collect Fees"].map((label, i) => {
+                const stepThresholds = [0, 6, 8];
+                const isPhaseDone = completedCount >= stepThresholds[i];
+                return (
+                  <div key={label} className={`p-2 rounded-lg ${isPhaseDone ? "bg-green-50 text-green-700" : "bg-neutral-100 text-neutral-500"} text-[11px] font-bold`}>
+                    {isPhaseDone ? "✓ " : ""}{label}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <button onClick={() => router.push("/admin/setup")} className="px-6 py-3 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm cursor-pointer">
-            Continue Workspace Setup
+            Continue Setup
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -213,7 +254,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div id="dashboard-kpi-cards" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <DashboardStatCard label="Expected Revenue" value={stats?.expectedRevenue} icon={TrendingUp} subtitle="Sum of generated term invoices" href="/admin/invoices" />
         <DashboardStatCard label="Collected Revenue" value={stats?.collectedRevenue} icon={Coins} subtitle="Total verified manual payments" valueColor="green" href="/admin/payments" />
         <DashboardStatCard label="Outstanding Balance" value={stats?.outstandingBalance} icon={CreditCard} subtitle="Remaining receivable fee dues" valueColor="amber" href="/admin/reports" />
@@ -319,7 +360,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
+        <div id="quick-billing-actions" className="bg-white border border-neutral-200 rounded-xl p-6 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
               <CheckCircle2 className="w-5 h-5 text-primary" />

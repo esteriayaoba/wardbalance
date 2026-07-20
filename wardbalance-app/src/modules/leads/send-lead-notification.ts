@@ -1,3 +1,4 @@
+import { Resend } from "resend";
 import { sendEmail } from "@/lib/email/resend";
 
 interface LeadNotificationInput {
@@ -83,5 +84,45 @@ export async function sendLeadNotification(lead: LeadNotificationInput) {
     // TODO: Production email requires a verified Resend sender domain.
     // Without verification, Resend will reject the send.
     console.warn("[leads] Email notification failed:", error);
+  }
+}
+
+/**
+ * Adds a lead to the Resend Audience so they can receive broadcast emails
+ * and drip sequences. Silently skips if RESEND_AUDIENCE_ID is not configured.
+ */
+export async function addLeadToAudience(lead: {
+  email: string;
+  fullName: string;
+}) {
+  const audienceId = process.env.RESEND_AUDIENCE_ID;
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!audienceId || !apiKey) {
+    console.warn("[leads] RESEND_AUDIENCE_ID or RESEND_API_KEY not set — skipping audience sync");
+    return;
+  }
+
+  const [firstName, ...rest] = lead.fullName.trim().split(" ");
+  const lastName = rest.join(" ") || "";
+
+  try {
+    const resend = new Resend(apiKey);
+    const { error } = await resend.contacts.create({
+      audienceId,
+      email: lead.email,
+      firstName: firstName ?? "",
+      lastName,
+      unsubscribed: false,
+    });
+
+    if (error) {
+      console.warn("[leads] Failed to add contact to Resend Audience:", error);
+    } else {
+      console.log(`[leads] Added ${lead.email} to Resend Audience`);
+    }
+  } catch (err) {
+    // Never throw — lead save must not be blocked by audience sync failure
+    console.warn("[leads] Resend Audience sync error:", err);
   }
 }

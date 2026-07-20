@@ -6,6 +6,19 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import { Loader2, AlertCircle, ArrowLeft, KeyRound, Smartphone, Star, RefreshCw } from "lucide-react";
+import OtpInput from "@/components/shared/otp-input";
+import {
+  trackParentLoginPageView,
+  trackOtpRequested,
+  trackOtpSent,
+  trackOtpSendFailed,
+  trackOtpSubmitted,
+  trackParentLoginSuccess,
+  trackParentLoginFailed,
+  trackOtpLockout,
+  trackOtpResendRequested,
+  trackOtpResendSuccess,
+} from "@/lib/analytics/funnel";
 
 interface DemoParent {
   id: string;
@@ -35,6 +48,11 @@ function LoginForm() {
 
   const [otpTimer, setOtpTimer] = useState(0);
 
+  // Track page view on mount
+  useEffect(() => {
+    trackParentLoginPageView();
+  }, []);
+
   useEffect(() => {
     fetch("/api/demo/parents")
       .then((r) => r.json())
@@ -56,6 +74,9 @@ function LoginForm() {
     setInfo(null);
     setSubmitting(true);
 
+    const method = phoneOrEmail.includes("@") ? "email" : "phone";
+    trackOtpRequested(method);
+
     try {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
@@ -63,27 +84,35 @@ function LoginForm() {
         body: JSON.stringify({ phoneOrEmail }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to request code");
+      if (!res.ok) {
+        if (res.status === 423) {
+          trackOtpLockout();
+        }
+        throw new Error(body.error ?? "Failed to request code");
+      }
 
+      trackOtpSent(method);
       setInfo(body.data.message);
       setStep("otp");
       setOtpTimer(OTP_EXPIRY_SECONDS);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to send code");
+      const errMsg = err instanceof Error ? err.message : "Failed to send code";
+      trackOtpSendFailed(errMsg);
+      setError(errMsg);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const verifyCode = async (codeValue: string) => {
     setError(null);
     setSubmitting(true);
+    trackOtpSubmitted();
 
     try {
       const result = await signIn("parent-otp", {
         phoneOrEmail,
-        otp,
+        otp: codeValue,
         redirect: false,
       });
 
@@ -94,18 +123,31 @@ function LoginForm() {
         );
       }
 
+      trackParentLoginSuccess();
       router.push(redirectPath);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to verify code");
-    } finally {
+      const errMsg = err instanceof Error ? err.message : "Failed to verify code";
+      if (errMsg.toLowerCase().includes("lock") || errMsg.toLowerCase().includes("too many failed")) {
+        trackOtpLockout();
+      }
+      trackParentLoginFailed(errMsg);
+      setError(errMsg);
       setSubmitting(false);
     }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await verifyCode(otp);
   };
 
   const handleResendOtp = async () => {
     setError(null);
     setSubmitting(true);
+    trackOtpResendRequested();
+    const method = phoneOrEmail.includes("@") ? "email" : "phone";
+
     try {
       const res = await fetch("/api/auth/send-otp", {
         method: "POST",
@@ -113,11 +155,19 @@ function LoginForm() {
         body: JSON.stringify({ phoneOrEmail }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error ?? "Failed to resend code");
+      if (!res.ok) {
+        if (res.status === 423) {
+          trackOtpLockout();
+        }
+        throw new Error(body.error ?? "Failed to resend code");
+      }
+      trackOtpResendSuccess();
       setInfo(body.data.message);
       setOtpTimer(OTP_EXPIRY_SECONDS);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to resend code");
+      const errMsg = err instanceof Error ? err.message : "Failed to resend code";
+      trackOtpSendFailed(errMsg);
+      setError(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -209,7 +259,7 @@ function LoginForm() {
                   className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-body-medium focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none" />
               </div>
               <button type="submit" disabled={submitting}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-bold text-label-large hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-primary text-white rounded-lg font-bold text-label-large hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                 {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending Code...</> : <><Smartphone className="w-4 h-4" /> Send Verification Code</>}
               </button>
             </form>
@@ -217,33 +267,36 @@ function LoginForm() {
             <form onSubmit={handleVerifyOtp} className="space-y-5">
               <div className="text-center mb-6">
                 <button type="button" onClick={() => setStep("contact")}
-                  className="inline-flex items-center gap-1 text-body-small text-neutral-500 hover:text-neutral-900 font-medium mb-3 cursor-pointer">
+                  className="inline-flex items-center gap-1.5 text-body-small text-neutral-500 hover:text-neutral-900 font-bold py-2 px-3 -ml-3 rounded-lg hover:bg-neutral-100 transition-colors cursor-pointer min-h-[44px]">
                   <ArrowLeft className="w-3.5 h-3.5" /> Change phone or email
                 </button>
                 <h1 className="text-title-medium text-neutral-900 font-bold mb-1">Enter Verification Code</h1>
                 <p className="text-body-small text-neutral-600">Please enter the 6-digit code sent to <strong className="text-neutral-800">{phoneOrEmail}</strong></p>
               </div>
 
-              <div className="space-y-1.5">
-                <label htmlFor="otp-input" className="text-label-medium text-neutral-700 block text-center">Verification Code (OTP)</label>
-                <input id="otp-input" type="text" required maxLength={6} pattern="[0-9]{6}" placeholder="e.g. 123456"
-                  value={otp} onChange={(e) => setOtp(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-lg border border-neutral-300 text-center tracking-[0.5em] text-title-large font-bold focus:ring-2 focus:ring-primary focus:border-primary focus:outline-none" />
+              <div className="space-y-3">
+                <span className="text-label-medium text-neutral-700 block text-center">Verification Code (OTP)</span>
+                <OtpInput
+                  value={otp}
+                  onChange={setOtp}
+                  disabled={submitting}
+                  onComplete={(code) => verifyCode(code)}
+                />
               </div>
 
               {otpTimer > 0 && (
-                <p className="text-center text-body-small text-neutral-500" aria-live="polite">Code expires in {formatTimer(otpTimer)}</p>
+                <p className="text-center text-body-small text-neutral-500 font-mono" aria-live="polite">Code expires in {formatTimer(otpTimer)}</p>
               )}
 
               {otpTimer <= 0 && (
                 <button type="button" onClick={handleResendOtp} disabled={submitting}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-primary-200 text-primary hover:bg-primary-50 rounded-lg font-bold text-body-small transition disabled:opacity-50 cursor-pointer">
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-primary-200 text-primary hover:bg-primary-50 rounded-lg font-bold text-body-small transition disabled:opacity-50 cursor-pointer min-h-[44px]">
                   <RefreshCw className="w-3.5 h-3.5" /> Resend Code
                 </button>
               )}
 
               <button type="submit" disabled={submitting || otp.length !== 6}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-white rounded-lg font-bold text-label-large hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
+                className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-primary text-white rounded-lg font-bold text-label-large hover:bg-primary-dark transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer">
                 {submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying Code...</> : "Verify & Log In"}
               </button>
             </form>

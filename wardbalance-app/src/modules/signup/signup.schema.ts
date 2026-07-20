@@ -1,27 +1,29 @@
 import { z } from "zod";
 
 export const SchoolSignupSchema = z.object({
-  plan: z.enum(["freemium", "business"]),
   schoolName: z
     .string()
     .min(1, "School name is required")
     .max(160, "School name must be at most 160 characters")
     .transform((v) => v.trim()),
-  schoolType: z.enum([
-    "Nursery",
-    "Primary",
-    "Secondary",
-    "Nursery & Primary",
-    "Primary & Secondary",
-    "Nursery, Primary & Secondary",
-    "Other",
-  ]),
+  schoolType: z
+    .enum([
+      "Nursery",
+      "Primary",
+      "Secondary",
+      "Nursery & Primary",
+      "Primary & Secondary",
+      "Nursery, Primary & Secondary",
+      "Other",
+    ])
+    .optional(),
   country: z
     .string()
     .min(1, "Country is required")
     .max(80)
     .default("Nigeria")
-    .transform((v) => v.trim()),
+    .transform((v) => v.trim())
+    .optional(),
   state: z
     .string()
     .max(80)
@@ -37,7 +39,8 @@ export const SchoolSignupSchema = z.object({
   estimatedStudents: z.coerce
     .number()
     .int("Estimated students must be a whole number")
-    .positive("Estimated students must be greater than zero"),
+    .positive("Estimated students must be greater than zero")
+    .optional(),
   ownerFullName: z
     .string()
     .min(1, "Owner full name is required")
@@ -69,6 +72,7 @@ export const SchoolSignupSchema = z.object({
   agreedToTerms: z.literal(true, {
     message: "You must agree to the Terms and Privacy Policy",
   }),
+  plan: z.enum(["freemium", "business"]).default("freemium"),
   source: z.string().optional(),
 });
 

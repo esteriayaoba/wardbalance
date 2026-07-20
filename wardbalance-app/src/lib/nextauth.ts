@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { upstashGet, upstashDel, upstashIncr, rateLimit } from "@/lib/redis";
 import { authConfig } from "@/lib/auth/auth.config";
 import crypto from "crypto";
+import { OtpService } from "@/lib/auth/otp.service";
 
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_WINDOW_SECONDS = 900; // 15 min
@@ -115,33 +116,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         });
         if (!parent) return null;
 
-        // Reconstruct the schoolId-scoped key used at send time.
-        const key = `otp:${parent.schoolId}:${input}`;
-        const storedHash = await upstashGet(key);
-        if (!storedHash) return null;
-
-        // Hash the incoming OTP and compare with timing-safe equality
-        // to prevent timing-based OTP enumeration attacks.
-        const incomingHash = crypto.createHash("sha256").update(otp).digest("hex");
-        let hashesMatch = false;
-        try {
-          hashesMatch = crypto.timingSafeEqual(
-            Buffer.from(storedHash, "utf8"),
-            Buffer.from(incomingHash, "utf8")
-          );
-        } catch {
-          // Buffer length mismatch — hashes differ
-          hashesMatch = false;
+        // Verify the OTP via the unified OtpService (which manages timing-safe verify, lockout & single use)
+        const verification = await OtpService.verifyOtp(parent.schoolId, input, otp);
+        if (!verification.success) {
+          throw new Error(verification.error ?? "Invalid verification code.");
         }
 
-        if (!hashesMatch) return null;
-
-        // Consume the OTP — delete from Redis immediately after successful verify.
-        await upstashDel(key);
+        // Create AuditLog entry of the successful authentication
+        await prisma.auditLog.create({
+          data: {
+            schoolId: parent.schoolId,
+            actorId: parent.id,
+            actorName: `${parent.firstName} ${parent.lastName}`,
+            action: "parent.login_verified",
+            entityType: "Parent",
+            entityId: parent.id,
+            newValue: { loginMethod: "otp" },
+          },
+        });
 
         return {
           id: parent.id,
-          email: parent.email || `${parent.phone}@wardbalance.local`,
+          email: parent.email || null,
           name: `${parent.firstName} ${parent.lastName}`,
           role: "Parent",
           schoolId: parent.schoolId,

@@ -31,7 +31,6 @@ export async function GET(request: NextRequest) {
 
     const schoolId = session.schoolId;
 
-    // Fetch school
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
     });
@@ -43,7 +42,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch database counts to determine checklist states
+    // Non-blocking: record setup_wizard_started milestone on first visit
+    prisma.lifecycleEvent.findFirst({
+      where: { schoolId, milestone: "setup_wizard_started" },
+    }).then((existing) => {
+      if (!existing) {
+        return prisma.lifecycleEvent.create({
+          data: { schoolId, userId: session.userId, milestone: "setup_wizard_started" },
+        });
+      }
+    }).catch(() => {});
+
     const [
       sessionCount,
       termCount,
@@ -71,8 +80,6 @@ export async function GET(request: NextRequest) {
       prisma.invoice.count({ where: { schoolId } }),
       prisma.student.count({ where: { schoolId, parents: { none: {} } } }),
     ]);
-
-    const hasFeeItemsWithoutTemplates = feeItemCount > 0 && templateCount === 0 && invoiceCount > 0;
 
     const isProfileComplete = !!(school.address && school.phone);
 
@@ -171,7 +178,6 @@ export async function GET(request: NextRequest) {
     };
 
     const isLinkBlocked = parentCount === 0 || studentCount === 0;
-    const needsLinkAttention = linkCount === 0 && studentCount > 0 && parentCount > 0 && invoiceCount > 0;
     const step9 = {
       id: 9,
       title: "Link parents to wards",
@@ -234,13 +240,60 @@ export async function GET(request: NextRequest) {
       step12,
     ];
 
-    const completedCount = steps.filter((s) => s.status === "completed").length;
+    // Phase groupings for 3-phase wizard
+    // "needs_attention" steps count as completed — the backend complete endpoint
+    // uses raw entity counts, not computed status flags
+    const isDone = (s: typeof step1) => s.status === "completed" || s.status === "needs_attention";
+    const phases = [
+      {
+        id: 1,
+        title: "Set Up Your School",
+        description: "Configure your academic structure and add your first student.",
+        icon: "School",
+        stepIds: [1, 2, 3, 4, 5, 6, 7],
+        completed: [step1, step2, step3, step4, step5, step6, step7].filter(isDone).length,
+        total: 7,
+      },
+      {
+        id: 2,
+        title: "Add Your Community",
+        description: "Register parents and link them to students.",
+        icon: "Users",
+        stepIds: [8, 9],
+        completed: [step8, step9].filter(isDone).length,
+        total: 2,
+      },
+      {
+        id: 3,
+        title: "Start Collecting Fees",
+        description: "Define fee items, create templates, and generate invoices.",
+        icon: "CreditCard",
+        stepIds: [10, 11, 12],
+        completed: [step10, step11, step12].filter(isDone).length,
+        total: 3,
+      },
+    ];
+
+    // Determine active phase
+    let activePhase = 1;
+    for (let i = 0; i < phases.length; i++) {
+      if (phases[i].completed < phases[i].total) {
+        activePhase = phases[i].id;
+        break;
+      }
+      if (i === phases.length - 1) {
+        activePhase = phases.length;
+      }
+    }
+
+    const completedCount = steps.filter(isDone).length;
     const totalCount = steps.length;
-    const isSetupComplete = completedCount === totalCount;
 
     return NextResponse.json({
       data: {
         steps,
+        phases,
+        activePhase,
         progress: {
           completed: completedCount,
           total: totalCount,

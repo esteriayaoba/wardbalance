@@ -6,6 +6,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import Image from "next/image";
 import { Loader2, AlertCircle, PlayCircle, Eye, EyeOff } from "lucide-react";
+import { trackDemoModeEntered } from "@/lib/analytics/funnel";
 
 function LoginContent() {
   const router = useRouter();
@@ -152,6 +153,7 @@ function LoginContent() {
         <button
           id="demo-login"
           onClick={async () => {
+            trackDemoModeEntered();
             setSubmitting(true);
             setError(null);
             try {

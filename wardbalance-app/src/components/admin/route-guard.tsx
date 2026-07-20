@@ -4,9 +4,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
 const LOCKED_ROUTES = [
-  "/admin/students",
-  "/admin/parents",
-  "/admin/fees",
   "/admin/invoices",
   "/admin/payments",
   "/admin/reports",

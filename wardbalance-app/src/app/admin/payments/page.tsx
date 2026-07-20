@@ -69,6 +69,7 @@ export default function PaymentsPage() {
   const [emailVerified, setEmailVerified] = useState(true);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
   const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState("");
@@ -145,18 +146,22 @@ export default function PaymentsPage() {
 
   const fetchUnpaidInvoices = async (search = "") => {
     setLoadingInvoices(true);
+    setInvoiceError(null);
     try {
       const url = search
         ? `/api/admin/invoices?limit=50&search=${encodeURIComponent(search)}`
         : `/api/admin/invoices?limit=100`;
-      const res = await fetch(url).then((r) => r.json());
-      const allInvoices = res.data || [];
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to fetch invoices");
+      const allInvoices = json.data || [];
       const billableInvoices = allInvoices.filter(
         (inv: any) => parseFloat(inv.balanceDue) > 0 && inv.status !== "draft"
       );
       setUnpaidInvoices(billableInvoices);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Failed to load unpaid invoices:", err);
+      setInvoiceError(err instanceof Error ? err.message : "Failed to load unpaid invoices.");
     } finally {
       setLoadingInvoices(false);
     }
@@ -525,6 +530,19 @@ export default function PaymentsPage() {
                 </div>
 
                 {/* Select Invoice */}
+                {invoiceError && (
+                  <div className="flex items-center justify-between p-3 rounded-lg bg-red-50 text-red-900 border border-red-200 text-body-small">
+                    <span className="truncate">{invoiceError}</span>
+                    <button
+                      type="button"
+                      onClick={() => fetchUnpaidInvoices(invoiceSearchQuery)}
+                      className="text-primary hover:underline font-bold shrink-0 ml-2 cursor-pointer"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+
                 <Select
                   label="Select Student & Invoice *"
                   required
@@ -534,12 +552,12 @@ export default function PaymentsPage() {
                     const inv = unpaidInvoices.find((i) => i.id === e.target.value);
                     setPaymentAmount(inv ? inv.balanceDue : "");
                   }}
-                  disabled={loadingInvoices}
+                  disabled={loadingInvoices || !!invoiceError}
                 >
                   <option value="">
-                    {loadingInvoices ? "Loading invoices..." : "Choose Student Invoice..."}
+                    {loadingInvoices ? "Loading invoices..." : invoiceError ? "Error loading invoices" : "Choose Student Invoice..."}
                   </option>
-                  {!loadingInvoices && unpaidInvoices.map((inv) => (
+                  {!loadingInvoices && !invoiceError && unpaidInvoices.map((inv) => (
                     <option key={inv.id} value={inv.id}>
                       {inv.student.lastName}, {inv.student.firstName} ({inv.student.classArm.name}) — {inv.term.name} [Bal: {formatNaira(inv.balanceDue)}]
                     </option>
