@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import StructuredData from "@/components/seo/StructuredData";
 import CookieConsentBanner from "@/components/cookie-consent/CookieConsentBanner";
+import { QueryProvider } from "@/components/providers/query-provider";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -70,7 +71,9 @@ export default function RootLayout({
     <html lang="en" className={`${outfit.variable} h-full`} data-scroll-behavior="smooth">
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <StructuredData />
-        {children}
+        <QueryProvider>
+          {children}
+        </QueryProvider>
         <CookieConsentBanner />
       </body>
     </html>
