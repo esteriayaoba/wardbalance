@@ -160,11 +160,14 @@ async function createDashboard(): Promise<void> {
   // Add items to dashboard
   for (const item of items) {
     const itemRes = await fetch(
-      `${POSTHOG_HOST}/api/projects/${projectId}/dashboards/${dashboardId}/items/`,
+      `${POSTHOG_HOST}/api/projects/${projectId}/insights/`,
       {
         method: "POST",
         headers,
-        body: JSON.stringify(item),
+        body: JSON.stringify({
+          ...item,
+          dashboards: [dashboardId],
+        }),
       }
     );
 
