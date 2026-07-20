@@ -12,7 +12,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
-    "vercel-build": "node -e \"if (process.env.DATABASE_URL) { require('child_process').execSync('npx prisma migrate deploy', { stdio: 'inherit' }); } else { console.log('DATABASE_URL not set, skipping migrations.'); }\" && next build"
+    "vercel-build": "node -e \"const url = process.env.DIRECT_URL || process.env.DATABASE_URL; if (url) { process.env.DATABASE_URL = url; require('child_process').execSync('npx prisma migrate deploy', { stdio: 'inherit' }); } else { console.log('No database URL set, skipping migrations.'); }\" && next build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",
