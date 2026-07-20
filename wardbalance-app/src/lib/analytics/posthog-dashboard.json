@@ -1,0 +1,132 @@
+{
+  "name": "WardBalance — Onboarding Funnel",
+  "filters": {},
+  "items": [
+    {
+      "name": "Onboarding Funnel (8 steps)",
+      "description": "Complete signup-to-activation funnel. All 8 stages: signup_started → signup_completed → email_verified → setup_started → phase_1 → phase_2 → phase_3 → setup_completed.",
+      "filters": {
+        "insight": "FUNNELS",
+        "funnel_viz_type": "steps",
+        "layout": "horizontal",
+        "funnel_step_reference": "previous",
+        "funnel_window_interval": 7,
+        "funnel_window_interval_unit": "day",
+        "events": [
+          {"id": "signup_started", "order": 0},
+          {"id": "signup_completed", "order": 1},
+          {"id": "email_verified", "order": 2},
+          {"id": "setup_started", "order": 3},
+          {"id": "setup_phase_completed", "order": 4, "properties": [{"key": "phase", "value": 1, "operator": "exact"}]},
+          {"id": "setup_phase_completed", "order": 5, "properties": [{"key": "phase", "value": 2, "operator": "exact"}]},
+          {"id": "setup_phase_completed", "order": 6, "properties": [{"key": "phase", "value": 3, "operator": "exact"}]},
+          {"id": "setup_completed", "order": 7}
+        ]
+      }
+    },
+    {
+      "name": "Success Metric: Onboarding Completion Rate (target >70%)",
+      "description": "Weekly conversion: signup_completed → setup_completed. Target: >70% of signups complete onboarding.",
+      "filters": {
+        "insight": "TRENDS",
+        "interval": "week",
+        "events": [
+          {"id": "signup_completed", "math": "total"},
+          {"id": "setup_completed", "math": "total"}
+        ],
+        "formula": "B/A*100"
+      }
+    },
+    {
+      "name": "Success Metric: Signup → Setup Start (target +20%)",
+      "description": "Weekly conversion: signup_completed → setup_started. Measures how many signed-up users actually begin setup.",
+      "filters": {
+        "insight": "TRENDS",
+        "interval": "week",
+        "events": [
+          {"id": "signup_completed", "math": "total"},
+          {"id": "setup_started", "math": "total"}
+        ],
+        "formula": "B/A*100"
+      }
+    },
+    {
+      "name": "Success Metric: Setup Start → Completion (target +30%)",
+      "description": "Weekly conversion: setup_started → setup_completed. Measures setup wizard drop-off.",
+      "filters": {
+        "insight": "TRENDS",
+        "interval": "week",
+        "events": [
+          {"id": "setup_started", "math": "total"},
+          {"id": "setup_completed", "math": "total"}
+        ],
+        "formula": "B/A*100"
+      }
+    },
+    {
+      "name": "Success Metric: Time to First Invoice (target <10min median)",
+      "description": "Median time from signup_started to first invoice_generated, in minutes.",
+      "filters": {
+        "insight": "TRENDS",
+        "interval": "day",
+        "events": [
+          {
+            "id": "invoice_generated",
+            "math": "median",
+            "math_property": "elapsed_min",
+            "name": "Median time to first invoice (min)"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Success Metric: Demo → Signup Conversion (target >15%)",
+      "description": "What % of users who entered demo mode go on to sign up. Tracked via user paths.",
+      "filters": {
+        "insight": "STICKINESS",
+        "interval": "week",
+        "events": [
+          {"id": "demo_mode_entered", "math": "total"},
+          {"id": "signup_completed", "math": "total"}
+        ]
+      }
+    },
+    {
+      "name": "Phase Abandonment",
+      "description": "Percentage of users who reach each phase vs complete it. Phase 3 drop-off indicates template/invoice friction.",
+      "filters": {
+        "insight": "FUNNELS",
+        "funnel_viz_type": "steps",
+        "layout": "vertical",
+        "funnel_window_interval": 7,
+        "funnel_window_interval_unit": "day",
+        "events": [
+          {"id": "setup_started", "order": 0},
+          {"id": "setup_phase_completed", "order": 1, "properties": [{"key": "phase", "value": 1, "operator": "exact"}]},
+          {"id": "phase_started", "order": 2, "properties": [{"key": "phase", "value": 2, "operator": "exact"}]},
+          {"id": "setup_phase_completed", "order": 3, "properties": [{"key": "phase", "value": 2, "operator": "exact"}]},
+          {"id": "phase_started", "order": 4, "properties": [{"key": "phase", "value": 3, "operator": "exact"}]},
+          {"id": "setup_phase_completed", "order": 5, "properties": [{"key": "phase", "value": 3, "operator": "exact"}]},
+          {"id": "setup_completed", "order": 6}
+        ]
+      }
+    },
+    {
+      "name": "Acquisition Source Breakdown",
+      "description": "Where onboarding users come from (pricing page, direct, referral, etc.)",
+      "filters": {
+        "insight": "TRENDS",
+        "interval": "week",
+        "events": [
+          {
+            "id": "signup_started",
+            "math": "total",
+            "properties": [{"key": "source", "operator": "is_set"}]
+          }
+        ],
+        "breakdown": "source",
+        "breakdown_type": "event"
+      }
+    }
+  ]
+}
