@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/auth/require-role";
 import { rateLimit } from "@/lib/redis";
 import { logError } from "@/lib/logger";
 import { previewInvoiceGeneration, generateInvoices } from "@/services/invoice-generator.service";
+import { recordMilestone } from "@/lib/lifecycle/events";
 
 async function getClientIp(request: NextRequest): Promise<string> {
   const forwarded = request.headers.get("x-forwarded-for");
@@ -87,6 +88,12 @@ export async function POST(request: NextRequest) {
       dueDate: new Date(dueDate),
       studentIds,
     });
+
+    if (result.count > 0) {
+      await recordMilestone(guard.session.schoolId, guard.session.userId, "first_invoice_generated", {
+        count: result.count,
+      });
+    }
 
     return NextResponse.json({ data: result, message: "Invoices generated successfully." });
   } catch (err) {

@@ -280,7 +280,6 @@ describe("recordManualPayment", () => {
       receipt: { create: vi.fn() },
       auditLog: { create: vi.fn() },
     };
-
     mockPrisma.$transaction.mockImplementation(async (cb: (tx: any) => Promise<any>) => cb(tx));
     mockPrisma.parentWardLink.findFirst.mockResolvedValue({ parentId: "parent-1" });
 
@@ -306,11 +305,13 @@ describe("recordManualPayment", () => {
 
   it("rejects payment when term is locked", async () => {
     const tx = {
-      invoice: { findFirst: vi.fn().mockResolvedValue({
-        id: "inv-1",
-        studentId: "student-1",
-        term: { status: "locked" },
-      })},
+      invoice: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "inv-1",
+          studentId: "student-1",
+          term: { status: "locked" },
+        }),
+      },
       payment: { create: vi.fn() },
       receipt: { create: vi.fn() },
       auditLog: { create: vi.fn() },

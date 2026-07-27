@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Bell, LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useOnlineStatus } from "@/components/pwa/useOnlineStatus";
 
 interface ParentHeaderProps {
   parentName?: string;
@@ -12,6 +13,7 @@ interface ParentHeaderProps {
 
 export default function ParentHeader({ parentName, schoolName }: ParentHeaderProps) {
   const router = useRouter();
+  const { isOnline } = useOnlineStatus();
 
   const handleLogout = async () => {
     try {
@@ -35,7 +37,16 @@ export default function ParentHeader({ parentName, schoolName }: ParentHeaderPro
         <span className="text-title-small tracking-tight">WardBalance</span>
       </Link>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
+        {/* Online / offline status dot — subtle visual cue */}
+        <span
+          title={isOnline ? "Online" : "Offline"}
+          aria-label={isOnline ? "Online" : "Offline — data may be outdated"}
+          className={`hidden sm:block w-2 h-2 rounded-full shrink-0 transition-colors ${
+            isOnline ? "bg-green-500" : "bg-amber-400"
+          }`}
+        />
+
         {schoolName && (
           <span className="hidden sm:inline-block px-2.5 py-1 bg-neutral-100 border border-neutral-200 rounded-full text-[11px] font-bold text-neutral-600">
             {schoolName}
@@ -48,15 +59,16 @@ export default function ParentHeader({ parentName, schoolName }: ParentHeaderPro
           </span>
         )}
 
-        <button className="relative p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors" aria-label="Notifications">
+        <button className="relative min-h-[44px] min-w-[44px] flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors" aria-label="Notifications">
           <Bell className="w-4 h-4" />
           <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-error rounded-full" aria-hidden="true" />
         </button>
 
         <button
           onClick={handleLogout}
-          className="p-1.5 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer"
           title="Sign Out"
+          aria-label="Sign Out"
         >
           <LogOut className="w-4 h-4" />
         </button>
@@ -64,3 +76,4 @@ export default function ParentHeader({ parentName, schoolName }: ParentHeaderPro
     </header>
   );
 }
+

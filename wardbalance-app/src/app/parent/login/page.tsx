@@ -290,7 +290,7 @@ function LoginForm() {
 
               {otpTimer <= 0 && (
                 <button type="button" onClick={handleResendOtp} disabled={submitting}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-primary-200 text-primary hover:bg-primary-50 rounded-lg font-bold text-body-small transition disabled:opacity-50 cursor-pointer min-h-[44px]">
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] border border-primary-200 text-primary hover:bg-primary-50 rounded-lg font-bold text-body-small transition disabled:opacity-50 cursor-pointer">
                   <RefreshCw className="w-3.5 h-3.5" /> Resend Code
                 </button>
               )}

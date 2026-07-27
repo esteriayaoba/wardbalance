@@ -2,6 +2,7 @@
 
 import { Edit2, Trash2 } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import { Decimal } from "@prisma/client-runtime-utils";
 
 interface FeeItem {
   id: string;
@@ -42,10 +43,11 @@ export default function TemplateCardGrid({
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {templates.map((temp) => {
-        const total = temp.items.reduce((acc, curr) => {
-          const amount = curr.amountOverride !== null ? curr.amountOverride : curr.feeItem.amount;
-          return acc + Number(amount);
-        }, 0);
+        const totalDecimal = temp.items.reduce((acc, curr) => {
+          const amountStr = curr.amountOverride !== null ? curr.amountOverride : curr.feeItem.amount;
+          return acc.add(new Decimal(amountStr));
+        }, new Decimal(0));
+        const total = Number(totalDecimal.toString());
 
         return (
           <div key={temp.id} className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-4 hover:shadow-md transition flex flex-col justify-between">
@@ -82,6 +84,7 @@ export default function TemplateCardGrid({
                 <button
                   onClick={() => onEdit(temp)}
                   disabled={!emailVerified}
+                  aria-label={`Edit template for ${temp.classLevel.name}`}
                   className="p-2 border border-neutral-200 hover:bg-neutral-50 text-neutral-600 rounded-lg transition disabled:opacity-50"
                 >
                   <Edit2 className="w-3.5 h-3.5" />
@@ -89,6 +92,7 @@ export default function TemplateCardGrid({
                 <button
                   disabled={actionLoading || !emailVerified}
                   onClick={() => onDelete(temp.id)}
+                  aria-label={`Delete template for ${temp.classLevel.name}`}
                   className="p-2 border border-neutral-200 hover:bg-red-50 text-error rounded-lg transition disabled:opacity-50"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

@@ -58,8 +58,6 @@ function SetupContent() {
   const searchParams = useSearchParams();
   const { setupWizardV2, loading: flagsLoading } = useOnboardingFlags();
 
-  // Feature flag: if phase wizard is disabled, redirect to dashboard immediately.
-  // Show a brief loading screen while flags resolve so there's no flash.
   useEffect(() => {
     if (!flagsLoading && !setupWizardV2) {
       router.replace("/admin/dashboard");
@@ -105,7 +103,6 @@ function SetupContent() {
   const loading = statusQuery.isLoading && !statusQuery.data;
   const error = statusQuery.error instanceof Error ? statusQuery.error.message : null;
 
-  // Track page view on mount
   useEffect(() => {
     trackSetupStarted();
   }, []);

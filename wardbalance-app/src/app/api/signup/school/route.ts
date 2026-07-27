@@ -7,6 +7,7 @@ import { sendEmail } from "@/lib/email/resend";
 import { headers } from "next/headers";
 import crypto from "crypto";
 import { PRICING_PLANS } from "@/constants/pricing";
+import { recordMilestone } from "@/lib/lifecycle/events";
 
 export async function POST(request: NextRequest) {
   try {
@@ -155,6 +156,10 @@ export async function POST(request: NextRequest) {
             trialEndsAt: isTrial ? new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000).toISOString() : null,
           },
         },
+      });
+
+      await recordMilestone(createdSchool.id, createdUser.id, "account_created", {
+        plan: createdSchool.selectedPlan,
       });
 
       return { school: createdSchool, user: createdUser };

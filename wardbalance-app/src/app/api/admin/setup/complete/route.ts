@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "@/lib/auth/require-role";
 import { prisma } from "@/lib/prisma";
 
+
 export async function POST(_request: NextRequest) {
   try {
     const guard = await requireRole(["SchoolOwner"]);
@@ -62,30 +63,42 @@ export async function POST(_request: NextRequest) {
       );
     }
 
-    await prisma.$transaction([
-      prisma.school.update({
+    await prisma.$transaction(async (tx) => {
+      await tx.school.update({
         where: { id: schoolId },
         data: { status: "active" },
-      }),
-      prisma.lifecycleEvent.create({
-        data: {
-          schoolId,
-          userId: guard.session.userId,
-          milestone: "setup_completed",
-        },
-      }),
-      prisma.auditLog.create({
+      });
+
+      await tx.auditLog.create({
         data: {
           schoolId,
           actorId: guard.session.userId,
-          actorName: guard.session.fullName,
-          action: "setup_completed",
+          actorName: guard.session.fullName || "System",
+          action: "school.setup_completed",
           entityType: "School",
           entityId: schoolId,
           newValue: { status: "active" },
         },
-      }),
-    ]);
+      });
+
+      await tx.lifecycleEvent.create({
+        data: {
+          schoolId,
+          userId: guard.session.userId,
+          milestone: "setup_completed",
+          metadata: {},
+        },
+      });
+
+      await tx.lifecycleEvent.create({
+        data: {
+          schoolId,
+          userId: guard.session.userId,
+          milestone: "school_active",
+          metadata: {},
+        },
+      });
+    });
 
     return NextResponse.json({
       data: { status: "active", message: "School setup complete. Dashboard is now active." },

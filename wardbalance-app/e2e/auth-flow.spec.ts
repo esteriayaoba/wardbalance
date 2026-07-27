@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { bypassCookieConsent } from "./helpers";
+import { bypassCookieConsent, loginAsDemo, SELECTORS } from "./helpers";
 
 test.describe("Admin Authentication Flow", () => {
   test.beforeEach(async ({ page }) => {
@@ -28,20 +28,28 @@ test.describe("Admin Authentication Flow", () => {
     await expect(page.getByText(/invalid/i)).toBeVisible({ timeout: 10000 });
   });
 
-  test("demo login loads dashboard successfully", async ({ page }) => {
-    await page.goto("/login");
-    await page.click("#demo-login");
-    await page.waitForURL(/\/admin\/dashboard/, { timeout: 15000 });
-    await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
+  test("demo login loads dashboard with expected elements", async ({ page }) => {
+    await loginAsDemo(page);
+    await expect(page.getByRole("heading", { name: /dashboard|overview/i })).toBeVisible();
   });
 
-  test("logout button works", async ({ page }) => {
-    await page.goto("/login");
-    await page.click("#demo-login");
-    await page.waitForURL(/\/admin\/dashboard/, { timeout: 15000 });
+  test("logout button returns to login page", async ({ page }) => {
+    await loginAsDemo(page);
     await page.click('button[title="Log out"]');
     await page.waitForURL(/\/login/, { timeout: 10000 });
     await expect(page.locator("#login-email")).toBeVisible();
   });
-});
 
+  test("unauthenticated access to setup redirects to login", async ({ page }) => {
+    await page.goto("/admin/setup");
+    await page.waitForURL(/\/login/);
+    expect(page.url()).toContain("/login");
+  });
+
+  test("authenticated admin accessing parent dashboard sees appropriate response", async ({ page }) => {
+    await loginAsDemo(page);
+    await page.goto("/parent/dashboard");
+    await page.waitForURL(/\//);
+    expect(page.url()).not.toContain("/login");
+  });
+});

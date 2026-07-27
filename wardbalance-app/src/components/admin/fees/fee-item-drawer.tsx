@@ -40,14 +40,14 @@ export default function FeeItemDrawer({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
+    <div className="fixed inset-0 z-50 bg-black/40 flex justify-end" role="dialog" aria-modal="true" aria-labelledby="fee-item-drawer-title">
       <div className="bg-white w-full max-w-md h-full overflow-y-auto p-8 shadow-xl flex flex-col justify-between border-l border-neutral-200">
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-neutral-200 pb-4">
-            <h3 className="text-title-small text-neutral-900 font-bold">
+            <h3 id="fee-item-drawer-title" className="text-title-small text-neutral-900 font-bold">
               {editingItem ? "Edit Catalogued Fee" : "Add Fee to Library"}
             </h3>
-            <button onClick={onClose} className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold">
+            <button onClick={onClose} className="min-h-[44px] min-w-[44px] px-3 text-body-small text-neutral-500 hover:text-neutral-900 font-bold">
               Close
             </button>
           </div>

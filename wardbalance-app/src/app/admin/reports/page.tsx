@@ -61,6 +61,7 @@ export default function ReportsPage() {
   const [filterTermId, setFilterTermId] = useState("");
   const [filterClassLevelId, setFilterClassLevelId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const loadFilters = () => {
     Promise.all([
@@ -136,13 +137,34 @@ export default function ReportsPage() {
           </p>
         </div>
         {(activeReport === "debtors" || activeReport === "revenue" || activeReport === "classes") && (
-          <a
-            href={`/api/admin/reports/export?type=${activeReport === "classes" ? "collection" : activeReport}${filterTermId ? `&termId=${filterTermId}` : ""}${filterClassLevelId && activeReport === "debtors" ? `&classLevelId=${filterClassLevelId}` : ""}`}
-            className="px-4 py-2 bg-neutral-900 text-white hover:bg-neutral-800 font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm shrink-0"
+          <button
+            onClick={async () => {
+              setExporting(true);
+              try {
+                const url = `/api/admin/reports/export?type=${activeReport === "classes" ? "collection" : activeReport}${filterTermId ? `&termId=${filterTermId}` : ""}${filterClassLevelId && activeReport === "debtors" ? `&classLevelId=${filterClassLevelId}` : ""}`;
+                const res = await fetch(url);
+                const blob = await res.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = blobUrl;
+                a.download = activeReport === "debtors" ? "debtors.csv" : activeReport === "classes" ? "collection.csv" : "revenue.csv";
+                a.click();
+                URL.revokeObjectURL(blobUrl);
+              } catch {
+                // silent
+              } finally {
+                setExporting(false);
+              }
+            }}
+            disabled={exporting}
+            className="px-4 py-2 bg-neutral-900 text-white hover:bg-neutral-800 font-bold text-label-large rounded-lg transition inline-flex items-center gap-2 shadow-sm shrink-0 disabled:opacity-50"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Export CSV
-          </a>
+            {exporting ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Exporting...</>
+            ) : (
+              <><FileSpreadsheet className="w-4 h-4" /> Export CSV</>
+            )}
+          </button>
         )}
       </div>
 

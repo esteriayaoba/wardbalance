@@ -15,6 +15,7 @@ import {
   Bell,
 } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import { InvoiceStatusBadge } from "@/components/admin/shared/status-badge";
 
 interface WardLink {
   id: string;
@@ -71,23 +72,35 @@ export default function ParentProfilePage() {
 
   const loadData = () => {
     setLoading(true);
-    Promise.all([
-      fetch("/api/admin/parents").then((r) => r.json()),
-      fetch("/api/admin/invoices").then((r) => r.json()),
-    ])
-      .then(([parentData, invoiceData]) => {
-        const parents: Parent[] = parentData.data || [];
-        const found = parents.find((p) => p.id === parentId);
-        setParent(found || null);
+    // Fetch parent by ID (efficient — single record, not all parents)
+    fetch(`/api/admin/parents/${parentId}`)
+      .then((r) => r.json())
+      .then((parentData) => {
+        const found: Parent | null = parentData.data || null;
+        setParent(found);
 
-        const allInvoices: Invoice[] = invoiceData.data || [];
-        if (found) {
-          const wardIds = found.wards.map((w) => w.student.id);
-          setInvoices(allInvoices.filter((inv) => wardIds.includes(inv.studentId)));
-        } else {
-          setInvoices([]);
+        if (!found) {
+          setLoading(false);
+          return;
         }
-        setLoading(false);
+
+        // Fetch invoices per ward using studentId filter
+        const wardIds = found.wards.map((w) => w.student.id);
+        if (wardIds.length === 0) {
+          setLoading(false);
+          return;
+        }
+
+        const invoicePromises = wardIds.map((sid) =>
+          fetch(`/api/admin/invoices?studentId=${sid}`)
+            .then((r) => r.json())
+            .then((d) => d.data || [])
+        );
+
+        return Promise.all(invoicePromises).then((nestedInvoices) => {
+          setInvoices(nestedInvoices.flat());
+          setLoading(false);
+        });
       })
       .catch((err) => {
         console.error("Load failed:", err);
@@ -98,23 +111,6 @@ export default function ParentProfilePage() {
   useEffect(() => {
     loadData();
   }, [parentId]);
-
-  const invoiceStatusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      draft: "bg-neutral-50 text-neutral-500 border-neutral-200",
-      issued: "bg-blue-50 text-blue-700 border-blue-200",
-      partial: "bg-amber-50 text-amber-700 border-amber-200",
-      paid: "bg-green-50 text-green-700 border-green-200",
-      overdue: "bg-red-50 text-red-700 border-red-200",
-    };
-    return (
-      <span
-        className={`inline-flex px-2 py-0.5 rounded text-[11px] font-bold border uppercase ${colors[status] || colors.draft}`}
-      >
-        {status}
-      </span>
-    );
-  };
 
   if (loading) {
     return (
@@ -269,7 +265,7 @@ export default function ParentProfilePage() {
                   <td className="px-6 py-4 font-bold">{formatNaira(inv.finalAmount)}</td>
                   <td className="px-6 py-4">{formatNaira(inv.amountPaid)}</td>
                   <td className="px-6 py-4 font-bold">{formatNaira(inv.balanceDue)}</td>
-                  <td className="px-6 py-4">{invoiceStatusBadge(inv.status)}</td>
+                  <td className="px-6 py-4"><InvoiceStatusBadge status={inv.status} /></td>
                 </tr>
               ))}
             </tbody>

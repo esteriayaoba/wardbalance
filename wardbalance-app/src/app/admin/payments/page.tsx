@@ -62,6 +62,7 @@ export default function PaymentsPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
+
   // Auto-select invoice from URL param (e.g., navigated from invoice drawer)
   const urlInvoiceId = searchParams.get("invoiceId");
   const [actionLoading, setActionLoading] = useState(false);

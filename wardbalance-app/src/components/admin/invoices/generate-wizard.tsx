@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import Input from "@/components/admin/shared/input";
@@ -77,6 +77,48 @@ export default function GenerateWizard({
   onToggleSelectAll,
   generateCount,
 }: GenerateWizardProps) {
+  const [confirming, setConfirming] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = setTimeout(() => {
+      dialogRef.current?.focus();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [open]);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      if (confirming) {
+        setConfirming(false);
+        return;
+      }
+      onClose();
+      return;
+    }
+    if (e.key === "Tab") {
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last?.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first?.focus();
+        }
+      }
+    }
+  };
+
   if (!open) return null;
 
   const handlePreview = (e: React.FormEvent) => {
@@ -84,20 +126,29 @@ export default function GenerateWizard({
     onSubmitPreview(wizClassLevelId, wizTermId, wizDueDate);
   };
 
-  const handleGenerate = () => {
+  const handleGenerateClick = () => {
+    setConfirming(true);
+  };
+
+  const handleConfirmGenerate = () => {
+    setConfirming(false);
     onSubmitGenerate(selectedStudentIds);
   };
+
+  const totalExpected = previews
+    .filter((p) => selectedStudentIds.includes(p.studentId))
+    .reduce((sum, p) => sum + parseFloat(p.totalExpected), 0);
 
   const generateLabel = generateCount
     ? `Generating ${generateCount} invoice${generateCount !== 1 ? "s" : ""}...`
     : "Generating...";
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="generate-wizard-title" tabIndex={-1} ref={dialogRef} onKeyDown={handleKeyDown}>
       <div className="bg-white rounded-xl border border-neutral-200 w-full max-w-3xl overflow-hidden shadow-2xl flex flex-col justify-between max-h-[85vh]">
         <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
           <div>
-            <h3 className="text-title-small text-neutral-900 font-bold">
+            <h3 id="generate-wizard-title" className="text-title-small text-neutral-900 font-bold">
               Bulk Invoice Generation Wizard
             </h3>
             <p className="text-body-small text-neutral-500">
@@ -106,7 +157,7 @@ export default function GenerateWizard({
           </div>
           <button
             onClick={onClose}
-            className="text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
+            className="min-h-[44px] min-w-[44px] px-3 text-body-small text-neutral-500 hover:text-neutral-900 font-bold"
           >
             Close
           </button>
@@ -154,7 +205,7 @@ export default function GenerateWizard({
               <button
                 type="submit"
                 disabled={actionLoading}
-                className="w-full mt-4 px-4 py-2.5 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center justify-center gap-2 shadow"
+                className="w-full mt-4 min-h-[44px] px-4 py-2.5 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg transition inline-flex items-center justify-center gap-2 shadow"
               >
                 {actionLoading && <Loader2 className="w-4 h-4 animate-spin" />}
                 Continue to Preview
@@ -252,7 +303,7 @@ export default function GenerateWizard({
             <>
               <button
                 onClick={onBack}
-                className="px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
+                className="min-h-[44px] px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
                 type="button"
               >
                 Back
@@ -261,20 +312,43 @@ export default function GenerateWizard({
                 <span className="text-body-small text-neutral-500 font-medium">
                   Selected: <strong>{selectedStudentIds.length}</strong> students
                 </span>
-                <button
-                  onClick={handleGenerate}
-                  disabled={actionLoading || selectedStudentIds.length === 0}
-                  className="px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg shadow-sm transition"
-                >
-                  {actionLoading ? generateLabel : "Generate Invoices"}
-                </button>
+                {confirming ? (
+                  <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                    <div className="text-body-small text-amber-900">
+                      Generate invoices for <strong>{selectedStudentIds.length}</strong> student{selectedStudentIds.length !== 1 ? "s" : ""}?<br />
+                      Total: <strong>{formatNaira(String(totalExpected))}</strong>
+                    </div>
+                    <button
+                      onClick={handleConfirmGenerate}
+                      disabled={actionLoading}
+                      className="min-h-[44px] px-3 py-2 bg-amber-600 text-white hover:bg-amber-700 font-bold text-label-small rounded-lg transition"
+                    >
+                      {actionLoading ? generateLabel : "Confirm & Generate"}
+                    </button>
+                    <button
+                      onClick={() => setConfirming(false)}
+                      disabled={actionLoading}
+                      className="min-h-[44px] px-3 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-small font-bold hover:bg-neutral-50 transition"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleGenerateClick}
+                    disabled={actionLoading || selectedStudentIds.length === 0}
+                    className="min-h-[44px] px-4 py-2 bg-primary text-white hover:bg-primary-dark font-bold text-label-large rounded-lg shadow-sm transition"
+                  >
+                    {actionLoading ? generateLabel : "Generate Invoices"}
+                  </button>
+                )}
               </div>
             </>
           ) : (
             <div className="flex justify-end w-full">
               <button
                 onClick={onClose}
-                className="px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
+                className="min-h-[44px] px-4 py-2 border border-neutral-300 text-neutral-700 bg-white rounded-lg text-body-medium font-bold hover:bg-neutral-50 transition"
                 type="button"
               >
                 Cancel

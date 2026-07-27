@@ -2,8 +2,10 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Loader2, AlertCircle, FileText, ChevronRight, X, Sparkles, AlertTriangle } from "lucide-react";
+import { Loader2, AlertCircle, FileText, ChevronRight, X, Sparkles, AlertTriangle, WifiOff } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import { useOnlineStatus } from "@/components/pwa/useOnlineStatus";
+import { useBackgroundSync } from "@/components/pwa/useBackgroundSync";
 
 interface InvoiceLineItem {
   id: string;
@@ -53,6 +55,7 @@ function InvoicesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const filterStudentId = searchParams.get("studentId") || "";
+  const { isOnline } = useOnlineStatus();
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceDetail | null>(null);
@@ -62,7 +65,7 @@ function InvoicesContent() {
   const [selectedStudentId, setSelectedStudentId] = useState(filterStudentId);
 
   // Load invoices list
-  useEffect(() => {
+  const loadInvoices = () => {
     setLoadingList(true);
     fetch("/api/portal/invoices")
       .then((r) => {
@@ -77,7 +80,12 @@ function InvoicesContent() {
         setError(err.message);
         setLoadingList(false);
       });
-  }, []);
+  };
+
+  useEffect(() => { loadInvoices(); }, []);
+
+  // Auto-refresh when connectivity returns after being offline
+  useBackgroundSync(loadInvoices);
 
   // Fetch invoice details
   const handleOpenBreakdown = (invoiceId: string) => {
@@ -114,7 +122,7 @@ function InvoicesContent() {
         <p className="text-body-medium text-neutral-600 mb-6">{error}</p>
         <button
           onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition cursor-pointer"
+          className="px-4 py-2 min-h-[44px] bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition cursor-pointer"
         >
           Retry
         </button>
@@ -146,7 +154,7 @@ function InvoicesContent() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-live="polite">
       {/* Page Header */}
       <div className="flex flex-col gap-4">
         <div className="space-y-1">
@@ -161,7 +169,7 @@ function InvoicesContent() {
           <div className="flex gap-2 items-center overflow-x-auto pb-1.5 scrollbar-thin">
             <button
               onClick={() => setSelectedStudentId("")}
-              className={`px-3.5 py-1.5 rounded-full text-body-small font-bold transition whitespace-nowrap cursor-pointer ${
+              className={`px-3.5 py-1.5 min-h-[44px] rounded-full text-body-small font-bold transition whitespace-nowrap cursor-pointer ${
                 selectedStudentId === ""
                   ? "bg-primary text-white"
                   : "bg-white text-neutral-600 border border-neutral-250 hover:bg-neutral-50"
@@ -173,7 +181,7 @@ function InvoicesContent() {
               <button
                 key={w.id}
                 onClick={() => setSelectedStudentId(w.id)}
-                className={`px-3.5 py-1.5 rounded-full text-body-small font-bold transition whitespace-nowrap cursor-pointer ${
+                className={`px-3.5 py-1.5 min-h-[44px] rounded-full text-body-small font-bold transition whitespace-nowrap cursor-pointer ${
                   selectedStudentId === w.id
                     ? "bg-primary text-white"
                     : "bg-white text-neutral-600 border border-neutral-250 hover:bg-neutral-50"
@@ -384,10 +392,26 @@ function InvoicesContent() {
                       router.push(`/parent/invoices/${selectedInvoice.id}`);
                       setSelectedInvoice(null);
                     }}
-                    className="flex-1 py-3 bg-primary text-white hover:bg-primary-dark rounded-lg font-bold text-label-large text-center shadow-sm transition inline-flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled={!isOnline}
+                    title={!isOnline ? "Go online to make a payment" : undefined}
+                    aria-disabled={!isOnline}
+                    className={`flex-1 py-3 rounded-lg font-bold text-label-large text-center shadow-sm transition inline-flex items-center justify-center gap-1.5 ${
+                      isOnline
+                        ? "bg-primary text-white hover:bg-primary-dark cursor-pointer"
+                        : "bg-neutral-200 text-neutral-400 cursor-not-allowed"
+                    }`}
                   >
-                    <Sparkles className="w-4 h-4" />
-                    Pay Invoice Now
+                    {isOnline ? (
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        Pay Invoice Now
+                      </>
+                    ) : (
+                      <>
+                        <WifiOff className="w-4 h-4" />
+                        Go online to pay
+                      </>
+                    )}
                   </button>
                 </>
               ) : (

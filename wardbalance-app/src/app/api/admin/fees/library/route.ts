@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data: items });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch fee items" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch fee items", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 

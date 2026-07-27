@@ -85,9 +85,25 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const updated = await prisma.parent.update({
-      where: { id: parentId, schoolId },
-      data: parsed.data,
+    const updated = await prisma.$transaction(async (tx) => {
+      const updated = await tx.parent.update({
+        where: { id: parentId, schoolId },
+        data: parsed.data,
+      });
+
+      await tx.auditLog.create({
+        data: {
+          schoolId,
+          actorId: parentId,
+          actorName: `${updated.firstName} ${updated.lastName}`,
+          action: "parent.profile_updated",
+          entityType: "Parent",
+          entityId: parentId,
+          newValue: parsed.data,
+        },
+      });
+
+      return updated;
     });
 
     return NextResponse.json({

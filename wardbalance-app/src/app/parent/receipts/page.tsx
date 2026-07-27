@@ -62,7 +62,7 @@ export default function ParentReceiptsPage() {
         <p className="text-body-medium text-neutral-600 mb-6">{error}</p>
         <button
           onClick={() => window.location.reload()}
-          className="px-4 py-2 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition cursor-pointer"
+          className="px-4 py-2 min-h-[44px] bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition cursor-pointer"
         >
           Retry
         </button>
@@ -71,7 +71,7 @@ export default function ParentReceiptsPage() {
   }
 
   return (
-    <div className="space-y-6 print:p-0">
+    <div className="space-y-6 print:p-0" aria-live="polite">
       {/* Page Header */}
       <div className="space-y-1 print:hidden">
         <h1 className="text-headline-small text-neutral-900 font-bold">Wards Receipts</h1>
@@ -148,7 +148,7 @@ export default function ParentReceiptsPage() {
               <button
                 onClick={() => setSelectedReceipt(null)}
                 aria-label="Close receipt"
-                className="p-1 text-neutral-400 hover:text-neutral-950 rounded-lg hover:bg-neutral-100 transition cursor-pointer"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-neutral-400 hover:text-neutral-950 rounded-lg hover:bg-neutral-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>

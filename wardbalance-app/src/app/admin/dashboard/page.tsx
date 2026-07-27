@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock, Rocket, MapPin } from "lucide-react";
+import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock, Rocket, MapPin } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import { DashboardStatCard, DashboardStatCardSkeleton } from "@/components/admin/shared/dashboard-stat-card";
 
@@ -82,7 +82,6 @@ const formatActionMessage = (log: AuditLog) => {
 
 export default function DashboardPage() {
   const router = useRouter();
-
   const dashQuery = useQuery({
     queryKey: ["admin", "dashboard"],
     queryFn: async () => {
@@ -287,6 +286,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* Lifecycle Stage Card */}
       {lifecycle && !isOnboarding && (
         <div className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3">
           <div className="flex items-center gap-2 border-b border-neutral-100 pb-3">
@@ -294,11 +294,23 @@ export default function DashboardPage() {
             <h3 className="text-title-small text-neutral-900 font-bold">Account Journey</h3>
           </div>
           <div className="flex items-center gap-3">
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-body-small font-bold ${lifecycle.stage === "NEW" ? "bg-neutral-100 text-neutral-600" : lifecycle.stage === "ONBOARDING" ? "bg-blue-50 text-blue-700" : lifecycle.stage === "ACTIVATING" ? "bg-amber-50 text-amber-700" : lifecycle.stage === "ACTIVE" ? "bg-green-50 text-green-700" : lifecycle.stage === "AT_RISK" ? "bg-red-50 text-red-700" : "bg-neutral-100 text-neutral-600"}`}>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-body-small font-bold ${
+              lifecycle.stage === "NEW" ? "bg-neutral-100 text-neutral-600" :
+              lifecycle.stage === "ONBOARDING" ? "bg-blue-50 text-blue-700" :
+              lifecycle.stage === "ACTIVATING" ? "bg-amber-50 text-amber-700" :
+              lifecycle.stage === "ACTIVE" ? "bg-green-50 text-green-700" :
+              lifecycle.stage === "AT_RISK" ? "bg-red-50 text-red-700" :
+              "bg-neutral-100 text-neutral-600"
+            }`}>
               <MapPin className="w-3.5 h-3.5" />
-              {lifecycle.stage === "ACTIVE" ? "Active" : lifecycle.stage === "AT_RISK" ? "At Risk" : lifecycle.stage === "DORMANT" ? "Dormant" : lifecycle.stage.charAt(0) + lifecycle.stage.slice(1).toLowerCase()}
+              {lifecycle.stage === "ACTIVE" ? "Active" :
+               lifecycle.stage === "AT_RISK" ? "At Risk" :
+               lifecycle.stage === "DORMANT" ? "Dormant" :
+               lifecycle.stage.charAt(0) + lifecycle.stage.slice(1).toLowerCase()}
             </span>
-            <span className="text-body-small text-neutral-500">{lifecycle.milestones.length} milestone{lifecycle.milestones.length !== 1 ? "s" : ""} completed</span>
+            <span className="text-body-small text-neutral-500">
+              {lifecycle.milestones.length} milestone{lifecycle.milestones.length !== 1 ? "s" : ""} completed
+            </span>
           </div>
           {lifecycle.milestones.length > 0 && (
             <div className="flex flex-wrap gap-1.5">

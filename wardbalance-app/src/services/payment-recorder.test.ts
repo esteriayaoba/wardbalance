@@ -55,6 +55,14 @@ describe("recordPayment", () => {
 
   it("records a payment successfully within its own transaction", async () => {
     mockPrisma.$transaction.mockImplementation(async (cb: (tx: typeof mockTx) => Promise<any>) => {
+      mockTx.invoice.findUnique
+        .mockResolvedValueOnce(mockInvoice)
+        .mockResolvedValueOnce({
+          ...mockInvoice,
+          amountPaid: new Decimal("50000"),
+          balanceDue: new Decimal("50000"),
+          status: "partial",
+        });
       return cb(mockTx);
     });
 
@@ -72,6 +80,14 @@ describe("recordPayment", () => {
 
   it("records a card payment with Flutterwave prefix", async () => {
     mockPrisma.$transaction.mockImplementation(async (cb: (tx: typeof mockTx) => Promise<any>) => {
+      mockTx.invoice.findUnique
+        .mockResolvedValueOnce(mockInvoice)
+        .mockResolvedValueOnce({
+          ...mockInvoice,
+          amountPaid: new Decimal("50000"),
+          balanceDue: new Decimal("50000"),
+          status: "partial",
+        });
       return cb(mockTx);
     });
 

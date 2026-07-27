@@ -11,14 +11,14 @@ export async function GET(
     const { studentId } = await params;
     const session = await getSession();
     if (!session || !["SchoolOwner", "Bursar", "Principal", "Admin"].includes(session.role)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized", code: "UNAUTHORIZED" }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("sessionId");
 
     if (!sessionId) {
-      return NextResponse.json({ error: "Session ID is required" }, { status: 400 });
+      return NextResponse.json({ error: "Session ID is required", code: "VALIDATION_ERROR" }, { status: 400 });
     }
 
     // Get all optional fee items
@@ -46,7 +46,7 @@ export async function GET(
 
     return NextResponse.json({ data });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to fetch activities" }, { status: 500 });
+      return NextResponse.json({ error: "Failed to fetch activities", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }
 
@@ -71,7 +71,7 @@ export async function POST(
     const parsed = ToggleActivitySchema.safeParse(body);
     
     if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+      return NextResponse.json({ error: parsed.error.issues[0].message, code: "VALIDATION_ERROR" }, { status: 400 });
     }
 
     const { feeItemId, sessionId, action } = parsed.data;
@@ -82,63 +82,67 @@ export async function POST(
     });
 
     if (!student) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 });
+      return NextResponse.json({ error: "Student not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
     if (action === "enrol") {
-      await prisma.studentActivityEnrolment.upsert({
-        where: {
-          studentId_feeItemId_sessionId: {
+      await prisma.$transaction(async (tx) => {
+        await tx.studentActivityEnrolment.upsert({
+          where: {
+            studentId_feeItemId_sessionId: {
+              studentId: studentId,
+              feeItemId,
+              sessionId,
+            },
+          },
+          update: {},
+          create: {
+            schoolId: session.schoolId,
             studentId: studentId,
             feeItemId,
             sessionId,
           },
-        },
-        update: {},
-        create: {
-          schoolId: session.schoolId,
-          studentId: studentId,
-          feeItemId,
-          sessionId,
-        },
-      });
+        });
 
-      await prisma.auditLog.create({
-        data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName || "Admin",
-          action: "ACTIVITY_ENROLLED",
-          entityType: "Student",
-          entityId: studentId,
-          newValue: { feeItemId, sessionId },
-        }
+        await tx.auditLog.create({
+          data: {
+            schoolId: session.schoolId,
+            actorId: session.userId,
+            actorName: session.fullName || "Admin",
+            action: "ACTIVITY_ENROLLED",
+            entityType: "Student",
+            entityId: studentId,
+            newValue: { feeItemId, sessionId },
+          }
+        });
       });
     } else {
-      await prisma.studentActivityEnrolment.deleteMany({
-        where: {
-          schoolId: session.schoolId,
-          studentId: studentId,
-          feeItemId,
-          sessionId,
-        },
-      });
+      await prisma.$transaction(async (tx) => {
+        await tx.studentActivityEnrolment.deleteMany({
+          where: {
+            schoolId: session.schoolId,
+            studentId: studentId,
+            feeItemId,
+            sessionId,
+          },
+        });
 
-      await prisma.auditLog.create({
-        data: {
-          schoolId: session.schoolId,
-          actorId: session.userId,
-          actorName: session.fullName || "Admin",
-          action: "ACTIVITY_REMOVED",
-          entityType: "Student",
-          entityId: studentId,
-          previousValue: { feeItemId, sessionId },
-        }
+        await tx.auditLog.create({
+          data: {
+            schoolId: session.schoolId,
+            actorId: session.userId,
+            actorName: session.fullName || "Admin",
+            action: "ACTIVITY_REMOVED",
+            entityType: "Student",
+            entityId: studentId,
+            previousValue: { feeItemId, sessionId },
+          }
+        });
       });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    return NextResponse.json({ error: "Failed to toggle activity enrolment" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to toggle activity enrolment", code: "INTERNAL_ERROR" }, { status: 500 });
   }
 }

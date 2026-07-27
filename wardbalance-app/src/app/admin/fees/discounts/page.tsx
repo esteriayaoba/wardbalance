@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Plus, CheckCircle, XCircle, Search, Edit, AlertCircle, RefreshCw } from "lucide-react";
+import { formatNaira } from "@/lib/utils";
 
 type DiscountRule = {
   id: string;
@@ -17,8 +18,8 @@ type DiscountRule = {
 export default function DiscountRulesPage() {
   const [rules, setRules] = useState<DiscountRule[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   const fetchRules = async () => {
     setIsLoading(true);
@@ -36,12 +37,13 @@ export default function DiscountRulesPage() {
     }
   };
 
+
   useEffect(() => {
     fetchRules();
   }, []);
 
   const formatType = (type: string, value: string) => {
-    return type === "percentage" ? `${value}%` : `₦${Number(value).toLocaleString()}`;
+    return type === "percentage" ? `${value}%` : formatNaira(value);
   };
 
   const filteredRules = rules.filter(r => r.name.toLowerCase().includes(search.toLowerCase()));
@@ -62,6 +64,22 @@ export default function DiscountRulesPage() {
         </Link>
       </div>
 
+      {error && (
+        <div className="p-6 bg-red-50 border border-red-200 rounded-xl flex flex-col items-center text-center gap-4">
+          <AlertCircle className="w-10 h-10 text-red-500" />
+          <div>
+            <h2 className="text-title-medium text-red-900 font-bold mb-1">Failed to load discount rules</h2>
+            <p className="text-body-medium text-red-700">{error}</p>
+          </div>
+          <button
+            onClick={fetchRules}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-label-large font-bold hover:bg-red-700 transition"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <div className="bg-white border border-neutral-200 rounded-xl shadow-sm overflow-hidden">
         <div className="p-4 border-b border-neutral-100 flex items-center gap-3">
           <div className="relative max-w-sm w-full">
@@ -71,6 +89,7 @@ export default function DiscountRulesPage() {
               placeholder="Search rules..." 
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search discount rules"
               className="w-full pl-9 pr-4 py-2 border border-neutral-200 rounded-lg text-body-medium focus:outline-2 focus:outline-primary/50 focus:outline-offset-1 focus:outline"
             />
           </div>
@@ -134,7 +153,7 @@ export default function DiscountRulesPage() {
                       )}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-neutral-400 hover:text-primary rounded-lg hover:bg-primary-50 transition-colors">
+                      <button className="p-2 text-neutral-400 hover:text-primary rounded-lg hover:bg-primary-50 transition-colors" aria-label={`Edit ${rule.name}`}>
                         <Edit className="w-4 h-4" />
                       </button>
                     </td>

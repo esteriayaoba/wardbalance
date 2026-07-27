@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, AlertCircle, ArrowRight, User, TrendingUp, CreditCard, ChevronRight } from "lucide-react";
+import { Loader2, AlertCircle, ArrowRight, User, TrendingUp, CreditCard, ChevronRight, RefreshCw } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
+import PWAInstallPrompt from "@/components/parent/PWAInstallPrompt";
+import { useBackgroundSync } from "@/components/pwa/useBackgroundSync";
 
 interface Ward {
   id: string;
@@ -38,6 +40,7 @@ export default function ParentDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Auto-refresh data when connectivity returns after being offline
   const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -52,6 +55,10 @@ export default function ParentDashboard() {
       setLoading(false);
     }
   }, []);
+
+  // Trigger background sync when connectivity returns — must come AFTER fetchData declaration
+  useBackgroundSync(fetchData);
+
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -92,7 +99,7 @@ export default function ParentDashboard() {
         <AlertCircle className="w-12 h-12 text-error mb-4" />
         <h3 className="text-title-medium text-neutral-900 font-bold mb-2">Could Not Load Dashboard</h3>
         <p className="text-body-medium text-neutral-600 mb-6">{error ?? "Something went wrong"}</p>
-        <button onClick={fetchData} className="px-4 py-2 bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition cursor-pointer">Try Again</button>
+        <button onClick={fetchData} className="px-4 py-2 min-h-[44px] bg-primary text-white font-bold rounded-lg text-body-small hover:bg-primary-dark transition cursor-pointer">Try Again</button>
       </div>
     );
   }
@@ -114,10 +121,20 @@ export default function ParentDashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
-        <h1 className="text-headline-small text-neutral-900 font-bold">My Wards</h1>
-        <p className="text-body-small text-neutral-600">View academic invoices, track payments, and verify balances.</p>
+    <div className="space-y-6" aria-live="polite">
+      {/* PWA install prompt — shown on first visit if browser supports it */}
+      <PWAInstallPrompt />
+
+      <div className="flex items-center justify-between">
+        <div className="space-y-1">
+          <h1 className="text-headline-small text-neutral-900 font-bold">My Wards</h1>
+          <p className="text-body-small text-neutral-600">View academic invoices, track payments, and verify balances.</p>
+        </div>
+        <button onClick={fetchData} disabled={loading}
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-primary"
+          aria-label="Refresh data">
+          <RefreshCw className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm flex flex-col justify-between gap-4">

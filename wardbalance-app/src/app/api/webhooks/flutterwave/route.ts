@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
 import { logError, logInfo, logWarn } from "@/lib/logger";
-import { recordPayment } from "@/services/payment-recorder.service";
 import { processSubscriptionPayment } from "@/services/subscription-payment.service";
+import { processFlutterwavePayment } from "@/services/flutterwave-webhook.service";
 import { enqueueNotification } from "@/lib/notifications";
+import { z } from "zod";
+
+const FlutterwaveWebhookSchema = z.object({
+  event: z.literal("charge.completed"),
+  data: z.object({
+    id: z.number(),
+    status: z.literal("successful"),
+    tx_ref: z.string(),
+    amount: z.number().positive(),
+    currency: z.string().default("NGN"),
+    meta: z.object({
+      invoiceId: z.string(),
+      schoolId: z.string(),
+      parentId: z.string(),
+    }),
+  }),
+});
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,46 +39,29 @@ export async function POST(request: NextRequest) {
 
     const payload = await request.json();
 
-    if (payload.event !== "charge.completed" || payload.data?.status !== "successful") {
+    const parsed = FlutterwaveWebhookSchema.safeParse(payload);
+    if (!parsed.success) {
       return NextResponse.json({ received: true, ignored: true });
     }
 
-    const flwData = payload.data;
+    const flwData = parsed.data.data;
     const txRef = flwData.tx_ref;
     const transactionId = String(flwData.id);
-    const amount = Number(flwData.amount);
-    const tempInvoiceId = flwData.meta?.invoiceId;
-    const tempSchoolId = flwData.meta?.schoolId;
-    const tempParentId = flwData.meta?.parentId;
+    const tempInvoiceId = flwData.meta.invoiceId;
+    const tempSchoolId = flwData.meta.schoolId;
+    const tempParentId = flwData.meta.parentId;
 
     if (tempSchoolId) {
-      await prisma.auditLog.create({
-        data: {
-          schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-          actorName: "Flutterwave Webhook", action: "payment.webhook_attempt",
-          entityType: "Payment", entityId: transactionId,
-          newValue: { txRef, transactionId, invoiceId: tempInvoiceId },
-        },
-      });
-    }
-
-    const existingPayment = await prisma.payment.findFirst({
-      where: { OR: [{ reference: txRef }, { reference: transactionId }] },
-    });
-
-    if (existingPayment) {
-      logInfo("flutterwave-webhook", `Transaction ${txRef} already processed`);
-      if (tempSchoolId) {
-        await prisma.auditLog.create({
+      await prisma.$transaction(async (tx) => {
+        await tx.auditLog.create({
           data: {
             schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-            actorName: "Flutterwave Webhook", action: "payment.duplicate_ignored",
+            actorName: "Flutterwave Webhook", action: "payment.webhook_attempt",
             entityType: "Payment", entityId: transactionId,
-            newValue: { txRef, transactionId, paymentId: existingPayment.id },
+            newValue: { txRef, transactionId, invoiceId: tempInvoiceId },
           },
         });
-      }
-      return NextResponse.json({ received: true, duplicated: true });
+      });
     }
 
     const flwSecretKey = process.env.FLW_SECRET_KEY;
@@ -83,13 +82,15 @@ export async function POST(request: NextRequest) {
       if (!flwVerifyRes.ok || flwVerifyBody.data.status !== "successful") {
         logWarn("flutterwave-webhook", `Verification API failed for ${transactionId}`);
         if (tempSchoolId) {
-          await prisma.auditLog.create({
-            data: {
-              schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-              actorName: "Flutterwave Webhook", action: "payment.webhook_attempt_failed",
-              entityType: "Payment", entityId: transactionId,
-              newValue: { reason: "api_verification_failed", txRef, transactionId, flwMessage: flwVerifyBody.message },
-            },
+          await prisma.$transaction(async (tx) => {
+            await tx.auditLog.create({
+              data: {
+                schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
+                actorName: "Flutterwave Webhook", action: "payment.webhook_attempt_failed",
+                entityType: "Payment", entityId: transactionId,
+                newValue: { reason: "api_verification_failed", txRef, transactionId, flwMessage: flwVerifyBody.message },
+              },
+            });
           });
         }
         return NextResponse.json({ error: "Flutterwave verification failed" }, { status: 400 });
@@ -100,13 +101,15 @@ export async function POST(request: NextRequest) {
     if (verifiedData.currency !== "NGN") {
       logWarn("flutterwave-webhook", `Currency mismatch: ${verifiedData.currency}`);
       if (tempSchoolId) {
-        await prisma.auditLog.create({
-          data: {
-            schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
-            actorName: "Flutterwave Webhook", action: "payment.currency_mismatch",
-            entityType: "Payment", entityId: transactionId,
-            newValue: { reason: "currency_mismatch", expected: "NGN", actual: verifiedData.currency, txRef, transactionId },
-          },
+        await prisma.$transaction(async (tx) => {
+          await tx.auditLog.create({
+            data: {
+              schoolId: tempSchoolId, actorId: tempParentId || "webhook-system",
+              actorName: "Flutterwave Webhook", action: "payment.currency_mismatch",
+              entityType: "Payment", entityId: transactionId,
+              newValue: { reason: "currency_mismatch", expected: "NGN", actual: verifiedData.currency, txRef, transactionId },
+            },
+          });
         });
       }
       return NextResponse.json({ error: "Invalid currency" }, { status: 400 });
@@ -180,48 +183,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing invoiceId" }, { status: 400 });
     }
 
-    const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, schoolId },
-      include: { student: { select: { id: true } } },
+    const result = await processFlutterwavePayment({
+      tx_ref: txRef,
+      id: flwData.id,
+      amount: verifiedData.amount,
+      currency: verifiedData.currency,
+      meta: { invoiceId, schoolId, parentId: parentId || "" },
     });
 
-    if (!invoice) {
-      logWarn("flutterwave-webhook", `Invoice ${invoiceId} not found`);
-      await prisma.auditLog.create({
-        data: {
-          schoolId, actorId: parentId || "webhook-system",
-          actorName: "Flutterwave Webhook", action: "payment.parent_authorization_failed",
-          entityType: "Payment", entityId: transactionId,
-          newValue: { reason: "invoice_not_found", invoiceId, txRef, transactionId },
-        },
-      });
-      return NextResponse.json({ error: "Associated invoice not found" }, { status: 404 });
+    if ("duplicate" in result && result.duplicate) {
+      logInfo("flutterwave-webhook", `Transaction ${txRef} already processed`);
+      return NextResponse.json({ received: true, duplicated: true });
     }
 
-    const result = await recordPayment({
-      schoolId,
-      invoiceId,
-      studentId: invoice.studentId,
-      parentId: parentId || null,
-      amount: new Prisma.Decimal(verifiedData.amount),
-      method: "card",
-      reference: txRef,
-      recordedById: null,
-      actorId: parentId || "webhook-system",
-      actorName: "Flutterwave Webhook",
-      action: "payment.webhook_verified",
-      receiptPrefix: "RCT-FLW",
-    });
-
     if (parentId) {
+      const successResult = result as { receipt: { receiptNumber: string }; payment: { id: string } };
       await enqueueNotification({
         schoolId,
         parentId,
         channel: "email",
         recipient: parentId,
         subject: "Payment Received — WardBalance",
-        content: `Your payment of ₦${Number(verifiedData.amount).toLocaleString()} has been received and credited to invoice ${invoiceId}. Receipt: ${result.receipt.receiptNumber}`,
-        reference: `payment-${result.payment.id}`,
+        content: `Your payment of ₦${Number(verifiedData.amount).toLocaleString()} has been received and credited to invoice ${invoiceId}. Receipt: ${successResult.receipt.receiptNumber}`,
+        reference: `payment-${successResult.payment.id}`,
       });
     }
 

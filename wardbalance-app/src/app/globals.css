@@ -197,6 +197,26 @@
   --color-success-500: var(--color-success);
   --color-warning: var(--color-warning);
   --color-info: var(--color-info);
+  --color-neutral-150: var(--color-neutral-150);
+  --color-neutral-250: var(--color-neutral-250);
+  --color-neutral-450: var(--color-neutral-450);
+  --color-neutral-550: var(--color-neutral-550);
+  --color-neutral-850: var(--color-neutral-850);
+  --color-green-150: var(--color-green-150);
+  --color-green-650: var(--color-green-650);
+  --color-green-750: var(--color-green-750);
+
+  /* Custom palette — extended neutral */
+  --color-neutral-150: oklch(0.97 0.005 260);
+  --color-neutral-250: oklch(0.94 0.008 260);
+  --color-neutral-450: oklch(0.82 0.01 260);
+  --color-neutral-550: oklch(0.72 0.012 260);
+  --color-neutral-850: oklch(0.28 0.015 260);
+
+  /* Custom palette — extended green */
+  --color-green-150: oklch(0.96 0.04 145);
+  --color-green-650: oklch(0.55 0.12 145);
+  --color-green-750: oklch(0.4 0.1 145);
 }
 
 /* ================================
