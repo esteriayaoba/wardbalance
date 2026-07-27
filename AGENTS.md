@@ -24,19 +24,23 @@ digital infrastructure.
 
 ## 2. Product Phase
 
-**Current phase: Phase 2B — Payment & Parent Experience**
+**Current phase: Phase 2C — Subscription & Billing**
 
 | Phase | Status | Scope |
 |-------|--------|-------|
 | Phase 1 — MVP | ✅ Complete | Marketing landing page, lead capture form, lead database, email notification |
 | Phase 2A — Admin Platform Foundation | ✅ Complete | Auth-aware admin shell, school tenant setup, setup checklist, academic structure, students & parents, fee items & templates, invoice generation, manual payments, basic receipts, basic dashboard, audit log |
 | Phase 2B — Payment & Parent Experience | ✅ Complete | Parent portal, Flutterwave payment links, verification queue, parent invoice view, receipt download, automated reminders, CSV/PDF exports, lifecycle automation engine, PWA support |
+| Phase 2C — Subscription & Billing | 🚧 In Progress | Recurring billing (Paystack), plan enforcement, trial management, subscription management UI, upgrade/downgrade/cancel/reactivate, dunning automation, billing analytics, subscription notifications |
 | Phase 3 — Expand | Future | WhatsApp integration, multi-branch support, native mobile app (conditional on PMF data) |
 | Phase 4 — Platform | Future | Attendance, results, payroll, full school OS |
 
 **Do not build Phase 3+ features unless explicitly instructed.** If a task seems
 to require Flutterwave production settlement, flag it — Phase 2B manages automated
 payment links, but manual payment recording (Phase 2A) remains supported.
+
+**Phase 2C (Subscription & Billing):** Flutterwave handles both school-to-parent payments (Phase 2B)
+and WardBalance's own subscription billing (Phase 2C). Do not introduce a second payment provider.
 
 ---
 
