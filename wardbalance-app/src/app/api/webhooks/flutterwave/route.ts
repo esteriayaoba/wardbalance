@@ -15,9 +15,11 @@ const FlutterwaveWebhookSchema = z.object({
     amount: z.number().positive(),
     currency: z.string().default("NGN"),
     meta: z.object({
-      invoiceId: z.string(),
+      invoiceId: z.string().optional(),
       schoolId: z.string(),
-      parentId: z.string(),
+      parentId: z.string().optional(),
+      subscriptionId: z.string().optional(),
+      planId: z.string().optional(),
     }),
   }),
 });
@@ -142,7 +144,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Extract card token from Flutterwave response
-      const card = verifiedData.card as {
+      const card = (verifiedData as any).card as {
         token?: string;
         last_4digits?: string;
         brand?: string;
@@ -165,7 +167,7 @@ export async function POST(request: NextRequest) {
         planId: metaPlanId,
         amount: Number(verifiedData.amount),
         flwTransactionId: transactionId,
-        flwCustomerId: String(verifiedData.customer?.id ?? ""),
+        flwCustomerId: String((verifiedData as any).customer?.id ?? ""),
         cardToken,
         billingPeriod: "term",
       });
