@@ -32,7 +32,7 @@ const mockPrisma = {
 
 vi.mock("@/lib/prisma", () => ({ prisma: mockPrisma }));
 
-const { recordPayment } = await import("@/modules/payments/recorder.service");
+const { recordPayment } = await import("@/services/payment-recorder.service");
 
 describe("recordPayment", () => {
   const baseInput = {
