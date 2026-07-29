@@ -12,7 +12,7 @@
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
-    "vercel-build": "node scripts/migrate-deploy.js && next build"
+    "vercel-build": "node scripts/migrate-deploy.js && next build --webpack"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1075.0",
