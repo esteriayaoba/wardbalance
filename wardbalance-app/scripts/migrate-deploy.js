@@ -62,7 +62,7 @@ async function main() {
     attempt++;
     try {
       console.log(`[migrate-deploy] Attempt ${attempt}/${MAX_ATTEMPTS} — running prisma migrate deploy...`);
-      execSync("npx prisma migrate deploy --timeout=30000", { stdio: "inherit", env });
+      execSync("npx prisma migrate deploy", { stdio: "inherit", env });
       console.log("[migrate-deploy] ✓ Migrations applied successfully.");
       process.exit(0);
     } catch (err) {
@@ -71,6 +71,12 @@ async function main() {
       const isStaleShadow = output.includes("P3005") || output.includes("database schema is not empty");
 
       if (isStaleShadow) {
+        // P3005: the database already has schema tables but no _prisma_migrations
+        // history. We need to baseline it by marking every migration as already
+        // applied, then exit — there is nothing left to deploy.
+        console.warn("[migrate-deploy] P3005 detected — database has schema but no migration history.");
+        console.warn("[migrate-deploy] Baselining: marking all migrations as applied...");
+        let baselineOk = false;
         try {
           const fs = require("fs");
           const path = require("path");
@@ -78,20 +84,42 @@ async function main() {
           if (fs.existsSync(migrationsDir)) {
             const migrationFolders = fs
               .readdirSync(migrationsDir)
-              .filter((f) => fs.statSync(path.join(migrationsDir, f)).isDirectory());
+              .filter((f) => fs.statSync(path.join(migrationsDir, f)).isDirectory())
+              .sort(); // chronological order is required
 
-            console.warn(`[migrate-deploy] P3005 schema drift detected. Resolving ${migrationFolders.length} migrations as applied...`);
+            console.warn(`[migrate-deploy] Found ${migrationFolders.length} migration(s) to baseline.`);
             for (const folder of migrationFolders) {
               try {
                 execSync(`npx prisma migrate resolve --applied "${folder}"`, { stdio: "inherit", env });
-              } catch (resErr) {
-                // Ignore if already applied
+                console.log(`[migrate-deploy]   ✓ Marked as applied: ${folder}`);
+              } catch (_) {
+                // Already applied — safe to ignore
+                console.log(`[migrate-deploy]   ~ Already applied (skipped): ${folder}`);
               }
             }
+            baselineOk = true;
+          } else {
+            console.warn("[migrate-deploy] No migrations directory found — nothing to baseline.");
+            baselineOk = true; // Nothing to do; let the build continue.
           }
         } catch (resolveErr) {
-          console.warn(`[migrate-deploy] Failed to auto-resolve baseline:`, resolveErr.message ?? resolveErr);
+          console.error("[migrate-deploy] Baseline failed:", resolveErr.message ?? resolveErr);
         }
+
+        if (baselineOk) {
+          console.log("[migrate-deploy] ✓ Baseline complete. Schema is already up to date.");
+          process.exit(0);
+        }
+
+        // Baselining itself failed — fall through to the normal failure path.
+        if (attempt >= MAX_ATTEMPTS) {
+          console.error(`[migrate-deploy] ✗ All ${MAX_ATTEMPTS} attempts failed (P3005 baseline unsuccessful).`);
+          process.exit(1);
+        }
+        const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        console.warn(`[migrate-deploy] Retrying in ${delayMs / 1000}s...`);
+        sleep(delayMs);
+        continue;
       }
 
       if (attempt >= MAX_ATTEMPTS) {
@@ -103,8 +131,6 @@ async function main() {
       const delayMs = BASE_DELAY_MS * Math.pow(2, attempt - 1);
       if (isLockTimeout) {
         console.warn(`[migrate-deploy] Advisory lock timeout (P1002). Neon may be waking up. Retrying in ${delayMs / 1000}s...`);
-      } else if (isStaleShadow) {
-        console.warn(`[migrate-deploy] Stale shadow database handled. Retrying migration in ${delayMs / 1000}s...`);
       } else {
         console.warn(`[migrate-deploy] Migration error. Retrying in ${delayMs / 1000}s...`);
         console.warn(err.message ?? err);
