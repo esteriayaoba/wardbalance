@@ -3,7 +3,7 @@ import { CampaignAudienceResolver, type SegmentType } from "@/modules/growth/ser
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess", "Support"]);
+  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
   if (!auth.authorized) return auth.response;
 
   const segment = request.nextUrl.searchParams.get("segment") as SegmentType | null;

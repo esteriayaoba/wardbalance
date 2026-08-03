@@ -2,12 +2,11 @@ import { requirePlatformRole } from "@/lib/auth/require-platform-role";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
-interface RouteParams {
-  params: { id: string };
-}
+interface RouteParams { params: Promise<{ id: string }> }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess"]);
   if (!auth.authorized) return auth.response;
 
   try {
@@ -16,7 +15,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     const enrollments = await prisma.journeyEnrollment.findMany({
       where: {
-        journeyId: params.id,
+        journeyId: id,
         status: status ? status : undefined,
       },
       include: {

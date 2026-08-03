@@ -23,7 +23,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess", "Support"]);
+  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
   if (!auth.authorized) return auth.response;
 
   try {

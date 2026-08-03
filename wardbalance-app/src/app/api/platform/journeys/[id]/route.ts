@@ -2,17 +2,16 @@ import { requirePlatformRole } from "@/lib/auth/require-platform-role";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
-interface RouteParams {
-  params: { id: string };
-}
+interface RouteParams { params: Promise<{ id: string }> }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess"]);
   if (!auth.authorized) return auth.response;
 
   try {
     const journey = await prisma.journey.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         steps: { orderBy: { stepOrder: "asc" } },
         _count: { select: { enrollments: true } },
@@ -24,7 +23,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const activeEnrollmentsCount = await prisma.journeyEnrollment.count({
-      where: { journeyId: params.id, status: "ACTIVE" },
+      where: { journeyId: id, status: "ACTIVE" },
     });
 
     return NextResponse.json({
@@ -43,7 +42,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function PUT(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
   if (!auth.authorized) return auth.response;
 
   try {
@@ -65,16 +65,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }>;
     };
 
-    const existing = await prisma.journey.findUnique({ where: { id: params.id } });
+    const existing = await prisma.journey.findUnique({ where: { id: id } });
     if (!existing) {
       return NextResponse.json({ error: "Journey not found", code: "NOT_FOUND" }, { status: 404 });
     }
 
     // Replace steps transactionally
     await prisma.$transaction([
-      prisma.journeyStep.deleteMany({ where: { journeyId: params.id } }),
+      prisma.journeyStep.deleteMany({ where: { journeyId: id } }),
       prisma.journey.update({
-        where: { id: params.id },
+        where: { id: id },
         data: {
           name,
           description: description || null,
@@ -96,7 +96,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     ]);
 
     const updated = await prisma.journey.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: { steps: { orderBy: { stepOrder: "asc" } } },
     });
 

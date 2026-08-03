@@ -4,13 +4,14 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess", "Support"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess", "Support"]);
   if (!auth.authorized) return auth.response;
 
   try {
-    const comparison = await CampaignAnalyticsService.getCampaignComparison(params.id);
+    const comparison = await CampaignAnalyticsService.getCampaignComparison(id);
     return NextResponse.json(comparison);
   } catch (error: any) {
     return NextResponse.json(

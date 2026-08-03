@@ -15,17 +15,16 @@ const UpdateCampaignSchema = z.object({
   segment: z.string().min(1).optional(),
 });
 
-interface RouteParams {
-  params: { id: string };
-}
+interface RouteParams { params: Promise<{ id: string }> }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess", "Support"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing", "CustomerSuccess", "Support"]);
   if (!auth.authorized) return auth.response;
 
   try {
     const campaign = await prisma.campaign.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       include: {
         template: true,
         recipients: { take: 100 }, // take initial batch for preview
@@ -46,7 +45,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
   if (!auth.authorized) return auth.response;
 
   try {
@@ -61,7 +61,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const campaign = await prisma.campaign.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!campaign) {
@@ -92,7 +92,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const updatedCampaign = await prisma.campaign.update({
-      where: { id: params.id },
+      where: { id: id },
       data: updateData,
     });
 
@@ -106,12 +106,13 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
   if (!auth.authorized) return auth.response;
 
   try {
     const campaign = await prisma.campaign.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!campaign) {
@@ -126,7 +127,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     await prisma.campaign.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     return NextResponse.json({ message: "Campaign deleted successfully" });

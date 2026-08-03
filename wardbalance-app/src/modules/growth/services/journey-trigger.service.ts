@@ -136,7 +136,7 @@ export class JourneyTriggerService {
 
         for (const s of activeSchools) {
           if (!s.email) continue;
-          const evalResult = await SchoolHealthEvaluator.evaluateSchoolHealth(s.id);
+          const evalResult = await SchoolHealthEvaluator.evaluate(s.id);
           if (evalResult.tier === "at_risk" || evalResult.tier === "inactive") {
             results.push({ email: s.email, schoolId: s.id });
           }

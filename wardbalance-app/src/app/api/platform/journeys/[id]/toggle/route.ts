@@ -2,17 +2,16 @@ import { requirePlatformRole } from "@/lib/auth/require-platform-role";
 import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
-interface RouteParams {
-  params: { id: string };
-}
+interface RouteParams { params: Promise<{ id: string }> }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
   if (!auth.authorized) return auth.response;
 
   try {
     const journey = await prisma.journey.findUnique({
-      where: { id: params.id },
+      where: { id: id },
       select: { id: true, isActive: true },
     });
 
@@ -21,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     }
 
     const updated = await prisma.journey.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { isActive: !journey.isActive },
     });
 

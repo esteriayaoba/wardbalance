@@ -3,12 +3,11 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import { ResendEmailDispatcher } from "@/modules/growth/dispatchers/resend-email.dispatcher";
 
-interface RouteParams {
-  params: { id: string };
-}
+interface RouteParams { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
   if (!auth.authorized) return auth.response;
 
   try {
@@ -20,7 +19,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     const campaign = await prisma.campaign.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!campaign) {

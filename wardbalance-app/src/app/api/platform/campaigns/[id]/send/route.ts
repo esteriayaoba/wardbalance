@@ -12,12 +12,11 @@ try {
   // after is not supported or not configured in this next.js version
 }
 
-interface RouteParams {
-  params: { id: string };
-}
+interface RouteParams { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
-  const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
+  
+  const { id } = await params;const auth = await requirePlatformRole(["PlatformAdmin", "Marketing"]);
   if (!auth.authorized) return auth.response;
 
   try {
@@ -25,7 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { scheduledAt } = body as { scheduledAt?: string };
 
     const campaign = await prisma.campaign.findUnique({
-      where: { id: params.id },
+      where: { id: id },
     });
 
     if (!campaign) {
@@ -50,7 +49,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
 
       await prisma.campaign.update({
-        where: { id: params.id },
+        where: { id: id },
         data: { status: "SCHEDULED", scheduledAt: scheduleDate },
       });
 
@@ -61,7 +60,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // --- IMMEDIATE send ---
-    const totalRecipients = await CampaignDispatchService.prepareCampaignRecipients(params.id);
+    const totalRecipients = await CampaignDispatchService.prepareCampaignRecipients(id);
 
     if (totalRecipients === 0) {
       return NextResponse.json(
@@ -73,19 +72,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     if (afterFunc) {
       afterFunc(async () => {
         try {
-          await CampaignDispatchService.dispatchCampaignNow(params.id);
+          await CampaignDispatchService.dispatchCampaignNow(id);
         } catch (dispatchError) {
-          console.error(`[campaign-dispatch-error] Failed to dispatch campaign ${params.id}:`, dispatchError);
+          console.error(`[campaign-dispatch-error] Failed to dispatch campaign ${id}:`, dispatchError);
         }
       });
     } else {
-      CampaignDispatchService.dispatchCampaignNow(params.id).catch((dispatchError) => {
-        console.error(`[campaign-dispatch-error] Background dispatch failed for campaign ${params.id}:`, dispatchError);
+      CampaignDispatchService.dispatchCampaignNow(id).catch((dispatchError) => {
+        console.error(`[campaign-dispatch-error] Background dispatch failed for campaign ${id}:`, dispatchError);
       });
     }
 
     await prisma.campaign.update({
-      where: { id: params.id },
+      where: { id: id },
       data: { status: "PROCESSING" },
     });
 
