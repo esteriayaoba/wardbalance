@@ -49,8 +49,13 @@ model Lead {
   ipAddress              String?
   userAgent              String?
   metadata               Json?
+  schoolId               String?                @unique
+  school                 School?                @relation(fields: [schoolId], references: [id], onDelete: SetNull)
   createdAt              DateTime               @default(now())
   updatedAt              DateTime               @updatedAt
+
+  campaignConversions    CampaignConversion[]
+  journeyEnrollments     JourneyEnrollment[]
 
   @@unique([email])
   @@index([status])
@@ -118,6 +123,9 @@ model School {
   subscription              SchoolSubscription?
   subscriptionInvoices      SubscriptionInvoice[]
   billingTransactions       BillingTransaction[]
+  lead                      Lead?
+  campaignConversions       CampaignConversion[]
+  journeyEnrollments        JourneyEnrollment[]
 }
 
 enum UserRole {
@@ -125,6 +133,13 @@ enum UserRole {
   Principal
   Bursar
   Admin
+}
+
+enum PlatformRole {
+  PlatformAdmin
+  Marketing
+  CustomerSuccess
+  Support
 }
 
 model User {
@@ -135,6 +150,8 @@ model User {
   passwordHash              String
   fullName                  String
   role                      UserRole  @default(Bursar)
+  isPlatformAdmin           Boolean   @default(false)
+  platformRole              PlatformRole?
   emailVerified             Boolean   @default(false)
   emailVerifiedAt           DateTime?
   verificationCodeHash      String?
@@ -147,6 +164,10 @@ model User {
   // Relations
   recordedPayments    Payment[]                    @relation("ActorRelation")
   reviewedSubmissions ManualPaymentSubmission[]    @relation("ReviewerRelation")
+  createdCampaigns    Campaign[]                   @relation("CreatedCampaigns")
+  createdJourneys     Journey[]                    @relation("CreatedJourneys")
+  approvedCampaigns   Campaign[]                   @relation("ApprovedCampaigns")
+  versionHistories    CampaignVersionHistory[]
 
   @@index([schoolId])
 }
@@ -816,9 +837,9 @@ model SchoolSubscription {
   currentPeriodEnd   DateTime?
   flwCustomerId      String?  // Flutterwave customer ID for tokenized charges
   flwCardToken       Json?    // Saved card token for recurring billing
-  metadata           Json?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   invoices       SubscriptionInvoice[]
   transactions   BillingTransaction[]
@@ -880,4 +901,265 @@ model BillingTransaction {
   @@index([flwTransactionId])
   @@index([schoolId])
   @@map("billing_transactions")
+}
+
+enum CampaignStatus {
+  DRAFT
+  READY_FOR_REVIEW
+  APPROVED
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  PARTIALLY_FAILED
+  CANCELLED
+}
+
+enum DeliveryStatus {
+  QUEUED
+  PROCESSING
+  SENT
+  FAILED
+  SUPPRESSED
+  SKIPPED
+  DELIVERED
+  OPENED
+  CLICKED
+  CONVERTED
+  BOUNCED
+  UNSUBSCRIBED
+}
+
+enum CampaignGoal {
+  INCREASE_DEMO_BOOKINGS
+  ACTIVATE_NEW_SCHOOLS
+  COMPLETE_ONBOARDING
+  TRIAL_CONVERSION
+  SUBSCRIPTION_RENEWAL
+  PRODUCT_ANNOUNCEMENT
+  NEWSLETTER
+}
+
+model Campaign {
+  id              String         @id @default(cuid())
+  name            String
+  subject         String
+  previewText     String?
+  goal            CampaignGoal
+  utmSource       String         @default("campaign")
+  utmMedium       String         @default("email")
+  utmCampaign     String         
+  templateId      String?
+  template        CampaignTemplate? @relation(fields: [templateId], references: [id])
+  
+  // A/B Testing
+  isParentCampaign Boolean       @default(false)
+  parentId        String?        
+  parentCampaign  Campaign?      @relation("ABTest", fields: [parentId], references: [id], onDelete: Cascade)
+  variants        Campaign[]     @relation("ABTest")
+  variantWeight   Int            @default(100) 
+
+  // Content (Snapshot of template at time of draft)
+  htmlBody        String
+  textBody        String?
+  ctaUrl          String?
+  footerText      String?
+
+  // Filters
+  audienceFilter  Json           
+
+  // Status & Timing
+  status          CampaignStatus @default(DRAFT)
+  scheduledAt     DateTime?
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  // Actor tracking
+  createdById     String
+  createdBy       User           @relation("CreatedCampaigns", fields: [createdById], references: [id])
+  approvedById    String?
+  approvedBy      User?          @relation("ApprovedCampaigns", fields: [approvedById], references: [id])
+
+  // Analytics
+  recipientCount  Int            @default(0)
+  sentCount       Int            @default(0)
+  deliveredCount  Int            @default(0)
+  openCount       Int            @default(0)
+  clickCount      Int            @default(0)
+  conversionCount Int            @default(0) 
+  bounceCount     Int            @default(0)
+  unsubCount      Int            @default(0)
+  failedCount     Int            @default(0)
+
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  recipients   CampaignRecipient[]
+  history      CampaignVersionHistory[]
+  conversions  CampaignConversion[]
+
+  @@index([status])
+  @@index([scheduledAt])
+  @@map("campaigns")
+}
+
+model CampaignVersionHistory {
+  id           String    @id @default(cuid())
+  campaignId   String
+  campaign     Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  subject      String
+  htmlBody     String
+  textBody     String?
+  updatedById  String
+  updatedBy    User      @relation(fields: [updatedById], references: [id])
+  createdAt    DateTime  @default(now())
+
+  @@map("campaign_version_histories")
+}
+
+model CampaignRecipient {
+  id           String           @id @default(cuid())
+  campaignId   String
+  campaign     Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  leadId       String?          
+  email        String
+  firstName    String
+  schoolName   String?
+  status       DeliveryStatus   @default(QUEUED)
+  resendId     String?          @unique 
+  retryCount   Int              @default(0)
+  nextAttemptAt DateTime?
+  errorLog     String?
+  
+  sentAt       DateTime?
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  convertedAt  DateTime?
+  bouncedAt    DateTime?
+  unsubAt      DateTime?
+  complainedAt DateTime?
+
+  @@unique([campaignId, email]) 
+  @@index([status])
+  @@index([resendId])
+  @@index([nextAttemptAt])
+  @@map("campaign_recipients")
+}
+
+model CampaignTemplate {
+  id          String           @id @default(cuid())
+  name        String
+  description String?
+  category    String           
+  subject     String
+  previewText String?
+  htmlBody    String
+  textBody    String?
+  ctaUrl      String?
+  footerText  String?
+  utmSource   String           @default("template")
+  utmMedium   String           @default("email")
+  
+  version     Int              @default(1)
+  isActive    Boolean          @default(true)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  campaigns   Campaign[]
+
+  @@map("campaign_templates")
+}
+
+model SuppressionList {
+  id          String   @id @default(cuid())
+  email       String   @unique
+  reason      String   
+  createdAt   DateTime @default(now())
+
+  @@map("suppression_list")
+}
+
+/// Multi-touch campaign conversion attribution events
+model CampaignConversion {
+  id                String   @id @default(cuid())
+  campaignId        String
+  campaign          Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  schoolId          String?
+  school            School?  @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  leadId            String?
+  lead              Lead?    @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  // demo_booked | registered | onboarding_complete | trial_activated | paid_subscription | renewed | churned
+  eventType         String
+  // last_touch | first_touch | linear | time_decay
+  attributionModel  String   @default("last_touch")
+  attributedRevenue Decimal? @db.Decimal(12, 2)
+  metadata          Json?
+  convertedAt       DateTime @default(now())
+
+  @@index([campaignId])
+  @@index([schoolId])
+  @@index([leadId])
+  @@index([eventType])
+  @@map("campaign_conversions")
+}
+
+model Journey {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  trigger     String              // INACTIVE_7D | TRIAL_EXPIRING_3D | HEALTH_AT_RISK | ONBOARDING_STALLED | NEW_LEAD
+  isActive    Boolean             @default(false)
+  createdById String
+  createdBy   User                @relation("CreatedJourneys", fields: [createdById], references: [id])
+  steps       JourneyStep[]
+  enrollments JourneyEnrollment[]
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([trigger])
+  @@index([isActive])
+  @@map("journeys")
+}
+
+model JourneyStep {
+  id         String   @id @default(cuid())
+  journeyId  String
+  journey    Journey  @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  stepOrder  Int      // 1, 2, 3...
+  delayDays  Int      @default(0) // 0 = immediate on trigger
+  channel    String   // EMAIL | SMS
+  // Email fields
+  subject    String?
+  htmlBody   String?
+  textBody   String?
+  templateId String?
+  // SMS fields
+  smsBody    String?
+  createdAt  DateTime @default(now())
+
+  @@index([journeyId, stepOrder])
+  @@map("journey_steps")
+}
+
+model JourneyEnrollment {
+  id           String    @id @default(cuid())
+  journeyId    String
+  journey      Journey   @relation(fields: [journeyId], references: [id], onDelete: Cascade)
+  schoolId     String?
+  school       School?   @relation(fields: [schoolId], references: [id], onDelete: SetNull)
+  leadId       String?
+  lead         Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  contactEmail String
+  currentStep  Int       @default(0)
+  status       String    @default("ACTIVE") // ACTIVE | COMPLETED | EXITED | PAUSED
+  enrolledAt   DateTime  @default(now())
+  nextStepAt   DateTime?
+  completedAt  DateTime?
+  exitReason   String?
+
+  @@unique([journeyId, contactEmail])
+  @@index([journeyId])
+  @@index([status])
+  @@index([nextStepAt])
+  @@map("journey_enrollments")
 }
