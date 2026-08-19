@@ -13,6 +13,7 @@ const withSerwist = withSerwistInit({
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  turbopack: {},
   headers: async () => [
     {
       source: "/(.*)",

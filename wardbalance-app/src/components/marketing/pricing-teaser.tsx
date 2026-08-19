@@ -3,7 +3,7 @@ import { ArrowRight } from "lucide-react";
 
 export default function PricingTeaser() {
   return (
-    <section className="py-14 md:py-28 px-4 sm:px-6 lg:px-8 bg-white border-t border-neutral-200/60">
+    <section className="py-20 md:py-28 px-4 sm:px-6 lg:px-8 bg-white border-t border-neutral-200/60">
       <div className="mx-auto max-w-3xl text-center">
         <p className="text-label-large mb-3 text-primary uppercase font-bold tracking-wider">
           PRICING

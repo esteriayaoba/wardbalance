@@ -51,12 +51,12 @@ export default function ProblemSection() {
   return (
     <section
       id="problem"
-      className="py-16 md:py-32 lg:py-36 scroll-mt-[var(--marketing-header-offset)] bg-white border-b border-neutral-200/60"
+      className="py-20 md:py-28 lg:py-32 scroll-mt-[var(--marketing-header-offset)] bg-white border-b border-neutral-200/60"
       aria-labelledby="comparison-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center max-w-3xl mx-auto mb-10 md:mb-24">
+        <div className="text-center max-w-3xl mx-auto mb-12 md:mb-20">
           <p className="text-label-large mb-3 text-primary uppercase font-bold tracking-wider">
             The Difference is Clear
           </p>

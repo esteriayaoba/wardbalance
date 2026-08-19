@@ -15,8 +15,8 @@ export default function FinalCtaBanner() {
       <div className="mx-auto max-w-6xl">
         <div className="gradient-cta rounded-3xl p-5 md:p-12 lg:p-16 text-center relative overflow-hidden shadow-2xl">
           {/* Decorative blurs */}
-          <div className="absolute top-0 left-1/4 w-[400px] h-[400px] rounded-full opacity-25 pointer-events-none select-none bg-[radial-gradient(circle,var(--color-primary-400)_0%,transparent_70%)]" />
-          <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] rounded-full opacity-30 pointer-events-none select-none bg-[radial-gradient(circle,var(--color-secondary-400)_0%,transparent_70%)]" />
+          <div className="absolute top-0 left-1/4 w-[400px] h-[400px] rounded-full opacity-20 pointer-events-none select-none bg-[radial-gradient(circle,var(--color-primary-300)_0%,transparent_70%)]" />
+          <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] rounded-full opacity-20 pointer-events-none select-none bg-[radial-gradient(circle,var(--color-tertiary-container)_0%,transparent_70%)]" />
 
           <div className="relative z-10 max-w-3xl mx-auto flex flex-col items-center">
             <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-white text-label-medium mb-6 backdrop-blur-md">
@@ -28,7 +28,7 @@ export default function FinalCtaBanner() {
               Ready to bring clarity to your school fee operations?
             </h2>
 
-            <p className="text-body-large text-blue-100 mb-10 max-w-xl">
+            <p className="text-body-large text-neutral-100/90 mb-10 max-w-xl">
               Create your WardBalance workspace and start organizing school fees, payments, receipts, and balances from one place.
             </p>
 

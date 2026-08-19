@@ -27,7 +27,7 @@ export default function WhoItIsForSection() {
   return (
     <section
       id="audience"
-      className="py-16 md:py-24 lg:py-32 bg-white border-b border-neutral-200/60"
+      className="py-20 md:py-28 lg:py-32 bg-white border-b border-neutral-200/60"
       aria-labelledby="audience-heading"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

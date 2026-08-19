@@ -78,7 +78,7 @@ export default function HeroSection() {
 
   return (
     <section
-      className="relative pt-28 pb-0 md:pt-48 md:pb-0 overflow-hidden"
+      className="relative pt-24 pb-0 md:pt-40 md:pb-0 overflow-hidden"
       aria-labelledby="hero-heading"
     >
       <style>{`
@@ -118,9 +118,9 @@ export default function HeroSection() {
       <div className="relative mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         
         {/* Centralized Text Content */}
-        <div className="mx-auto max-w-4xl text-center flex flex-col items-center">
+        <div className="mx-auto max-w-3xl text-center flex flex-col items-center">
           <div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-6 text-label-medium animate-fade-in-up bg-primary-light text-primary-dark border border-primary-200"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-8 text-label-medium animate-fade-in-up bg-primary-light text-primary-dark border border-primary-200"
           >
             <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             Stop juggling spreadsheets and WhatsApp
@@ -128,7 +128,7 @@ export default function HeroSection() {
 
           <h1
             id="hero-heading"
-            className="text-display-small md:text-display-medium lg:text-display-large font-black text-neutral-900 mb-6 animate-fade-in-up animation-delay-100 tracking-tight leading-tight max-w-3xl"
+            className="text-display-small md:text-display-medium lg:text-display-large font-black text-neutral-900 mb-5 animate-fade-in-up animation-delay-100 tracking-tight leading-tight max-w-3xl"
           >
             Manage school fees and <br className="sm:hidden" />
             <span className="relative inline-flex flex-col justify-center overflow-hidden h-[1.2em] text-primary font-black align-top w-full">
@@ -143,13 +143,13 @@ export default function HeroSection() {
             from one simple workspace.
           </h1>
 
-          <p className="text-body-large md:text-title-medium mb-0 max-w-2xl animate-fade-in-up animation-delay-200 text-on-surface-variant leading-relaxed">
+          <p className="text-body-large md:text-title-medium mb-0 max-w-xl animate-fade-in-up animation-delay-200 text-on-surface-variant leading-relaxed">
             WardBalance helps private schools replace scattered spreadsheets, bank alerts, WhatsApp messages, and manual records with one organized finance workspace.
           </p>
         </div>
 
         {/* Centralized & Expanded Interactive Dashboard Mockup */}
-        <div className="animate-fade-in-up animation-delay-400 max-w-4xl mx-auto w-full relative mt-8 md:mt-12">
+        <div className="animate-fade-in-up animation-delay-400 max-w-4xl mx-auto w-full relative mt-12 md:mt-16">
 
           <div
             className="relative rounded-2xl p-1 transition-shadow duration-300 hover:shadow-2xl shadow-xl overflow-hidden"
@@ -415,7 +415,7 @@ export default function HeroSection() {
         </div>
 
         {/* Proof + CTA section — stats, trust bar, then buttons */}
-        <div className="mx-auto max-w-4xl text-center flex flex-col items-center mt-10 md:mt-16">
+        <div className="mx-auto max-w-4xl text-center flex flex-col items-center mt-16 md:mt-24">
 
           {/* Credibility Stats */}
           <div className="flex flex-wrap justify-center items-center gap-6 md:gap-12 animate-fade-in-up animation-delay-300">
@@ -486,7 +486,7 @@ export default function HeroSection() {
       </div>
 
       {/* Horizontal Feature Ticker Marquee */}
-      <div className="w-full overflow-hidden relative py-8 mt-20 border-t border-neutral-200/50 bg-neutral-50/20 select-none">
+      <div className="w-full overflow-hidden relative py-8 mt-24 border-t border-neutral-200/50 bg-neutral-50/20 select-none">
         <div className="flex gap-8 animate-marquee whitespace-nowrap">
           {/* Set 1 */}
           {[

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { Menu, X, ArrowUpRight } from "lucide-react";
 import { trackEvent } from "@/lib/analytics/posthog";
 import { isCategoryAllowed } from "@/lib/cookies/consent";
 
@@ -40,7 +40,7 @@ export default function MarketingHeader() {
     const updateHeaderOffset = () => {
       if (headerRef.current) {
         const height = headerRef.current.getBoundingClientRect().height;
-        document.documentElement.style.setProperty("--marketing-header-offset", `${height + 16}px`);
+        document.documentElement.style.setProperty("--marketing-header-offset", `${height + 24}px`);
       }
     };
     updateHeaderOffset();
@@ -85,7 +85,7 @@ export default function MarketingHeader() {
     const el = document.getElementById(targetId);
     if (el) {
       const offsetStr = getComputedStyle(document.documentElement).getPropertyValue("--marketing-header-offset").trim();
-      const offset = offsetStr ? parseFloat(offsetStr) : 96;
+      const offset = offsetStr ? parseFloat(offsetStr) : 80;
       const top = el.getBoundingClientRect().top + window.scrollY - offset;
       window.scrollTo({ top, behavior: "smooth" });
       window.history.pushState(null, "", `#${targetId}`);
@@ -95,11 +95,9 @@ export default function MarketingHeader() {
   const isNavActive = (href: string) => {
     if (href === "/") return false;
     if (href.startsWith("#")) return false;
-    // For /pricing and /faq, check pathname match
     if (href.startsWith("/") && !href.includes("#")) {
       return pathname === href;
     }
-    // For anchor links on homepage
     if (href.includes("#")) {
       return isHomePage && activeSection === href.split("#")[1];
     }
@@ -109,34 +107,40 @@ export default function MarketingHeader() {
   return (
     <>
       <a href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[110] bg-primary text-white px-4 py-2.5 rounded-lg shadow-lg font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 z-[110] bg-primary text-white px-4 py-2 rounded-lg shadow-lg font-bold focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2">
         Skip to content
       </a>
 
       <header ref={headerRef}
-        className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-300 bg-white/95 backdrop-blur-md ${
-          isScrolled ? "py-3 shadow-md border-b border-neutral-200/50" : "py-4 border-b border-neutral-200/10"
+        className={`fixed top-3 left-0 right-0 z-[100] px-4 sm:px-6 pointer-events-none transition-all duration-300 flex justify-center ${
+          isScrolled ? "-translate-y-0.5" : "translate-y-0"
         }`}>
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 group" aria-label="WardBalance home">
-            <Image src="/logo-v5.png" alt="WardBalance logo" width={44} height={44}
+        
+        {/* Single unified pill — compact like Onbeex */}
+        <div className="w-full max-w-4xl bg-white/95 backdrop-blur-md rounded-full border border-neutral-200/50 shadow-[0_1px_8px_rgba(0,0,0,0.04)] pl-4 pr-1.5 py-1.5 flex items-center justify-between pointer-events-auto transition-shadow hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
+          
+          {/* Left: Logo — compact */}
+          <Link href="/" className="flex items-center gap-2 group shrink-0" aria-label="WardBalance home">
+            <Image src="/logo-v5.png" alt="WardBalance logo" width={28} height={28}
               className="transition-transform duration-200 group-hover:scale-105" />
-            <span className="text-title-large tracking-tight" style={{ color: "var(--color-primary-700)" }}>
+            <span className="text-body-large font-bold tracking-tight" style={{ color: "var(--color-primary-700)" }}>
               Ward<span style={{ color: "var(--color-primary-500)" }}>Balance</span>
             </span>
           </Link>
 
-          {/* Desktop Nav */}
-          <nav className="hidden md:flex items-center gap-8" aria-label="Main navigation">
+          {/* Center: Navigation Links in a subtle gray pill */}
+          <nav className="hidden md:flex items-center gap-0.5 bg-neutral-100/70 rounded-full px-1 py-1 mx-4" aria-label="Main navigation">
             {navLinks.map((link) => {
               const active = isNavActive(link.href);
               return (
                 <Link key={link.href} href={link.href}
                   onClick={(e) => handleNavClick(e, link.href)}
-                  className="text-body-medium transition-colors duration-200 hover:opacity-80"
+                  className={`px-4 py-1.5 rounded-full text-body-small transition-colors duration-200 whitespace-nowrap ${
+                    active ? "bg-white shadow-sm" : "hover:bg-white/60"
+                  }`}
                   style={{
-                    color: active ? "var(--color-primary-500)" : "var(--color-on-surface-variant)",
-                    fontWeight: active ? "700" : "400",
+                    color: active ? "var(--color-primary-700)" : "var(--color-on-surface-variant)",
+                    fontWeight: active ? "700" : "500",
                   }}>
                   {link.label}
                 </Link>
@@ -144,12 +148,12 @@ export default function MarketingHeader() {
             })}
           </nav>
 
-          {/* Desktop CTAs */}
-          <div className="hidden md:flex items-center gap-6">
+          {/* Right: Actions — compact */}
+          <div className="hidden md:flex items-center gap-1 shrink-0">
             <Link href="/login"
-              className="text-body-medium font-bold transition-colors duration-200 hover:opacity-80"
-              style={{ color: "var(--color-on-surface-variant)" }}>
-              Sign In
+              className="text-body-small font-bold transition-colors duration-200 hover:opacity-70 px-3 py-1.5 whitespace-nowrap"
+              style={{ color: "var(--color-on-surface)" }}>
+              Sign in
             </Link>
             <Link href="/signup?plan=freemium&source=header"
               onClick={() => {
@@ -157,49 +161,53 @@ export default function MarketingHeader() {
                   trackEvent({ event: "get_started_clicked", properties: { source: "header" } });
                 }
               }}
-              className="inline-flex items-center px-5 py-2.5 rounded-lg text-label-large font-bold transition-all duration-200 hover:shadow-lg hover:opacity-90 cursor-pointer"
-              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}>
-              Get Started
+              className="inline-flex items-center gap-1 px-4 py-2 rounded-full text-body-small font-bold transition-all duration-200 hover:shadow-md cursor-pointer whitespace-nowrap"
+              style={{ background: "var(--color-primary-800)", color: "var(--color-primary-50)" }}>
+              Start free <ArrowUpRight size={14} strokeWidth={2.5} />
             </Link>
           </div>
 
           {/* Mobile Menu Button */}
-          <button className="md:hidden p-2 rounded-lg transition-colors"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
-            aria-expanded={isMobileMenuOpen} aria-controls="mobile-nav"
-            style={{ color: "var(--color-on-surface)" }}>
-            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
+          <div className="md:hidden">
+            <button className="p-2 rounded-full transition-colors hover:bg-neutral-100"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isMobileMenuOpen} aria-controls="mobile-nav"
+              style={{ color: "var(--color-on-surface)" }}>
+              {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          </div>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu Dropdown */}
         <div id="mobile-nav"
-          className={`md:hidden absolute top-full left-0 right-0 transition-all duration-300 transform origin-top ${
+          className={`md:hidden absolute top-full mt-3 left-4 right-4 rounded-2xl overflow-hidden transition-all duration-300 transform origin-top pointer-events-auto border shadow-xl ${
             isMobileMenuOpen 
-              ? "translate-y-0 opacity-100 pointer-events-auto" 
-              : "-translate-y-4 opacity-0 pointer-events-none"
+              ? "scale-y-100 opacity-100" 
+              : "scale-y-95 opacity-0 pointer-events-none"
           }`}
           style={{
-            background: "hsla(240,100%,99%,0.97)",
+            background: "hsla(0,0%,100%,0.98)",
             backdropFilter: "blur(16px)",
-            borderBottom: isMobileMenuOpen ? "1px solid var(--color-outline-variant)" : "none",
+            borderColor: "var(--color-outline-variant)",
           }}>
-          <nav className="px-4 py-4 flex flex-col gap-1" aria-label="Mobile navigation">
+          <nav className="px-4 py-5 flex flex-col gap-1" aria-label="Mobile navigation">
             {navLinks.map((link) => {
               const active = isNavActive(link.href);
               return (
                 <Link key={link.href} href={link.href}
                   onClick={(e) => handleNavClick(e, link.href)}
-                  className="py-3 px-4 rounded-lg text-body-large text-left transition-colors hover:opacity-80"
+                  className={`py-3 px-4 rounded-xl text-body-large transition-colors ${
+                    active ? "bg-neutral-100 font-bold" : "hover:bg-neutral-50"
+                  }`}
                   style={{
-                    color: active ? "var(--color-primary-500)" : "var(--color-on-surface)",
-                    fontWeight: active ? "700" : "400",
+                    color: active ? "var(--color-primary-700)" : "var(--color-on-surface)",
                   }}>
                   {link.label}
                 </Link>
               );
             })}
+            <div className="h-px w-full bg-neutral-200/60 my-2" />
             <Link href="/signup?plan=freemium&source=header"
               onClick={() => {
                 setIsMobileMenuOpen(false);
@@ -207,13 +215,13 @@ export default function MarketingHeader() {
                   trackEvent({ event: "get_started_clicked", properties: { source: "header" } });
                 }
               }}
-              className="mt-4 flex items-center justify-center px-5 py-3 rounded-lg text-label-large font-bold transition-all"
-              style={{ background: "var(--color-primary)", color: "var(--color-on-primary)" }}>
-              Get Started
+              className="mt-1 flex items-center justify-center gap-2 px-5 py-3.5 rounded-full text-body-large font-bold transition-all"
+              style={{ background: "var(--color-primary-800)", color: "var(--color-primary-50)" }}>
+              Start free <ArrowUpRight size={16} strokeWidth={2.5} />
             </Link>
             <Link href="/login" onClick={() => setIsMobileMenuOpen(false)}
-              className="mt-2 flex items-center justify-center px-5 py-3 rounded-lg text-label-large border transition-all"
-              style={{ borderColor: "var(--color-outline-variant)", color: "var(--color-on-surface)" }}>
+              className="mt-2 flex items-center justify-center px-5 py-3.5 rounded-full text-body-large font-bold transition-all bg-neutral-100"
+              style={{ color: "var(--color-on-surface)" }}>
               Sign In
             </Link>
           </nav>
@@ -222,3 +230,5 @@ export default function MarketingHeader() {
     </>
   );
 }
+
+

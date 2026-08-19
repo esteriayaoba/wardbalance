@@ -158,11 +158,11 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await recordMilestone(createdSchool.id, createdUser.id, "account_created", {
-        plan: createdSchool.selectedPlan,
-      });
-
       return { school: createdSchool, user: createdUser };
+    });
+
+    await recordMilestone(school.id, user.id, "account_created", {
+      plan: school.selectedPlan,
     });
 
     // 7. Send Emails (Non-blocking)
