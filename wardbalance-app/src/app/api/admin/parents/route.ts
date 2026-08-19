@@ -6,7 +6,9 @@ import { parsePagination, paginatedJsonResponse } from "@/lib/server/pagination"
 
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"], {
+      skipEmailVerification: true,
+    });
     if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);
@@ -55,7 +57,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const body = await request.json();

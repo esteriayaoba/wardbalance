@@ -5,7 +5,7 @@ import { StudentImportSchema } from "@/schemas/student.schema";
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const body = await request.json();

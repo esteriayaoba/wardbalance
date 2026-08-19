@@ -7,7 +7,9 @@ export async function GET(
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"], {
+      skipEmailVerification: true,
+    });
     if (!guard.authorized) return guard.response;
 
     const { studentId } = await params;
@@ -38,7 +40,7 @@ export async function PATCH(
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const { studentId } = await params;
@@ -97,7 +99,7 @@ export async function DELETE(
   { params }: { params: Promise<{ studentId: string }> }
 ) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const { studentId } = await params;

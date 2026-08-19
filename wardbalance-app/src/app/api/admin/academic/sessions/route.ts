@@ -6,7 +6,9 @@ import { SessionSchema } from "@/modules/academic/schemas";
 
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"], {
+      skipEmailVerification: true,
+    });
     if (!guard.authorized) return guard.response;
 
     const sessions = await prisma.academicSession.findMany({
@@ -26,7 +28,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const body = await request.json();

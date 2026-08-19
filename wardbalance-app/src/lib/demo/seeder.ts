@@ -8,10 +8,10 @@ export interface DemoSeedResult {
 }
 
 export const DEMO_PASSWORD = "Demo@123456";
+export const DEMO_EMAIL = "demo@wardbalance.local";
 
 export async function seedDemoSchool(): Promise<DemoSeedResult> {
   const DEMO_SCHOOL_NAME = "Demo International School";
-  const DEMO_EMAIL = "demo@wardbalance.local";
   const demoHash = await encryptPassword(DEMO_PASSWORD);
 
   // Check if demo school already exists — reuse it, updating password

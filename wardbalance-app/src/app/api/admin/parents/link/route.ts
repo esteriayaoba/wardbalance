@@ -5,7 +5,7 @@ import { LinkWardSchema } from "@/schemas/parent.schema";
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const body = await request.json();
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const { searchParams } = new URL(request.url);

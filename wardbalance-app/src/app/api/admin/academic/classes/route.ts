@@ -6,7 +6,9 @@ import { CreateClassSchema, DeleteClassSchema } from "@/modules/academic/schemas
 
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"], {
+      skipEmailVerification: true,
+    });
     if (!guard.authorized) return guard.response;
 
     const divisions = await prisma.division.findMany({
@@ -29,7 +31,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const body = await request.json();
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Admin"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const body = await request.json();

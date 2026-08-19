@@ -6,6 +6,7 @@ import { upstashGet, upstashDel, upstashIncr, rateLimit } from "@/lib/redis";
 import { authConfig } from "@/lib/auth/auth.config";
 import crypto from "crypto";
 import { OtpService } from "@/lib/auth/otp.service";
+import { DEMO_EMAIL } from "@/lib/demo/seeder";
 
 const LOCKOUT_THRESHOLD = 5;
 const LOCKOUT_WINDOW_SECONDS = 900; // 15 min
@@ -83,6 +84,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           schoolName: user.school.name,
           schoolStatus: user.school.status,
           emailVerified: user.emailVerified,
+          isDemo: user.email === DEMO_EMAIL,
         };
       },
     }),

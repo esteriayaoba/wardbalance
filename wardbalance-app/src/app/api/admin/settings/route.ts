@@ -5,7 +5,9 @@ import { SettingsSchema } from "@/modules/school/schemas";
 
 export async function GET(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"], {
+      skipEmailVerification: true,
+    });
     if (!guard.authorized) return guard.response;
 
     const school = await prisma.school.findUnique({
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner"]);
+    const guard = await requireRole(["SchoolOwner"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const body = await request.json();

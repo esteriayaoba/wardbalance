@@ -8,7 +8,9 @@ import { withCache } from "@/lib/api/cache";
 
 export async function GET(_request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"]);
+    const guard = await requireRole(["SchoolOwner", "Principal", "Bursar", "Admin"], {
+      skipEmailVerification: true,
+    });
     if (!guard.authorized) return guard.response;
 
     const schoolId = guard.session.schoolId;

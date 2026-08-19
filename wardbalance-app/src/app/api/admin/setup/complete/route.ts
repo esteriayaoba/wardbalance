@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function POST(_request: NextRequest) {
   try {
-    const guard = await requireRole(["SchoolOwner"]);
+    const guard = await requireRole(["SchoolOwner"], { skipEmailVerification: true });
     if (!guard.authorized) return guard.response;
 
     const schoolId = guard.session.schoolId;

@@ -774,16 +774,25 @@ function SignupContent() {
                 <button
                   onClick={async () => {
                     trackDemoModeEntered();
+                    setLoading(true);
                     try {
                       const res = await fetch("/api/demo/start", { method: "POST" });
-                      if (res.ok) {
-                        window.location.href = "/admin/dashboard?demo=true";
-                        return;
-                      }
+                      const body = await res.json();
+                      if (!res.ok) throw new Error(body.error ?? "Failed to start demo");
+
+                      const result = await signIn("admin-login", {
+                        email: body.email,
+                        password: body.password,
+                        redirect: false,
+                      });
+                      if (result?.error) throw new Error("Demo login failed");
+
+                      window.location.href = body.redirectTo ?? "/admin/dashboard?demo=true";
                     } catch {
                       // Fallback to setup if demo fails
+                      setLoading(false);
+                      router.push("/admin/setup?phase=1");
                     }
-                    router.push("/admin/setup?phase=1");
                   }}
                   className="p-5 rounded-2xl border border-neutral-200 bg-white hover:border-primary-500 hover:shadow-md hover:scale-[1.02] transition-all duration-200 text-left group cursor-pointer flex flex-col justify-between min-h-[170px] shadow-sm relative overflow-hidden"
                 >
