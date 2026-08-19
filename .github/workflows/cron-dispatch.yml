@@ -1,0 +1,17 @@
+name: Scheduled Campaign Dispatch
+
+on:
+  schedule:
+    # Runs every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch: # Allows manual triggering from the Actions tab
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Dispatch Endpoint
+        run: |
+          curl -X GET "${{ secrets.PROD_DOMAIN }}/api/cron/dispatch-scheduled" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            --fail --silent --show-error
