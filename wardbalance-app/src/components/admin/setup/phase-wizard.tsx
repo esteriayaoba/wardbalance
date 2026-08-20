@@ -81,59 +81,60 @@ export default function PhaseWizard({ phases, steps, activePhase, onNavigate }: 
                 disabled={isFuture && !isComplete}
                 aria-current={isActive ? "step" : undefined}
                 aria-label={`Phase ${phase.id}: ${phase.title}${isComplete ? " (complete)" : isActive ? " (active)" : ""}`}
-                className={`relative min-h-[88px] p-4 rounded-xl border-2 text-left transition cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
+                className={`relative min-h-[96px] p-4.5 rounded-xl border-2 text-left transition cursor-pointer disabled:cursor-not-allowed flex flex-col justify-between focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${
                   isComplete
                     ? "border-green-200 bg-green-50/30"
                     : isActive
-                    ? "border-primary bg-primary-50/20 shadow-sm"
+                    ? "border-primary bg-primary-50/20 shadow-2xs"
                     : isFuture
                     ? "border-neutral-200 bg-neutral-50 opacity-60"
                     : "border-neutral-200 bg-white hover:border-neutral-300"
                 }`}
               >
-                <div className="flex items-start gap-3">
+                <div className="flex items-center gap-3">
                   <div
-                    className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold ${
                       isComplete
                         ? "bg-green-100 text-green-700"
                         : isActive
-                        ? "bg-primary text-white"
+                        ? "bg-primary text-white shadow-xs"
                         : "bg-neutral-100 text-neutral-500"
                     }`}
                   >
                     {isComplete ? (
-                      <Check className="w-5 h-5" />
+                      <Check className="w-5 h-5 stroke-[2.5]" />
                     ) : (
                       <Icon className="w-5 h-5" />
                     )}
                   </div>
-                  <div className="min-w-0">
-                    <p className={`text-title-small font-bold mb-0.5 ${
-                      isComplete ? "text-green-900" : isActive ? "text-primary" : "text-neutral-600"
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className={`text-title-small font-bold truncate ${
+                      isComplete ? "text-green-950" : isActive ? "text-primary" : "text-neutral-700"
                     }`}>
-                      {isComplete && "✓ "}Phase {phase.id}
+                      {isComplete ? "✓ " : ""}Phase {phase.id}
                     </p>
-                    <p className={`text-body-small font-medium ${
+                    <p className={`text-body-small font-medium truncate ${
                       isComplete ? "text-green-700" : isActive ? "text-neutral-900" : "text-neutral-500"
                     }`}>
                       {phase.title}
                     </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="flex-1 h-1.5 rounded-full bg-neutral-200 overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-500 ${
-                            isComplete ? "bg-green-500" : isActive ? "bg-primary" : "bg-neutral-300"
-                          }`}
-                          style={{ width: `${progressPct}%` }}
-                        />
-                      </div>
-                      <span className={`text-label-small tabular-nums ${
-                        isComplete ? "text-green-700" : "text-neutral-500"
-                      }`}>
-                        {phase.completed}/{phase.total}
-                      </span>
-                    </div>
                   </div>
+                </div>
+
+                <div className="mt-3 flex items-center gap-2.5">
+                  <div className="flex-1 h-2 rounded-full bg-neutral-200/80 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        isComplete ? "bg-green-500" : isActive ? "bg-primary" : "bg-neutral-300"
+                      }`}
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                  <span className={`text-xs font-bold tabular-nums shrink-0 ${
+                    isComplete ? "text-green-700" : "text-neutral-600"
+                  }`}>
+                    {phase.completed}/{phase.total}
+                  </span>
                 </div>
               </button>
             );

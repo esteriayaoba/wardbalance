@@ -6,7 +6,8 @@
 
 :root {
   /* Font Family */
-  --font-primary: var(--font-outfit), "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-primary: var(--font-dm-sans), "DM Sans", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-numeric-family: var(--font-fraunces), "Fraunces", ui-serif, Georgia, serif;
 
   /* Font Weights */
   --font-light: 300;
@@ -155,6 +156,7 @@
 
   /* Font */
   --font-sans: var(--font-primary);
+  --font-numeric: var(--font-numeric-family);
 
   /* Colors — brand palette */
   --color-primary: var(--color-primary-500);
@@ -360,6 +362,7 @@ body {
 
 /* Financial Typography */
 .text-kpi-large {
+  font-family: var(--font-numeric-family);
   font-size: var(--kpi-large-size);
   line-height: var(--kpi-large-line);
   font-weight: var(--font-bold);
@@ -367,6 +370,7 @@ body {
 }
 
 .text-kpi-medium {
+  font-family: var(--font-numeric-family);
   font-size: var(--kpi-medium-size);
   line-height: var(--kpi-medium-line);
   font-weight: var(--font-bold);
@@ -374,11 +378,19 @@ body {
 }
 
 .text-currency {
+  font-family: var(--font-numeric-family);
   font-size: var(--currency-value-size);
   line-height: var(--currency-value-line);
   font-weight: var(--font-bold);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.1px;
+}
+
+/* All tabular-numeric displays use the Fraunces figure font,
+   keeping financial figures optically consistent and lining. */
+.tabular-nums {
+  font-family: var(--font-numeric-family);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* ================================

@@ -1,15 +1,21 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
+import { DM_Sans, Fraunces } from "next/font/google";
 import StructuredData from "@/components/seo/StructuredData";
 import CookieConsentBanner from "@/components/cookie-consent/CookieConsentBanner";
 import { QueryProvider } from "@/components/providers/query-provider";
 import "./globals.css";
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "700"],
   display: "swap",
+});
+
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  display: "swap",
+  axes: ["opsz"],
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://wardbalance.com.ng";
@@ -68,7 +74,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${outfit.variable} h-full`} data-scroll-behavior="smooth">
+    <html lang="en" className={`${dmSans.variable} ${fraunces.variable} h-full`} data-scroll-behavior="smooth">
       <body className="min-h-full flex flex-col antialiased" suppressHydrationWarning>
         <StructuredData />
         <QueryProvider>
