@@ -31,7 +31,7 @@ const nextConfig: NextConfig = {
             "style-src 'self' 'unsafe-inline'",
             "img-src 'self' data: blob: https://*.r2.dev https://res.cloudinary.com",
             "font-src 'self' data:",
-            "connect-src 'self' https://api.flutterwave.com https://api.paystack.co https://vitals.vercel-insights.com",
+            "connect-src 'self' https://api.flutterwave.com https://api.paystack.co https://vitals.vercel-insights.com https://eu.i.posthog.com https://app.posthog.com https://*.upstash.io https://api.resend.com",
             "frame-src 'self' https://checkout.flutterwave.com https://js.paystack.com",
             "manifest-src 'self'",
             "worker-src 'self' blob:",
