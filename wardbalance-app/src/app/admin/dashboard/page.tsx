@@ -197,14 +197,14 @@ export default function DashboardPage() {
         {/* Onboarding Header Banner */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-neutral-200/80 pb-4">
           <div>
-            <h1 className="text-[22px] lg:text-headline-small text-neutral-900 font-bold tracking-tight">Finance Desk Onboarding</h1>
+            <h1 className="text-headline-small text-neutral-900 font-bold tracking-tight">Finance Desk Onboarding</h1>
             <p className="text-body-medium text-neutral-500">
               Guided 3-phase setup for your school workspace. Complete setup to unlock billing and collection workflows.
             </p>
           </div>
           <button
             onClick={() => router.push(nextRoute)}
-            className="shrink-0 px-5 py-2.5 bg-primary text-white hover:bg-primary-dark font-bold text-body-small rounded-xl transition inline-flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+            className="shrink-0 px-5 py-2.5 bg-primary text-white hover:bg-primary-dark font-bold text-body-small rounded-lg transition inline-flex items-center justify-center gap-2 shadow-sm cursor-pointer"
           >
             <span>Continue Setup</span>
             <ArrowRight className="w-4 h-4" />
@@ -212,12 +212,12 @@ export default function DashboardPage() {
         </div>
 
         {/* 2-Column Hero Workspace Card */}
-        <div className="bg-white border border-neutral-200/80 rounded-xl p-6 lg:p-8 shadow-xs space-y-6">
+        <div className="bg-white border border-neutral-200 rounded-xl p-6 lg:p-8 shadow-sm space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
             {/* Left Column: Progress & Phase Tracker (7 Cols) */}
             <div className="lg:col-span-7 space-y-5">
               <div className="flex items-center gap-2.5">
-                <span className="px-2.5 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-bold uppercase tracking-wider">
+                <span className="px-2.5 py-1 rounded bg-primary/10 text-primary text-label-small uppercase tracking-wider">
                   Phase {currentPhaseNum} of 3
                 </span>
                 <span className="text-body-small text-neutral-500 font-medium">
@@ -226,7 +226,7 @@ export default function DashboardPage() {
               </div>
 
               <div>
-                <h2 className="text-headline-small text-neutral-950 font-extrabold tracking-tight">
+                <h2 className="text-title-large text-neutral-950 font-bold tracking-tight">
                   Your Finance Desk Awaits
                 </h2>
                 <p className="text-body-medium text-neutral-500 mt-1 max-w-xl">
@@ -258,7 +258,7 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={phase.label}
-                        className={`p-2 rounded-lg text-[11px] font-bold transition-colors ${
+                        className={`p-2 rounded-lg text-label-small transition-colors ${
                           isDone
                             ? "bg-green-50 text-green-700 border border-green-200/60"
                             : isCurrent
@@ -275,10 +275,10 @@ export default function DashboardPage() {
             </div>
 
             {/* Right Column: Minimum-State Recommended Next Action (5 Cols) */}
-            <div className="lg:col-span-5 bg-gradient-to-br from-neutral-50 to-primary/5 p-6 rounded-xl border border-neutral-200/80 space-y-4">
+            <div className="lg:col-span-5 bg-primary-light p-6 rounded-xl border border-primary/10 space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-neutral-400 uppercase font-semibold tracking-wider">Recommended Next Step</span>
-                <span className="px-2 py-0.5 rounded bg-neutral-200/60 text-neutral-600 text-[10px] font-bold">{estTime}</span>
+                <span className="text-label-small text-neutral-400 uppercase tracking-wider">Recommended Next Step</span>
+                <span className="px-2 py-0.5 rounded bg-neutral-200/60 text-neutral-600 text-label-small">{estTime}</span>
               </div>
 
               <div className="space-y-1.5">
@@ -293,7 +293,7 @@ export default function DashboardPage() {
 
               <button
                 onClick={() => router.push(nextRoute)}
-                className="w-full py-2.5 px-4 bg-primary hover:bg-primary-dark text-white font-bold text-body-small rounded-lg transition inline-flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                className="w-full py-2.5 px-4 bg-primary hover:bg-primary-dark text-white font-bold text-body-small rounded-lg transition inline-flex items-center justify-center gap-2 cursor-pointer shadow-sm"
               >
                 <span>Go to Checklist Step</span>
                 <ArrowRight className="w-4 h-4" />
@@ -305,8 +305,8 @@ export default function DashboardPage() {
         {/* Operational Preview Grid (Dimmed / Preview State) */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-neutral-400 uppercase tracking-wider font-semibold">Dashboard Preview (Locked until setup completes)</span>
-            <span className="text-[11px] text-primary font-bold">Complete Setup to Activate</span>
+            <span className="text-label-small text-neutral-400 uppercase tracking-wider">Dashboard Preview (Locked until setup completes)</span>
+            <span className="text-label-small text-primary">Complete Setup to Activate</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 opacity-60 pointer-events-none select-none">
@@ -336,10 +336,10 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Personalized CRM Welcome Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-neutral-200/80 rounded-xl p-6 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-neutral-200 rounded-xl p-6 shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <h1 className="text-[22px] lg:text-headline-small text-neutral-950 font-extrabold tracking-tight">
+            <h1 className="text-headline-small text-neutral-950 font-bold tracking-tight">
               {getGreeting()}, {data?.userName ?? "Administrator"} 👋
             </h1>
             {data?.schoolName && (
@@ -383,13 +383,13 @@ export default function DashboardPage() {
 
       <div onClick={() => router.push("/admin/reports")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push("/admin/reports"); }} role="button" tabIndex={0} aria-label="Collection rate — click to view reports" className="bg-white border border-neutral-200 rounded-xl p-5 shadow-sm cursor-pointer hover:border-primary/40 hover:shadow-md transition-all">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">Collection Rate</span>
+          <span className="text-label-small text-neutral-500 uppercase tracking-wider">Collection Rate</span>
           <TrendingUp className={`w-5 h-5 ${collectionRate >= 75 ? "text-green-500" : collectionRate >= 50 ? "text-amber-500" : "text-neutral-400"}`} />
         </div>
         <div className="space-y-2">
           <div className="flex items-baseline gap-2">
-            <span className={`text-headline-small font-extrabold tabular-nums ${collectionRate >= 75 ? "text-green-600" : collectionRate >= 50 ? "text-amber-600" : "text-neutral-900"}`}>{collectionRate}%</span>
-            <span className="text-[11px] text-neutral-400">of expected revenue collected</span>
+            <span className={`text-headline-small font-bold tabular-nums ${collectionRate >= 75 ? "text-green-600" : collectionRate >= 50 ? "text-amber-600" : "text-neutral-900"}`}>{collectionRate}%</span>
+            <span className="text-body-small text-neutral-400">of expected revenue collected</span>
           </div>
           <div className="w-full bg-neutral-200 h-2 rounded-full overflow-hidden">
             <div className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 75 ? "bg-green-500" : collectionRate >= 50 ? "bg-amber-500" : "bg-neutral-400"}`} style={{ width: `${collectionRate}%` }} />
@@ -426,7 +426,7 @@ export default function DashboardPage() {
           {lifecycle.milestones.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {lifecycle.milestones.slice(-5).map((m) => (
-                <span key={m.milestone} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-100 text-neutral-600 text-[10px] font-medium">
+                <span key={m.milestone} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-neutral-100 text-neutral-600 text-body-small">
                   <CheckCircle2 className="w-2.5 h-2.5 text-green-500" />
                   {m.milestone.replace(/_/g, " ")}
                 </span>
@@ -473,7 +473,7 @@ export default function DashboardPage() {
                   <div className="w-1.5 h-1.5 rounded-full bg-neutral-300 mt-2 shrink-0" />
                   <div className="flex-1">
                     <p className="leading-snug">{formatActionMessage(log)}</p>
-                    <span className="text-[10px] text-neutral-400 font-medium block mt-0.5">{new Date(log.createdAt).toLocaleDateString("en-NG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                    <span className="text-body-small text-neutral-400 block mt-0.5">{new Date(log.createdAt).toLocaleDateString("en-NG", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                   </div>
                 </div>
               ))
@@ -495,7 +495,7 @@ export default function DashboardPage() {
                 <FileText className="w-5 h-5 text-primary" />
                 <div>
                   <div className="font-bold text-neutral-800">Billing Wizard</div>
-                  <div className="text-[10px] text-neutral-400">Generate term invoices</div>
+                  <div className="text-body-small text-neutral-400">Generate term invoices</div>
                 </div>
               </div>
 
@@ -503,7 +503,7 @@ export default function DashboardPage() {
                 <Coins className="w-5 h-5 text-green-500" />
                 <div>
                   <div className="font-bold text-neutral-800">Record Collection</div>
-                  <div className="text-[10px] text-neutral-400">Log cash, transfer or cheque</div>
+                  <div className="text-body-small text-neutral-400">Log cash, transfer or cheque</div>
                 </div>
               </div>
 
@@ -511,14 +511,14 @@ export default function DashboardPage() {
                 <UserPlus className="w-5 h-5 text-neutral-500" />
                 <div>
                   <div className="font-bold text-neutral-800">Student Registry</div>
-                  <div className="text-[10px] text-neutral-400">Add parents and wards</div>
+                  <div className="text-body-small text-neutral-400">Add parents and wards</div>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="bg-neutral-50 p-4 border border-neutral-200 rounded-xl space-y-2 mt-4">
-            <div className="text-[10px] text-neutral-400 uppercase font-semibold">Active Term Tracker</div>
+            <div className="text-label-small text-neutral-400 uppercase tracking-wider">Active Term Tracker</div>
             {activeTerm ? (
               <p className="text-body-small text-neutral-700 leading-snug font-bold">Dashboard KPIs are scoped to <span className="text-primary">{activeTerm.sessionName} &mdash; {activeTerm.name}</span>. Switch the active term in Academic Settings to view data for a different period.</p>
             ) : (

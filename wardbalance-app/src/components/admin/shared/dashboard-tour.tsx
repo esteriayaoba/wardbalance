@@ -220,7 +220,7 @@ export default function DashboardTour() {
       >
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
-          <span className="text-[10px] text-primary bg-primary-50 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+          <span className="text-label-small text-primary bg-primary-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
             Step {currentStep + 1} of {TOUR_STEPS.length}
           </span>
           <button
@@ -234,7 +234,7 @@ export default function DashboardTour() {
 
         {/* Title & Body */}
         <div className="space-y-1.5">
-          <h4 className="text-title-small text-neutral-900 font-extrabold leading-snug">
+          <h4 className="text-title-small text-neutral-900 font-bold leading-snug">
             {step.title}
           </h4>
           <p className="text-body-medium text-neutral-600 leading-normal">

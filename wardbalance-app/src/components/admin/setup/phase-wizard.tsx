@@ -127,7 +127,7 @@ export default function PhaseWizard({ phases, steps, activePhase, onNavigate }: 
                           style={{ width: `${progressPct}%` }}
                         />
                       </div>
-                      <span className={`text-[10px] font-bold tabular-nums ${
+                      <span className={`text-label-small tabular-nums ${
                         isComplete ? "text-green-700" : "text-neutral-500"
                       }`}>
                         {phase.completed}/{phase.total}
@@ -208,18 +208,18 @@ export default function PhaseWizard({ phases, steps, activePhase, onNavigate }: 
                                 {step.title}
                               </h3>
                               {isCompleted && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-label-small uppercase tracking-wider">
                                   Done
                                 </span>
                               )}
                               {isNeedsAttention && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold uppercase tracking-wider">
-                                  <AlertCircle className="w-3 h-3" />
-                                  Needs Attention
-                                </span>
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-label-small uppercase tracking-wider">
+                                    <AlertCircle className="w-3 h-3" />
+                                    Needs Attention
+                                  </span>
                               )}
                               {isBlocked && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 text-[10px] font-bold uppercase tracking-wider">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-500 text-label-small uppercase tracking-wider">
                                   <Lock className="w-3 h-3" />
                                   Locked
                                 </span>
