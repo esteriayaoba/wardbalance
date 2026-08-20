@@ -13,8 +13,15 @@ import { NextRequest, NextResponse } from "next/server";
  * Secured via CRON_SECRET header to prevent unauthorized triggers.
  */
 export async function GET(request: NextRequest) {
-  const secret = request.headers.get("x-cron-secret");
-  if (secret !== process.env.CRON_SECRET) {
+  const authHeader = request.headers.get("authorization");
+  const cronHeader = request.headers.get("x-cron-secret");
+  const expectedSecret = process.env.CRON_SECRET;
+
+  const isAuthorized =
+    Boolean(expectedSecret) &&
+    (cronHeader === expectedSecret || authHeader === `Bearer ${expectedSecret}`);
+
+  if (!isAuthorized) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
