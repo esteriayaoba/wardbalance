@@ -19,6 +19,7 @@ const resolveSecret = (): string | undefined => {
 };
 
 export const authConfig = {
+  trustHost: true,
   providers: [], // Providers are populated in the main nextauth.ts configuration to avoid Edge runtime database/bcrypt imports
   secret: resolveSecret(),
   callbacks: {

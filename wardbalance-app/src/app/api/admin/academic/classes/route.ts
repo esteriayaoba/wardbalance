@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
       orderBy: { name: "asc" },
     });
 
-    return NextResponse.json({ data: { divisions } });
+    return NextResponse.json({ data: divisions });
   } catch (err) {
     console.error("[academic] Classes GET error:", err);
     return NextResponse.json({ error: "Failed to fetch classes", code: "INTERNAL_ERROR" }, { status: 500 });
