@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock, Rocket, MapPin } from "lucide-react";
+import { Loader2, Coins, CreditCard, TrendingUp, AlertTriangle, ArrowRight, Activity, FileText, CheckCircle2, UserPlus, AlertCircle, RefreshCw, Calendar, Clock, Rocket, MapPin, Building2 } from "lucide-react";
 import { formatNaira } from "@/lib/utils";
 import { DashboardStatCard, DashboardStatCardSkeleton } from "@/components/admin/shared/dashboard-stat-card";
 
@@ -38,6 +38,8 @@ interface LifecycleData {
 }
 
 interface DashboardData {
+  schoolName?: string;
+  userName?: string;
   schoolStatus: "lead" | "approved" | "invited" | "onboarding" | "active" | "paused" | "archived";
   activeTerm: { name: string; sessionName: string } | null;
   stats: DashboardStats;
@@ -324,21 +326,42 @@ export default function DashboardPage() {
   const collectionRate = expectedRev > 0 ? Math.round((collectedRev / expectedRev) * 100) : 0;
   const activeTerm = data?.activeTerm;
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 17) return "Good Afternoon";
+    return "Good Evening";
+  };
+
   return (
-    <div className="space-y-8">
-      <div className="space-y-1">
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-headline-small text-neutral-900 font-bold">Finance Dashboard</h1>
-          {activeTerm && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-body-small font-bold">
-              <Calendar className="w-3.5 h-3.5" />
-              {activeTerm.sessionName} &mdash; {activeTerm.name}
-            </span>
-          )}
+    <div className="space-y-6">
+      {/* Personalized CRM Welcome Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white border border-neutral-200/80 rounded-xl p-6 shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h1 className="text-[22px] lg:text-headline-small text-neutral-950 font-extrabold tracking-tight">
+              {getGreeting()}, {data?.userName ?? "Administrator"} 👋
+            </h1>
+            {data?.schoolName && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-neutral-100 border border-neutral-200/60 text-neutral-800 text-body-small font-bold">
+                <Building2 className="w-3.5 h-3.5 text-primary shrink-0" />
+                <span>{data.schoolName}</span>
+              </span>
+            )}
+          </div>
+          <p className="text-body-medium text-neutral-500">
+            {activeTerm
+              ? `Financial collections and receivable overview for ${activeTerm.sessionName} \u2014 ${activeTerm.name}.`
+              : `Overview of school collections, outstanding balances, and administrative log activity.`}
+          </p>
         </div>
-        <p className="text-body-medium text-neutral-600">
-          {activeTerm ? `Revenue and collection overview for ${activeTerm.sessionName} &mdash; ${activeTerm.name}. KPIs are scoped to this active term.` : "Overview of school collections, outstanding balances, and administrative log activity. Set an active term to scope dashboard data."}
-        </p>
+
+        {activeTerm && (
+          <div className="shrink-0 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-body-small font-bold">
+            <Calendar className="w-4 h-4 text-primary shrink-0" />
+            <span>{activeTerm.sessionName} &mdash; {activeTerm.name}</span>
+          </div>
+        )}
       </div>
 
       <div id="dashboard-kpi-cards" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

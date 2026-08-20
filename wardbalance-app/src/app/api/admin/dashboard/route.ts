@@ -17,7 +17,7 @@ export async function GET(_request: NextRequest) {
 
     const school = await prisma.school.findUnique({
       where: { id: schoolId },
-      select: { status: true },
+      select: { name: true, status: true },
     });
 
     if (!school) {
@@ -78,6 +78,8 @@ export async function GET(_request: NextRequest) {
 
     return withCache(NextResponse.json({
       data: {
+        schoolName: school.name ?? guard.session.schoolName,
+        userName: guard.session.fullName ?? "Administrator",
         schoolStatus: school.status,
         activeTerm: activeTerm
           ? { name: activeTerm.name, sessionName: activeTerm.session.name }
