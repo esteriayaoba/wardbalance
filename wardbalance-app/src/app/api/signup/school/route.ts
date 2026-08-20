@@ -107,6 +107,24 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Ensure pricing plan exists in DB before linking subscription
+      await tx.pricingPlan.upsert({
+        where: { id: planId },
+        update: {},
+        create: {
+          id: planId,
+          name: planConfig.name,
+          tier: data.plan === "freemium" ? 0 : 1,
+          price: planConfig.rawPrice,
+          currency: "NGN",
+          billingPeriod: data.plan === "freemium" ? null : "term",
+          features: planConfig.features,
+          limits: planConfig.limits,
+          isActive: true,
+          sortOrder: data.plan === "freemium" ? 0 : 1,
+        },
+      });
+
       // Create SchoolSubscription record
       await tx.schoolSubscription.create({
         data: {
