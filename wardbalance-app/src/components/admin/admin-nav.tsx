@@ -21,6 +21,7 @@ import {
 interface AdminNavProps {
   userRole: string;
   schoolStatus: string;
+  schoolName?: string;
 }
 
 const NAV_LINKS = [
@@ -111,7 +112,7 @@ const NAV_LINKS = [
   },
 ];
 
-export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
+export default function AdminNav({ userRole, schoolStatus, schoolName }: AdminNavProps) {
   const pathname = usePathname();
   const isOnboarding = schoolStatus === "onboarding";
 
@@ -152,8 +153,8 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
             id={`nav-${link.name.replace(/\s+/g, "")}`}
             className={`flex items-center justify-center lg:justify-start gap-3 px-3 py-2.5 rounded-lg text-body-medium font-medium transition-colors ${
               isActive
-                ? "bg-primary text-white"
-                : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+                ? "bg-primary text-white font-semibold"
+                : "text-neutral-400 hover:text-white hover:bg-neutral-800/60"
             }`}
             aria-current={isActive ? "page" : undefined}
           >
@@ -163,21 +164,21 @@ export default function AdminNav({ userRole, schoolStatus }: AdminNavProps) {
         );
       })}
 
-      {/* Onboarding reminder — shown below nav when setup is incomplete */}
+      {/* Onboarding reminder — sleek slate card below nav when setup is incomplete */}
       {isOnboarding && (
-        <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 lg:block hidden">
-          <div className="flex gap-2">
+        <div className="mt-6 p-3.5 rounded-xl bg-neutral-800/60 border border-neutral-700/60 lg:block hidden">
+          <div className="flex items-start gap-2.5">
             <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div>
+            <div className="space-y-1">
               <p className="text-body-small text-white font-bold leading-tight">School Setup</p>
-              <p className="text-[11px] text-neutral-400 mt-0.5 leading-normal">
+              <p className="text-[11px] text-neutral-400 leading-normal">
                 Complete 3 phases to activate your finance desk.
               </p>
               <Link
                 href="/admin/setup"
-                className="text-[11px] text-amber-400 hover:underline font-bold mt-1.5 block"
+                className="text-[11px] text-primary-300 hover:text-white hover:underline font-bold mt-1.5 inline-flex items-center gap-1 transition"
               >
-                Continue Setup →
+                Continue Setup &rarr;
               </Link>
             </div>
           </div>

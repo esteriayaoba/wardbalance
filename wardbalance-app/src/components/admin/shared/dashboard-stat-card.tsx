@@ -59,23 +59,23 @@ export function DashboardStatCard({
       role={href ? "button" : undefined}
       tabIndex={href ? 0 : undefined}
       aria-label={href ? `${label} — click to view details` : undefined}
-      className={`bg-white border border-neutral-200 rounded-xl p-5 shadow-sm space-y-3 ${
-        href ? "cursor-pointer hover:border-primary/40 hover:shadow-md transition-all" : ""
+      className={`bg-white border border-neutral-200/80 rounded-xl p-5 shadow-xs space-y-3 ${
+        href ? "cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all" : ""
       }`}
     >
       <div className="flex justify-between items-center">
-        <span className="text-label-medium text-neutral-500 uppercase tracking-wider font-semibold">
+        <span className="text-[11px] text-neutral-500 uppercase tracking-wider font-semibold">
           {label}
         </span>
         <Icon className={`w-5 h-5 ${iconColorMap[valueColor]}`} />
       </div>
       <div className="space-y-1">
         <div
-          className={`text-headline-small font-extrabold ${colorMap[valueColor]} tabular-nums`}
+          className={`text-[28px] lg:text-[32px] leading-tight font-extrabold ${colorMap[valueColor]} tabular-nums tracking-tight`}
         >
           {displayValue}
         </div>
-        <p className="text-[11px] text-neutral-400">{subtitle}</p>
+        <p className="text-[11px] text-neutral-400 font-medium">{subtitle}</p>
       </div>
     </div>
   );
